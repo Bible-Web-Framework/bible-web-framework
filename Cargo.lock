@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bible-web-framework"
+name = "bible-web-framework-backend"
 version = "0.1.0"
 dependencies = [
  "regex",

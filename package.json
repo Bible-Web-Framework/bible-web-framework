@@ -1,0 +1,28 @@
+{
+    "name": "@bible-web-framework/root",
+    "version": "0.0.0",
+    "scripts": {
+        "web:dev": "turbo run dev --filter=@bible-web-framework/frontend",
+        "web:build": "turbo run build --filter=@bible-web-framework/frontend",
+        "web:fix": "turbo run fix --filter=@bible-web-framework/frontend",
+        "web:intl:extract": "pnpm run --filter=@bible-web-framework/frontend intl:extract",
+        "build": "turbo run build --continue",
+        "lint": "turbo run lint --continue",
+        "test": "turbo run test --continue",
+        "fix": "turbo run fix --continue",
+        "ci": "turbo run lint test --continue",
+        "intl:extract": "pnpm web:intl:extract && pnpm app:intl:extract"
+    },
+    "devDependencies": {
+        "prettier": "^3.3.2",
+        "turbo": "^2.5.4",
+        "vue": "^3.5.13"
+    },
+    "packageManager": "pnpm@9.15.0",
+    "prettier": {
+        "printWidth": 120,
+        "semi": true,
+        "singleQuote": false,
+        "endOfLine": "auto"
+    }
+}
