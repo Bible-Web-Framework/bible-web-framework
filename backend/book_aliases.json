@@ -1,0 +1,409 @@
+{
+    "Genesis": [
+        "Gen",
+        "Ge",
+        "Gn"
+    ],
+    "Exodus": [
+        "Exo",
+        "Ex",
+        "Exod"
+    ],
+    "Leviticus": [
+        "Lev",
+        "Le",
+        "Lv"
+    ],
+    "Numbers": [
+        "Num",
+        "Nu",
+        "Nm",
+        "Nb"
+    ],
+    "Deuteronomy": [
+        "Deut",
+        "Dt"
+    ],
+    "Joshua": [
+        "Josh",
+        "Jos",
+        "Jsh"
+    ],
+    "Judges": [
+        "Judg",
+        "Jdg",
+        "Jg",
+        "Jdgs"
+    ],
+    "Ruth": [
+        "Rth",
+        "Ru"
+    ],
+    "FirstSamuel": [
+        "1Sam",
+        "1Sa",
+        "1Samuel",
+        "1S",
+        "1Sm",
+        "ISam",
+        "ISamuel",
+        "1stSamuel"
+    ],
+    "SecondSamuel": [
+        "2Sam",
+        "2Sa",
+        "2S",
+        "IISa",
+        "2Sm",
+        "IISam",
+        "IISamuel",
+        "2Samuel",
+        "2ndSamuel"
+    ],
+    "FirstKings": [
+        "1Kgs",
+        "1Ki",
+        "1K",
+        "IKgs",
+        "IKi",
+        "IKings",
+        "1Kings",
+        "1stKgs",
+        "1stKings",
+        "FirstKgs",
+        "1Kin"
+    ],
+    "SecondKings": [
+        "2Kgs",
+        "2Ki",
+        "2K",
+        "IIKgs",
+        "IIKi",
+        "IIKings",
+        "2Kings",
+        "2ndKgs",
+        "2ndKings",
+        "SecondKgs",
+        "2Kin"
+    ],
+    "FirstChronicles": [
+        "1Chron",
+        "1Ch",
+        "ICh",
+        "1Chr",
+        "IChr",
+        "IChron",
+        "IChronicles",
+        "1Chronicles",
+        "1stChronicles"
+    ],
+    "SecondChronicles": [
+        "2Chron",
+        "2Ch",
+        "IICh",
+        "IIChr",
+        "2Chr",
+        "IIChron",
+        "IIChronicles",
+        "2Chronicles",
+        "2ndChronicles"
+    ],
+    "Ezra": [
+        "Ezr"
+    ],
+    "Nehemiah": [
+        "Neh",
+        "Ne"
+    ],
+    "Esther": [
+        "Esth",
+        "Es"
+    ],
+    "Job": [
+        "Jb"
+    ],
+    "Psalm": [
+        "Pslm",
+        "Ps",
+        "Psalms",
+        "Psa",
+        "Psm",
+        "Pss"
+    ],
+    "Proverbs": [
+        "Prov",
+        "Pr",
+        "Prv"
+    ],
+    "Ecclesiastes": [
+        "Eccl",
+        "Eccles",
+        "Ec",
+        "Ecc",
+        "Qoh",
+        "Qoheleth"
+    ],
+    "SongOfSolomon": [
+        "SS",
+        "Song",
+        "So",
+        "CanticleOfCanticles",
+        "Canticles",
+        "SongOfSongs",
+        "SOS"
+    ],
+    "Isaiah": [
+        "Isa",
+        "Is"
+    ],
+    "Jeremiah": [
+        "Jer",
+        "Je",
+        "Jr"
+    ],
+    "Lamentations": [
+        "Lam",
+        "La"
+    ],
+    "Ezekiel": [
+        "Ezek",
+        "Eze",
+        "Ezk",
+        "Ez"
+    ],
+    "Daniel": [
+        "Dan",
+        "Da",
+        "Dn"
+    ],
+    "Hosea": [
+        "Hos",
+        "Ho"
+    ],
+    "Joel": [
+        "Joe",
+        "Jl"
+    ],
+    "Amos": [
+        "Am"
+    ],
+    "Obadiah": [
+        "Obad",
+        "Ob"
+    ],
+    "Jonah": [
+        "Jnh",
+        "Jon"
+    ],
+    "Micah": [
+        "Mic"
+    ],
+    "Nahum": [
+        "Nah",
+        "Na"
+    ],
+    "Habakkuk": [
+        "Hab"
+    ],
+    "Zephaniah": [
+        "Zeph",
+        "Zep",
+        "Zp"
+    ],
+    "Haggai": [
+        "Hag",
+        "Hg"
+    ],
+    "Zechariah": [
+        "Zech",
+        "Zec",
+        "Zc"
+    ],
+    "Malachi": [
+        "Mal",
+        "Ml"
+    ],
+    "Matthew": [
+        "Matt",
+        "Mt",
+        "Mat"
+    ],
+    "Mark": [
+        "Mrk",
+        "Mk",
+        "Mr"
+    ],
+    "Luke": [
+        "Luk",
+        "Lk"
+    ],
+    "John": [
+        "Jn",
+        "Jhn",
+        "Jo"
+    ],
+    "Acts": [
+        "Ac",
+        "Act"
+    ],
+    "Romans": [
+        "Rom",
+        "Ro",
+        "Rm"
+    ],
+    "FirstCorinthians": [
+        "1Cor",
+        "1Co",
+        "ICo",
+        "ICor",
+        "ICorinthians",
+        "1Corinthians",
+        "1stCorinthians"
+    ],
+    "SecondCorinthians": [
+        "2Cor",
+        "2Co",
+        "IICo",
+        "IICor",
+        "IICorinthians",
+        "2Corinthians",
+        "2ndCorinthians"
+    ],
+    "Galatians": [
+        "Gal",
+        "Ga"
+    ],
+    "Ephesians": [
+        "Ephes",
+        "Eph"
+    ],
+    "Philippians": [
+        "Phil",
+        "Php"
+    ],
+    "Colossians": [
+        "Col"
+    ],
+    "FirstThessalonians": [
+        "1Thess",
+        "1Th",
+        "ITh",
+        "IThes",
+        "1Thes",
+        "IThess",
+        "IThessalonians",
+        "1Thessalonians",
+        "1stThessalonians"
+    ],
+    "SecondThessalonians": [
+        "2Thess",
+        "2Th",
+        "IITh",
+        "IIThes",
+        "2Thes",
+        "IIThess",
+        "IIThessalonians",
+        "2Thessalonians",
+        "2ndThessalonians"
+    ],
+    "FirstTimothy": [
+        "1Tim",
+        "1Ti",
+        "ITi",
+        "ITim",
+        "ITimothy",
+        "1Timothy",
+        "1stTimothy"
+    ],
+    "SecondTimothy": [
+        "2Tim",
+        "2Ti",
+        "IITi",
+        "IITim",
+        "IITimothy",
+        "2Timothy",
+        "2ndTimothy"
+    ],
+    "Titus": [
+        "Tit"
+    ],
+    "Philemon": [
+        "Philem",
+        "Phm",
+        "Phlm"
+    ],
+    "Hebrews": [
+        "Heb"
+    ],
+    "James": [
+        "Jas",
+        "Jm"
+    ],
+    "FirstPeter": [
+        "1Pet",
+        "1Pe",
+        "IPe",
+        "IPet",
+        "IPt",
+        "1Pt",
+        "IPeter",
+        "1Peter",
+        "1stPeter"
+    ],
+    "SecondPeter": [
+        "2Pet",
+        "2Pe",
+        "IIPe",
+        "IIPet",
+        "IIPt",
+        "2Pt",
+        "IIPeter",
+        "2Peter",
+        "2ndPeter"
+    ],
+    "FirstJohn": [
+        "1John",
+        "1Jn",
+        "IJn",
+        "IJo",
+        "1Jo",
+        "IJoh",
+        "1Joh",
+        "IJhn",
+        "1Jhn",
+        "IJohn",
+        "1stJohn"
+    ],
+    "SecondJohn": [
+        "2John",
+        "2Jn",
+        "IIJn",
+        "IIJo",
+        "2Jo",
+        "IIJoh",
+        "2Joh",
+        "IIJhn",
+        "2Jhn",
+        "IIJohn",
+        "2ndJohn"
+    ],
+    "ThirdJohn": [
+        "3John",
+        "3Jn",
+        "IIIJn",
+        "IIIJo",
+        "3Jo",
+        "IIIJoh",
+        "3Joh",
+        "IIIJhn",
+        "3Jhn",
+        "IIIJohn",
+        "3rdJohn"
+    ],
+    "Jude": [
+        "Jud"
+    ],
+    "Revelation": [
+        "Rev"
+    ]
+}
