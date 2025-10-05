@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::Instant;
+use rayon::prelude::{ParallelBridge, ParallelIterator};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -49,6 +50,7 @@ async fn real_main() -> Result<(), ServerError> {
 
     let start = Instant::now();
     let usj_files = std::fs::read_dir(var::<PathBuf>("USJ_DIRECTORY")?)?
+        .par_bridge()
         .filter_map(|file| {
             let entry = match file {
                 Ok(f) => f,
