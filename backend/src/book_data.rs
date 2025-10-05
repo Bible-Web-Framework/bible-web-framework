@@ -1,5 +1,6 @@
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
-use std::fmt::Write;
+use std::fmt::{Formatter, Write};
 use unicode_normalization::UnicodeNormalization;
 
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
@@ -8,6 +9,10 @@ impl Book {
     #[allow(unused_variables)]
     pub fn verse_count(&self, chapter: u8) -> Option<u8> {
         include!(concat!(env!("OUT_DIR"), "/verse_counts.rs"))
+    }
+
+    pub fn usfm_id(&self) -> &'static str {
+        include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 
     pub fn parse(book: &str, additional_aliases: Option<&HashMap<&str, Self>>) -> Option<Self> {
@@ -28,6 +33,40 @@ impl Book {
 
 pub const BOOK_ALIASES: phf::Map<&str, Book> =
     include!(concat!(env!("OUT_DIR"), "/book_aliases.rs"));
+
+impl Serialize for Book {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.usfm_id())
+    }
+}
+
+impl<'de> Deserialize<'de> for Book {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::{Error, Unexpected, Visitor};
+        struct Deserializer;
+        impl<'de> Visitor<'de> for Deserializer {
+            type Value = Book;
+
+            fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+                formatter.write_str("a book name, USFM ID, or English alias")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                Book::parse(v, None).ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
+            }
+        }
+        deserializer.deserialize_str(Deserializer)
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -16,27 +16,17 @@ fn main() {
     let verse_counts: HashMap<&str, LinkedHashMap<u8, u8>> =
         serde_json::from_slice(&verse_counts).unwrap();
 
-    // let mut book_names = "#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]\npub enum Book {\n".to_string();
     let mut book_names = r#"
-        #[derive(
-            Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd,
-            serde::Serialize, serde::Deserialize,
-        )]
-        #[serde(rename_all = "snake_case")]
+        #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
         pub enum Book {
     "#
     .to_string();
 
-    let mut book_aliases_result = phf_codegen::Map::new();
     let mut verse_counts_result = "Some(match self {".to_string();
+    let mut usfm_ids_result = "match self {".to_string();
+    let mut book_aliases_result = phf_codegen::Map::new();
     for (book_name, aliases) in book_aliases {
         let _ = writeln!(book_names, "{book_name},");
-
-        let book_str = format!("Book::{book_name}");
-        for alias in aliases {
-            book_aliases_result.entry(alias.to_lowercase(), book_str.clone());
-        }
-        book_aliases_result.entry(book_name.to_lowercase(), book_str);
 
         let _ = writeln!(verse_counts_result, "Book::{book_name} => match chapter {{");
         for (chapter, length) in &verse_counts[book_name] {
@@ -44,9 +34,25 @@ fn main() {
         }
         let _ = writeln!(verse_counts_result, "_ => return None,");
         let _ = writeln!(verse_counts_result, "}},");
+
+        let _ = writeln!(
+            usfm_ids_result,
+            "Book::{book_name} => {:?},",
+            aliases
+                .first()
+                .take_if(|x| x.len() == 3)
+                .map_or_else(|| book_name.to_uppercase(), ToString::to_string)
+        );
+
+        let book_str = format!("Book::{book_name}");
+        for alias in aliases {
+            book_aliases_result.entry(alias.to_lowercase(), book_str.clone());
+        }
+        book_aliases_result.entry(book_name.to_lowercase(), book_str);
     }
     book_names.push('}');
     verse_counts_result.push_str("})");
+    usfm_ids_result.push('}');
 
     fs::write(
         Path::new(&env::var_os("OUT_DIR").unwrap()).join("book.rs"),
@@ -56,6 +62,11 @@ fn main() {
     fs::write(
         Path::new(&env::var_os("OUT_DIR").unwrap()).join("verse_counts.rs"),
         verse_counts_result,
+    )
+    .unwrap();
+    fs::write(
+        Path::new(&env::var_os("OUT_DIR").unwrap()).join("usfm_ids.rs"),
+        usfm_ids_result,
     )
     .unwrap();
     fs::write(

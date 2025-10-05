@@ -1,13 +1,18 @@
+use crate::usfj::load_usj;
 use actix_web::{App, HttpResponse, HttpServer, Responder};
+use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
+use std::time::Instant;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
 mod book_data;
 mod reference;
+mod usfj;
 
 #[derive(Debug, thiserror::Error)]
 enum ServerError {
@@ -41,6 +46,29 @@ async fn real_main() -> Result<(), ServerError> {
                 .from_env()?,
         )
         .init();
+
+    let start = Instant::now();
+    let usj_files = std::fs::read_dir(var::<PathBuf>("USJ_DIRECTORY")?)?
+        .filter_map(|file| {
+            let entry = match file {
+                Ok(f) => f,
+                Err(e) => return Some(Err(e)),
+            };
+            match load_usj(entry.path()) {
+                Ok(usj) => Some(Ok(usj)),
+                Err(err) => {
+                    tracing::error!("Failed to load {}: {err}", entry.path().display());
+                    None
+                }
+            }
+        })
+        .collect::<std::io::Result<HashMap<_, _>>>()?;
+    tracing::info!(
+        "Loaded {} USJ files in {:?}",
+        usj_files.len(),
+        start.elapsed()
+    );
+
     let bind_host: String = var("BIND_HOST")?;
     let bind_port = var("BIND_PORT")?;
     HttpServer::new(|| App::new().service(ping))
