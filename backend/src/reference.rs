@@ -42,7 +42,7 @@ pub enum ParseReferenceError {
 
 pub fn parse_references(
     reference: &str,
-    additional_aliases: Option<&HashMap<&str, Book>>,
+    additional_aliases: Option<&HashMap<String, Book>>,
 ) -> Vec<Result<ChapterReference, ParseReferenceError>> {
     let mut book = None;
     reference
@@ -56,7 +56,7 @@ pub fn parse_references(
 fn parse_reference_part(
     reference: &str,
     book: &mut Option<Book>,
-    additional_aliases: Option<&HashMap<&str, Book>>,
+    additional_aliases: Option<&HashMap<String, Book>>,
 ) -> Result<ChapterReference, ParseReferenceError> {
     static BOOK_DATA_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         /*
@@ -168,15 +168,15 @@ mod tests {
             parse_references($reference, None)
         };
 
-        ($reference:literal, $aliases:expr) => {
-            parse_references($reference, Some(&HashMap::from($aliases)))
+        ($reference:literal, $($name:literal => $book:ident),+) => {
+            parse_references($reference, Some(&HashMap::from([$(($name.to_string(), $book)),+])))
         };
     }
 
     macro_rules! assert_parse {
-        ($reference:literal, $(@$aliases:expr,)? $($result_type:ident$result_value:tt),+ $(,)?) => {
+        ($reference:literal, $($name:literal => $book:ident,)* $($result_type:ident$result_value:tt),+ $(,)?) => {
             assert_eq!(
-                parse_references!($reference, $($aliases)?),
+                parse_references!($reference, $($name => $book),*),
                 vec![$(reference_result!($result_type$result_value)),+],
             )
         };
@@ -205,7 +205,7 @@ mod tests {
         assert_parse!("John 1:6-", Ok(John 1:6-51));
         assert_parse!(
             "ヨハネ 1:1",
-            @[("ヨハネ", John)],
+            "ヨハネ" => John,
             Ok(John 1:1-1)
         );
     }

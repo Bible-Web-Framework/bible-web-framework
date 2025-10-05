@@ -39,7 +39,7 @@ pub enum UsjLoadError {
     Io(#[from] std::io::Error),
     #[error("Json error: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("No book")]
+    #[error("No book ID tag")]
     NoBook,
 }
 

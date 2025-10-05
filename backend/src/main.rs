@@ -1,22 +1,23 @@
-use crate::usfj::load_usj;
-use actix_web::{App, HttpResponse, HttpServer, Responder};
-use std::collections::HashMap;
+use crate::api::route_not_found;
+use crate::config::BibleConfig;
+use actix_web::{App, HttpServer, web};
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::Instant;
-use rayon::prelude::{ParallelBridge, ParallelIterator};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
+mod api;
 mod book_data;
+mod config;
 mod reference;
-mod usfj;
+mod usj;
 
 #[derive(Debug, thiserror::Error)]
-enum ServerError {
+pub enum ServerError {
     #[error("Environment error for variable {0}: {1}")]
     Env(String, #[source] dotenvy::Error),
     #[error("Invalid value '{1}' for environment variable {0}: {2}")]
@@ -49,34 +50,24 @@ async fn real_main() -> Result<(), ServerError> {
         .init();
 
     let start = Instant::now();
-    let usj_files = std::fs::read_dir(var::<PathBuf>("USJ_DIRECTORY")?)?
-        .par_bridge()
-        .filter_map(|file| {
-            let entry = match file {
-                Ok(f) => f,
-                Err(e) => return Some(Err(e)),
-            };
-            match load_usj(entry.path()) {
-                Ok(usj) => Some(Ok(usj)),
-                Err(err) => {
-                    tracing::error!("Failed to load {}: {err}", entry.path().display());
-                    None
-                }
-            }
-        })
-        .collect::<std::io::Result<HashMap<_, _>>>()?;
+    let bible_config = web::Data::new(BibleConfig::load_initial(var::<PathBuf>("USJ_DIRECTORY")?)?);
     tracing::info!(
-        "Loaded {} USJ files in {:?}",
-        usj_files.len(),
-        start.elapsed()
+        "Loaded config and {} USJ files in {:?}",
+        bible_config.usj_files.len(),
+        start.elapsed(),
     );
 
     let bind_host: String = var("BIND_HOST")?;
     let bind_port = var("BIND_PORT")?;
-    HttpServer::new(|| App::new().service(ping))
-        .bind((bind_host, bind_port))?
-        .run()
-        .await?;
+    HttpServer::new(move || {
+        App::new()
+            .app_data(bible_config.clone())
+            .default_service(web::to(route_not_found))
+            .service(api::book)
+    })
+    .bind((bind_host, bind_port))?
+    .run()
+    .await?;
     Ok(())
 }
 
@@ -94,9 +85,4 @@ where
         )
     })?;
     Ok(parsed_value)
-}
-
-#[actix_web::get("/ping")]
-async fn ping() -> impl Responder {
-    HttpResponse::NoContent()
 }
