@@ -1,47 +1,49 @@
 {
     "Genesis": [
-        "Gen",
+        "GEN",
         "Ge",
         "Gn"
     ],
     "Exodus": [
-        "Exo",
+        "EXO",
         "Ex",
         "Exod"
     ],
     "Leviticus": [
-        "Lev",
+        "LEV",
         "Le",
         "Lv"
     ],
     "Numbers": [
-        "Num",
+        "NUM",
         "Nu",
         "Nm",
         "Nb"
     ],
     "Deuteronomy": [
+        "DEU",
         "Deut",
         "Dt"
     ],
     "Joshua": [
+        "JOS",
         "Josh",
-        "Jos",
         "Jsh"
     ],
     "Judges": [
+        "JDG",
         "Judg",
-        "Jdg",
         "Jg",
         "Jdgs"
     ],
     "Ruth": [
+        "RUT",
         "Rth",
         "Ru"
     ],
     "FirstSamuel": [
+        "1SA",
         "1Sam",
-        "1Sa",
         "1Samuel",
         "1S",
         "1Sm",
@@ -50,8 +52,8 @@
         "1stSamuel"
     ],
     "SecondSamuel": [
+        "2SA",
         "2Sam",
-        "2Sa",
         "2S",
         "IISa",
         "2Sm",
@@ -61,8 +63,8 @@
         "2ndSamuel"
     ],
     "FirstKings": [
+        "1KI",
         "1Kgs",
-        "1Ki",
         "1K",
         "IKgs",
         "IKi",
@@ -74,8 +76,8 @@
         "1Kin"
     ],
     "SecondKings": [
+        "2KI",
         "2Kgs",
-        "2Ki",
         "2K",
         "IIKgs",
         "IIKi",
@@ -87,8 +89,8 @@
         "2Kin"
     ],
     "FirstChronicles": [
+        "1CH",
         "1Chron",
-        "1Ch",
         "ICh",
         "1Chr",
         "IChr",
@@ -98,8 +100,8 @@
         "1stChronicles"
     ],
     "SecondChronicles": [
+        "2CH",
         "2Chron",
-        "2Ch",
         "IICh",
         "IIChr",
         "2Chr",
@@ -109,13 +111,14 @@
         "2ndChronicles"
     ],
     "Ezra": [
-        "Ezr"
+        "EZR"
     ],
     "Nehemiah": [
-        "Neh",
+        "NEH",
         "Ne"
     ],
     "Esther": [
+        "EST",
         "Esth",
         "Es"
     ],
@@ -123,27 +126,29 @@
         "Jb"
     ],
     "Psalm": [
+        "PSA",
         "Pslm",
         "Ps",
         "Psalms",
-        "Psa",
         "Psm",
         "Pss"
     ],
     "Proverbs": [
+        "PRO",
         "Prov",
         "Pr",
         "Prv"
     ],
     "Ecclesiastes": [
+        "ECC",
         "Eccl",
         "Eccles",
         "Ec",
-        "Ecc",
         "Qoh",
         "Qoheleth"
     ],
     "SongOfSolomon": [
+        "SNG",
         "SS",
         "Song",
         "So",
@@ -153,107 +158,111 @@
         "SOS"
     ],
     "Isaiah": [
-        "Isa",
+        "ISA",
         "Is"
     ],
     "Jeremiah": [
-        "Jer",
+        "JER",
         "Je",
         "Jr"
     ],
     "Lamentations": [
-        "Lam",
+        "LAM",
         "La"
     ],
     "Ezekiel": [
+        "EZK",
         "Ezek",
         "Eze",
-        "Ezk",
         "Ez"
     ],
     "Daniel": [
-        "Dan",
+        "DAN",
         "Da",
         "Dn"
     ],
     "Hosea": [
-        "Hos",
+        "HOS",
         "Ho"
     ],
     "Joel": [
+        "JOL",
         "Joe",
         "Jl"
     ],
     "Amos": [
+        "AMO",
         "Am"
     ],
     "Obadiah": [
+        "OBA",
         "Obad",
         "Ob"
     ],
     "Jonah": [
-        "Jnh",
-        "Jon"
+        "JON",
+        "Jnh"
     ],
     "Micah": [
-        "Mic"
+        "MIC"
     ],
     "Nahum": [
+        "NAM",
         "Nah",
         "Na"
     ],
     "Habakkuk": [
-        "Hab"
+        "HAB"
     ],
     "Zephaniah": [
+        "ZEP",
         "Zeph",
-        "Zep",
         "Zp"
     ],
     "Haggai": [
-        "Hag",
+        "HAG",
         "Hg"
     ],
     "Zechariah": [
+        "ZEC",
         "Zech",
-        "Zec",
         "Zc"
     ],
     "Malachi": [
-        "Mal",
+        "MAL",
         "Ml"
     ],
     "Matthew": [
+        "MAT",
         "Matt",
-        "Mt",
-        "Mat"
+        "Mt"
     ],
     "Mark": [
-        "Mrk",
+        "MRK",
         "Mk",
         "Mr"
     ],
     "Luke": [
-        "Luk",
+        "LUK",
         "Lk"
     ],
     "John": [
+        "JHN",
         "Jn",
-        "Jhn",
         "Jo"
     ],
     "Acts": [
-        "Ac",
-        "Act"
+        "ACT",
+        "Ac"
     ],
     "Romans": [
-        "Rom",
+        "ROM",
         "Ro",
         "Rm"
     ],
     "FirstCorinthians": [
+        "1CO",
         "1Cor",
-        "1Co",
         "ICo",
         "ICor",
         "ICorinthians",
@@ -261,8 +270,8 @@
         "1stCorinthians"
     ],
     "SecondCorinthians": [
+        "2CO",
         "2Cor",
-        "2Co",
         "IICo",
         "IICor",
         "IICorinthians",
@@ -270,23 +279,23 @@
         "2ndCorinthians"
     ],
     "Galatians": [
-        "Gal",
+        "GAL",
         "Ga"
     ],
     "Ephesians": [
-        "Ephes",
-        "Eph"
+        "EPH",
+        "Ephes"
     ],
     "Philippians": [
-        "Phil",
-        "Php"
+        "PHP",
+        "Phil"
     ],
     "Colossians": [
-        "Col"
+        "COL"
     ],
     "FirstThessalonians": [
+        "1TH",
         "1Thess",
-        "1Th",
         "ITh",
         "IThes",
         "1Thes",
@@ -296,8 +305,8 @@
         "1stThessalonians"
     ],
     "SecondThessalonians": [
+        "2TH",
         "2Thess",
-        "2Th",
         "IITh",
         "IIThes",
         "2Thes",
@@ -307,8 +316,8 @@
         "2ndThessalonians"
     ],
     "FirstTimothy": [
+        "1TI",
         "1Tim",
-        "1Ti",
         "ITi",
         "ITim",
         "ITimothy",
@@ -316,8 +325,8 @@
         "1stTimothy"
     ],
     "SecondTimothy": [
+        "2TI",
         "2Tim",
-        "2Ti",
         "IITi",
         "IITim",
         "IITimothy",
@@ -325,23 +334,23 @@
         "2ndTimothy"
     ],
     "Titus": [
-        "Tit"
+        "TIT"
     ],
     "Philemon": [
+        "PHM",
         "Philem",
-        "Phm",
         "Phlm"
     ],
     "Hebrews": [
-        "Heb"
+        "HEB"
     ],
     "James": [
-        "Jas",
+        "JAS",
         "Jm"
     ],
     "FirstPeter": [
+        "1PE",
         "1Pet",
-        "1Pe",
         "IPe",
         "IPet",
         "IPt",
@@ -351,8 +360,8 @@
         "1stPeter"
     ],
     "SecondPeter": [
+        "2PE",
         "2Pet",
-        "2Pe",
         "IIPe",
         "IIPet",
         "IIPt",
@@ -362,8 +371,8 @@
         "2ndPeter"
     ],
     "FirstJohn": [
+        "1JN",
         "1John",
-        "1Jn",
         "IJn",
         "IJo",
         "1Jo",
@@ -375,8 +384,8 @@
         "1stJohn"
     ],
     "SecondJohn": [
+        "2JN",
         "2John",
-        "2Jn",
         "IIJn",
         "IIJo",
         "2Jo",
@@ -388,8 +397,8 @@
         "2ndJohn"
     ],
     "ThirdJohn": [
+        "3JN",
         "3John",
-        "3Jn",
         "IIIJn",
         "IIIJo",
         "3Jo",
@@ -401,9 +410,9 @@
         "3rdJohn"
     ],
     "Jude": [
-        "Jud"
+        "JUD"
     ],
     "Revelation": [
-        "Rev"
+        "REV"
     ]
 }
