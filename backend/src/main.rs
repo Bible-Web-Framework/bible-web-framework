@@ -1,6 +1,7 @@
+use actix_web::{App, HttpResponse, HttpServer, Responder};
 use std::error::Error;
 use std::ffi::OsStr;
-use std::process;
+use std::process::ExitCode;
 use std::str::FromStr;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -17,33 +18,55 @@ enum ServerError {
     #[error("Invalid logging configuration: {0}")]
     TracingEnv(#[from] tracing_subscriber::filter::FromEnvError),
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error)
+    Io(#[from] std::io::Error),
 }
 
-fn main() {
-    if let Err(e) = real_main() {
-        let _ = tracing_subscriber::fmt().try_init();
-        tracing::error!("Failed to run server: {e}");
-        process::exit(1);
+#[actix_web::main]
+async fn main() -> ExitCode {
+    match real_main().await {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(e) => {
+            let _ = tracing_subscriber::fmt().try_init();
+            tracing::error!("Failed to run server: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
-fn real_main() -> Result<(), ServerError> {
+async fn real_main() -> Result<(), ServerError> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::builder().with_default_directive(LevelFilter::INFO.into()).from_env()?)
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env()?,
+        )
         .init();
     let bind_host: String = var("BIND_HOST")?;
-    let bind_port: String = var("BIND_PORT")?;
+    let bind_port = var("BIND_PORT")?;
+    HttpServer::new(|| App::new().service(ping))
+        .bind((bind_host, bind_port))?
+        .run()
+        .await?;
     Ok(())
 }
 
 fn var<T: FromStr>(var_name: impl AsRef<OsStr>) -> Result<T, ServerError>
 where
-    T::Err: Error + Send + 'static
+    T::Err: Error + Send + 'static,
 {
     let base_value = dotenvy::var(&var_name)
         .map_err(|x| ServerError::Env(var_name.as_ref().display().to_string(), x))?;
-    let parsed_value = base_value.parse()
-        .map_err(|x| ServerError::EnvParse(var_name.as_ref().display().to_string(), base_value, Box::new(x)))?;
+    let parsed_value = base_value.parse().map_err(|x| {
+        ServerError::EnvParse(
+            var_name.as_ref().display().to_string(),
+            base_value,
+            Box::new(x),
+        )
+    })?;
     Ok(parsed_value)
+}
+
+#[actix_web::get("/ping")]
+async fn ping() -> impl Responder {
+    HttpResponse::NoContent()
 }
