@@ -10,7 +10,7 @@ impl Book {
         include!(concat!(env!("OUT_DIR"), "/verse_counts.rs"))
     }
 
-    pub fn parse(book: &str, additional_aliases: Option<HashMap<&str, Self>>) -> Option<Self> {
+    pub fn parse(book: &str, additional_aliases: Option<&HashMap<&str, Self>>) -> Option<Self> {
         let mut real_book = String::with_capacity(book.len());
         for ch in book.nfkc() {
             if ch.is_whitespace() {

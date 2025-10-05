@@ -1,6 +1,7 @@
 use crate::book_data::Book;
 use crate::reference::ParseReferenceError::OutOfBoundsChapter;
 use regex::Regex;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::LazyLock;
 use thiserror::Error;
@@ -39,19 +40,23 @@ pub enum ParseReferenceError {
     OutOfOrderVerses(u8, u8),
 }
 
-pub fn parse_references(reference: &str) -> Vec<Result<ChapterReference, ParseReferenceError>> {
+pub fn parse_references(
+    reference: &str,
+    additional_aliases: Option<&HashMap<&str, Book>>,
+) -> Vec<Result<ChapterReference, ParseReferenceError>> {
     let mut book = None;
     reference
         .replace(" ", "")
         .split([';', ','])
         .filter(|x| !x.is_empty())
-        .map(|x| parse_reference_part(x, &mut book))
+        .map(|x| parse_reference_part(x, &mut book, additional_aliases))
         .collect()
 }
 
 fn parse_reference_part(
     reference: &str,
     book: &mut Option<Book>,
+    additional_aliases: Option<&HashMap<&str, Book>>,
 ) -> Result<ChapterReference, ParseReferenceError> {
     static BOOK_DATA_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         /*
@@ -67,12 +72,12 @@ fn parse_reference_part(
     let remainder = if let Some(book_data) = BOOK_DATA_REGEX.captures(reference) {
         let book_str = book_data.get(1).unwrap().as_str();
         *book = Some(
-            Book::parse(book_str, None)
+            Book::parse(book_str, additional_aliases)
                 .ok_or_else(|| ParseReferenceError::InvalidBook(book_str.to_string()))?,
         );
         book_data.get(2).unwrap().as_str()
     } else if book.is_none() {
-        return Err(Book::parse(reference, None).map_or_else(
+        return Err(Book::parse(reference, additional_aliases).map_or_else(
             || ParseReferenceError::InvalidBook(reference.to_string()),
             |_| ParseReferenceError::MissingChapter,
         ));
@@ -121,7 +126,7 @@ fn parse_reference_part(
         }
     } else {
         let chapter = remainder.parse().map_err(|_| {
-            Book::parse(reference, None).map_or_else(
+            Book::parse(reference, additional_aliases).map_or_else(
                 || ParseReferenceError::InvalidBook(remainder.to_string()),
                 |_| ParseReferenceError::MissingChapter,
             )
@@ -142,6 +147,7 @@ mod tests {
     use super::ParseReferenceError::*;
     use super::{ChapterReference, parse_references};
     use crate::book_data::Book::*;
+    use std::collections::HashMap;
 
     macro_rules! reference_result {
         (Ok($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal)) => {
@@ -157,11 +163,21 @@ mod tests {
         };
     }
 
+    macro_rules! parse_references {
+        ($reference:literal,) => {
+            parse_references($reference, None)
+        };
+
+        ($reference:literal, $aliases:expr) => {
+            parse_references($reference, Some(&HashMap::from($aliases)))
+        };
+    }
+
     macro_rules! assert_parse {
-        ($reference:literal, $($result_type:ident$result_value:tt),+ $(,)?) => {
+        ($reference:literal, $(@$aliases:expr,)? $($result_type:ident$result_value:tt),+ $(,)?) => {
             assert_eq!(
-                parse_references($reference),
-                vec![$(reference_result!($result_type$result_value)),+]
+                parse_references!($reference, $($aliases)?),
+                vec![$(reference_result!($result_type$result_value)),+],
             )
         };
     }
@@ -187,6 +203,11 @@ mod tests {
         assert_parse!("John 1:1;,3", Ok(John 1:1-1), Ok(John 3:1-36));
         assert_parse!("John 1:-3", Ok(John 1:1-3));
         assert_parse!("John 1:6-", Ok(John 1:6-51));
+        assert_parse!(
+            "ヨハネ 1:1",
+            @[("ヨハネ", John)],
+            Ok(John 1:1-1)
+        );
     }
 
     #[test]
