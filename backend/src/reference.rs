@@ -1,43 +1,62 @@
 use crate::book_data::Book;
-use crate::reference::ParseReferenceError::OutOfBoundsChapter;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::LazyLock;
 use thiserror::Error;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChapterReference {
     pub book: Book,
     pub chapter: u8,
-    pub verses: (u8, u8),
+    pub verse_range: (u8, u8),
 }
 
 impl Debug for ChapterReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "{:?} {}:{}-{}",
-            self.book, self.chapter, self.verses.0, self.verses.1
+            self.book, self.chapter, self.verse_range.0, self.verse_range.1
         ))
     }
 }
 
-#[derive(Debug, Error, Eq, PartialEq)]
+impl Display for ChapterReference {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{} {}", self.book, self.chapter))?;
+        if self.verse_range.0 == 1
+            && Some(self.verse_range.1) == self.book.verse_count(self.chapter)
+        {
+            Ok(())
+        } else if self.verse_range.0 == self.verse_range.1 {
+            f.write_fmt(format_args!(":{}", self.verse_range.0))
+        } else {
+            f.write_fmt(format_args!(
+                ":{}-{}",
+                self.verse_range.0, self.verse_range.1
+            ))
+        }
+    }
+}
+
+#[derive(Debug, Error, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum ParseReferenceError {
     #[error("No chapter specified")]
     MissingChapter,
-    #[error("Invalid chapter '{0}'")]
-    InvalidChapter(String),
-    #[error("Invalid verse '{0}'")]
-    InvalidVerse(String),
-    #[error("Invalid book '{0}'")]
-    InvalidBook(String),
-    #[error("Unknown chapter {1} for book {0:?}")]
-    OutOfBoundsChapter(Book, u8),
-    #[error("Unknown verse {2} for chapter {0:?}:{1}")]
-    OutOfBoundsVerse(Book, u8, u8),
-    #[error("Verse {0} is larger than verse {1}")]
-    OutOfOrderVerses(u8, u8),
+    #[error("Invalid chapter '{chapter}'")]
+    InvalidChapter { chapter: String },
+    #[error("Invalid verse '{verse}'")]
+    InvalidVerse { verse: String },
+    #[error("Invalid book '{book}'")]
+    InvalidBook { book: String },
+    #[error("Unknown chapter {chapter} for book {book}")]
+    OutOfBoundsChapter { book: Book, chapter: u8 },
+    #[error("Unknown verse {verse} for chapter {book}:{chapter}")]
+    OutOfBoundsVerse { book: Book, chapter: u8, verse: u8 },
+    #[error("Verse {} is larger than verse {}", verse_range.0, verse_range.1)]
+    OutOfOrderVerses { verse_range: (u8, u8) },
 }
 
 pub fn parse_references(
@@ -71,14 +90,17 @@ fn parse_reference_part(
 
     let remainder = if let Some(book_data) = BOOK_DATA_REGEX.captures(reference) {
         let book_str = book_data.get(1).unwrap().as_str();
-        *book = Some(
-            Book::parse(book_str, additional_aliases)
-                .ok_or_else(|| ParseReferenceError::InvalidBook(book_str.to_string()))?,
-        );
+        *book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
+            ParseReferenceError::InvalidBook {
+                book: book_str.to_string(),
+            }
+        })?);
         book_data.get(2).unwrap().as_str()
     } else if book.is_none() {
         return Err(Book::parse(reference, additional_aliases).map_or_else(
-            || ParseReferenceError::InvalidBook(reference.to_string()),
+            || ParseReferenceError::InvalidBook {
+                book: reference.to_string(),
+            },
             |_| ParseReferenceError::MissingChapter,
         ));
     } else {
@@ -88,10 +110,12 @@ fn parse_reference_part(
     Ok(if let Some((chapter, verses)) = remainder.split_once(':') {
         let chapter = chapter
             .parse()
-            .map_err(|_| ParseReferenceError::InvalidChapter(chapter.to_string()))?;
+            .map_err(|_| ParseReferenceError::InvalidChapter {
+                chapter: chapter.to_string(),
+            })?;
         let verse_count = book
             .verse_count(chapter)
-            .ok_or(OutOfBoundsChapter(book, chapter))?;
+            .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
         let parse_verse = |verse: &str, default_verse| {
             if let Some(default_verse) = default_verse
                 && verse.is_empty()
@@ -100,25 +124,30 @@ fn parse_reference_part(
             }
             let verse = verse
                 .parse()
-                .map_err(|_| ParseReferenceError::InvalidVerse(verse.to_string()))?;
+                .map_err(|_| ParseReferenceError::InvalidVerse {
+                    verse: verse.to_string(),
+                })?;
             if verse < 1 || verse > verse_count {
-                return Err(ParseReferenceError::OutOfBoundsVerse(book, chapter, verse));
+                return Err(ParseReferenceError::OutOfBoundsVerse {
+                    book,
+                    chapter,
+                    verse,
+                });
             }
             Ok(verse)
         };
         ChapterReference {
             book,
             chapter,
-            verses: if let Some((verse_start, verse_end)) = verses.split_once('-') {
-                let start_verse = parse_verse(verse_start, Some(1))?;
-                let end_verse = parse_verse(verse_end, Some(verse_count))?;
-                if start_verse > end_verse {
-                    return Err(ParseReferenceError::OutOfOrderVerses(
-                        start_verse,
-                        end_verse,
-                    ));
+            verse_range: if let Some((verse_start, verse_end)) = verses.split_once('-') {
+                let verse_range = (
+                    parse_verse(verse_start, Some(1))?,
+                    parse_verse(verse_end, Some(verse_count))?,
+                );
+                if verse_range.0 > verse_range.1 {
+                    return Err(ParseReferenceError::OutOfOrderVerses { verse_range });
                 }
-                (start_verse, end_verse)
+                verse_range
             } else {
                 let verse = parse_verse(verses, None)?;
                 (verse, verse)
@@ -127,17 +156,19 @@ fn parse_reference_part(
     } else {
         let chapter = remainder.parse().map_err(|_| {
             Book::parse(reference, additional_aliases).map_or_else(
-                || ParseReferenceError::InvalidBook(remainder.to_string()),
+                || ParseReferenceError::InvalidBook {
+                    book: remainder.to_string(),
+                },
                 |_| ParseReferenceError::MissingChapter,
             )
         })?;
         let verse_count = book
             .verse_count(chapter)
-            .ok_or(OutOfBoundsChapter(book, chapter))?;
+            .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
         ChapterReference {
             book,
             chapter,
-            verses: (1, verse_count),
+            verse_range: (1, verse_count),
         }
     })
 }
@@ -154,7 +185,7 @@ mod tests {
             Ok(ChapterReference {
                 book: $book,
                 chapter: $chapter,
-                verses: ($verse_start, $verse_end),
+                verse_range: ($verse_start, $verse_end),
             })
         };
 
@@ -212,14 +243,32 @@ mod tests {
 
     #[test]
     fn test_parse_failure() {
-        assert_parse!("John 50", Err(OutOfBoundsChapter(John, 50)));
-        assert_parse!("John 1:134", Err(OutOfBoundsVerse(John, 1, 134)));
-        assert_parse!("Beginning", Err(InvalidBook("Beginning".to_string())));
+        assert_parse!(
+            "John 50",
+            Err(OutOfBoundsChapter {
+                book: John,
+                chapter: 50,
+            }),
+        );
+        assert_parse!(
+            "John 1:134",
+            Err(OutOfBoundsVerse {
+                book: John,
+                chapter: 1,
+                verse: 134,
+            }),
+        );
+        assert_parse!(
+            "Beginning",
+            Err(InvalidBook {
+                book: "Beginning".to_string(),
+            }),
+        );
         assert_parse!("John", Err(MissingChapter));
         assert_parse!(
             "John 1:1;Hello",
             Ok(John 1:1-1),
-            Err(InvalidBook("Hello".to_string())),
+            Err(InvalidBook { book: "Hello".to_string() }),
         );
         assert_parse!(
             "John 1:1;Acts",
@@ -229,19 +278,29 @@ mod tests {
         assert_parse!(
             "John1;:3",
             Ok(John 1:1-51),
-            Err(InvalidChapter("".to_string())),
+            Err(InvalidChapter { chapter: "".to_string() }),
         );
-        assert_parse!("John:3", Err(InvalidChapter("".to_string())));
+        assert_parse!(
+            "John:3",
+            Err(InvalidChapter {
+                chapter: "".to_string(),
+            }),
+        );
         assert_parse!(
             "John1:1:;4",
-            Err(InvalidVerse("1:".to_string())),
+            Err(InvalidVerse { verse: "1:".to_string() }),
             Ok(John 4:1-54),
         );
         assert_parse!(
             "John 1:1;3:",
             Ok(John 1:1-1),
-            Err(InvalidVerse("".to_string())),
+            Err(InvalidVerse { verse: "".to_string() }),
         );
-        assert_parse!("John 1:6-3", Err(OutOfOrderVerses(6, 3)));
+        assert_parse!(
+            "John 1:6-3",
+            Err(OutOfOrderVerses {
+                verse_range: (6, 3),
+            }),
+        );
     }
 }

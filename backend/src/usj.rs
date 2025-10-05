@@ -29,6 +29,14 @@ pub enum UsjContent {
         #[serde(flatten)]
         remainder: serde_json::Value,
     },
+    Para {
+        content: Vec<UsjContent>,
+        #[serde(flatten)]
+        remainder: serde_json::Value,
+    },
+
+    #[serde(untagged)]
+    Plain(String),
     #[serde(untagged)]
     Other(serde_json::Value),
 }

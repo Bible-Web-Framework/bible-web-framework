@@ -1,7 +1,9 @@
 use crate::book_data::Book;
 use crate::config::BibleConfig;
+use crate::search::search_bible;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError, get, web};
+use serde::Deserialize;
 use serde_json::json;
 use thiserror::Error;
 
@@ -11,6 +13,9 @@ pub enum ApiError {
     InvalidBook(String),
     #[error("No USJ found for {0:?}")]
     MissingUsj(Book),
+
+    #[error("Missing 'term' query param")]
+    MissingTermParam,
 
     #[error("Route not found: {0}")]
     RouteNotFound(String),
@@ -25,6 +30,9 @@ impl ResponseError for ApiError {
         match self {
             ApiError::InvalidBook(_) => StatusCode::BAD_REQUEST,
             ApiError::MissingUsj(_) => StatusCode::NOT_FOUND,
+
+            ApiError::MissingTermParam => StatusCode::BAD_REQUEST,
+
             ApiError::RouteNotFound(_) => StatusCode::NOT_FOUND,
             ApiError::Other(e) => e.status_code(),
         }
@@ -57,4 +65,21 @@ pub async fn book(
         return Err(ApiError::MissingUsj(book));
     };
     Ok(HttpResponse::Ok().json(usj))
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchQueryParams {
+    term: Option<String>,
+}
+
+#[get("/search")]
+pub async fn search(
+    query: web::Query<SearchQueryParams>,
+    config: web::Data<BibleConfig>,
+) -> ApiResult<HttpResponse> {
+    let params = query.into_inner();
+    let Some(term) = params.term else {
+        return Err(ApiError::MissingTermParam);
+    };
+    Ok(HttpResponse::Ok().json(search_bible(term, &config)))
 }

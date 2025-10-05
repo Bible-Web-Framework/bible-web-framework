@@ -14,6 +14,7 @@ mod api;
 mod book_data;
 mod config;
 mod reference;
+mod search;
 mod usj;
 
 #[derive(Debug, thiserror::Error)]
@@ -63,7 +64,7 @@ async fn real_main() -> Result<(), ServerError> {
         App::new()
             .app_data(bible_config.clone())
             .default_service(web::to(route_not_found))
-            .service(api::book)
+            .service(web::scope("/v1").service(api::book).service(api::search))
     })
     .bind((bind_host, bind_port))?
     .run()

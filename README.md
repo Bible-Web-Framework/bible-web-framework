@@ -11,6 +11,9 @@ Special "languages":
 * `original` indicates Hebrew for OT and/or Greek for NT
 * `septuagint` is similar, but Greek for OT and NT
 
+> [!NOTE]  
+> `languages` is not yet implemented
+
 ## Response to #1 will look like:
 ```json
 {
@@ -22,23 +25,23 @@ Special "languages":
             "book": "Daniel",
             "chapter": 8,
             "verse_range": [16, 16],
-            "content": "Just the verse"
+            "content": ["Just the verse"]
         },
         {
             "reference": "Daniel 9:20",
-            "content": "Just the verse"
+            "content": ["Just the verse"]
         },
         {
             "reference": "Daniel 9:21",
-            "content": "Just the verse"
+            "content": ["Just the verse"]
         },
         {
             "reference": "Luke 1:19",
-            "content": "Just the verse"
+            "content": ["Just the verse"]
         },
         {
             "reference": "Luke 1:26",
-            "content": "Just the verse"
+            "content": ["Just the verse"]
         }
     ]
 }

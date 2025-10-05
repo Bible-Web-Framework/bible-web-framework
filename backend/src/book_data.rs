@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
-use std::fmt::{Formatter, Write};
+use std::fmt::{Display, Formatter, Write};
 use unicode_normalization::UnicodeNormalization;
 
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
@@ -65,6 +65,32 @@ impl<'de> Deserialize<'de> for Book {
             }
         }
         deserializer.deserialize_str(Deserializer)
+    }
+}
+
+impl Display for Book {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Book::SongOfSolomon => f.write_str("Song of Solomon"),
+            Book::FirstSamuel => f.write_str("1 Samuel"),
+            Book::SecondSamuel => f.write_str("2 Samuel"),
+            Book::FirstKings => f.write_str("1 Kings"),
+            Book::SecondKings => f.write_str("2 Kings"),
+            Book::FirstChronicles => f.write_str("1 Chronicles"),
+            Book::SecondChronicles => f.write_str("2 Chronicles"),
+            Book::FirstCorinthians => f.write_str("1 Corinthians"),
+            Book::SecondCorinthians => f.write_str("2 Corinthians"),
+            Book::FirstThessalonians => f.write_str("1 Thessalonians"),
+            Book::SecondThessalonians => f.write_str("2 Thessalonians"),
+            Book::FirstTimothy => f.write_str("1 Timothy"),
+            Book::SecondTimothy => f.write_str("2 Timothy"),
+            Book::FirstPeter => f.write_str("1 Peter"),
+            Book::SecondPeter => f.write_str("2 Peter"),
+            Book::FirstJohn => f.write_str("1 John"),
+            Book::SecondJohn => f.write_str("2 John"),
+            Book::ThirdJohn => f.write_str("3 John"),
+            _ => f.write_fmt(format_args!("{self:?}")),
+        }
     }
 }
 
