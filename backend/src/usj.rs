@@ -79,7 +79,7 @@ impl UsjRoot {
                     .iter()
                     .skip(skip)
                     .position(|x| matches!(x, UsjContent::Verse { number, .. } if *number == verse))
-                    .map(|inner_index| (root_index, inner_index - skip))
+                    .map(|inner_index| (root_index, inner_index + skip))
             })
     }
 
