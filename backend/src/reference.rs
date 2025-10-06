@@ -6,11 +6,13 @@ use std::fmt::{Debug, Display, Formatter};
 use std::sync::LazyLock;
 use thiserror::Error;
 
+pub type VerseRange = (u8, u8);
+
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChapterReference {
     pub book: Book,
     pub chapter: u8,
-    pub verse_range: (u8, u8),
+    pub verse_range: VerseRange,
 }
 
 impl Debug for ChapterReference {
@@ -49,14 +51,30 @@ pub enum ParseReferenceError {
     InvalidChapter { chapter: String },
     #[error("Invalid verse '{verse}'")]
     InvalidVerse { verse: String },
-    #[error("Invalid book '{book}'")]
-    InvalidBook { book: String },
+    #[error("Unknown book '{book}'")]
+    UnknownBook { book: String, valid_otherwise: bool },
     #[error("Unknown chapter {chapter} for book {book}")]
     OutOfBoundsChapter { book: Book, chapter: u8 },
-    #[error("Unknown verse {verse} for chapter {book}:{chapter}")]
+    #[error("Unknown verse {verse} for chapter {book} {chapter}")]
     OutOfBoundsVerse { book: Book, chapter: u8, verse: u8 },
     #[error("Verse {} is larger than verse {}", verse_range.0, verse_range.1)]
-    OutOfOrderVerses { verse_range: (u8, u8) },
+    OutOfOrderVerses { verse_range: VerseRange },
+}
+
+impl ParseReferenceError {
+    pub fn is_syntax(&self) -> bool {
+        use ParseReferenceError::*;
+        matches!(
+            self,
+            MissingChapter
+                | InvalidChapter { .. }
+                | InvalidVerse { .. }
+                | UnknownBook {
+                    valid_otherwise: false,
+                    ..
+                },
+        )
+    }
 }
 
 pub fn parse_references(
@@ -90,16 +108,19 @@ fn parse_reference_part(
 
     let remainder = if let Some(book_data) = BOOK_DATA_REGEX.captures(reference) {
         let book_str = book_data.get(1).unwrap().as_str();
+        let remainder = book_data.get(2).unwrap().as_str();
         *book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
-            ParseReferenceError::InvalidBook {
+            ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
+                valid_otherwise: !remainder.is_empty(),
             }
         })?);
-        book_data.get(2).unwrap().as_str()
+        remainder
     } else if book.is_none() {
         return Err(Book::parse(reference, additional_aliases).map_or_else(
-            || ParseReferenceError::InvalidBook {
+            || ParseReferenceError::UnknownBook {
                 book: reference.to_string(),
+                valid_otherwise: false,
             },
             |_| ParseReferenceError::MissingChapter,
         ));
@@ -156,8 +177,9 @@ fn parse_reference_part(
     } else {
         let chapter = remainder.parse().map_err(|_| {
             Book::parse(reference, additional_aliases).map_or_else(
-                || ParseReferenceError::InvalidBook {
+                || ParseReferenceError::UnknownBook {
                     book: remainder.to_string(),
+                    valid_otherwise: false,
                 },
                 |_| ParseReferenceError::MissingChapter,
             )
@@ -260,15 +282,33 @@ mod tests {
         );
         assert_parse!(
             "Beginning",
-            Err(InvalidBook {
+            Err(UnknownBook {
                 book: "Beginning".to_string(),
+                valid_otherwise: false,
+            }),
+        );
+        assert_parse!(
+            "Beginning 1:1",
+            Err(UnknownBook {
+                book: "Beginning".to_string(),
+                valid_otherwise: true,
+            }),
+        );
+        assert_parse!(
+            "Beginning 1",
+            Err(UnknownBook {
+                book: "Beginning".to_string(),
+                valid_otherwise: true,
             }),
         );
         assert_parse!("John", Err(MissingChapter));
         assert_parse!(
             "John 1:1;Hello",
             Ok(John 1:1-1),
-            Err(InvalidBook { book: "Hello".to_string() }),
+            Err(UnknownBook {
+                book: "Hello".to_string(),
+                valid_otherwise: false,
+            }),
         );
         assert_parse!(
             "John 1:1;Acts",

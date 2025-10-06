@@ -25,7 +25,7 @@ pub enum SearchResponseResult {
         reference: String,
         #[serde(flatten)]
         reference_details: ChapterReference,
-        content: Vec<UsjContent>,
+        content: Option<Vec<UsjContent>>,
     },
     InvalidReference {
         invalid_reference: String,
@@ -35,7 +35,10 @@ pub enum SearchResponseResult {
 
 pub fn search_bible(term: String, config: &BibleConfig) -> SearchResponse {
     let references = parse_references(&term, Some(&config.additional_aliases));
-    if references.iter().all(Result::is_err) {
+    if references
+        .iter()
+        .all(|r| matches!(r, Err(e) if e.is_syntax()))
+    {
         SearchResponse {
             response_type: SearchResponseType::SearchResults,
             search_term: term,
@@ -51,7 +54,9 @@ pub fn search_bible(term: String, config: &BibleConfig) -> SearchResponse {
                     Ok(reference) => SearchResponseResult::ReferenceContent {
                         reference: reference.to_string(),
                         reference_details: reference,
-                        content: vec![], // TODO: Bible content search
+                        content: config.usj_files.get(&reference.book).and_then(|usj| {
+                            usj.find_reference(reference.chapter, reference.verse_range)
+                        }),
                     },
                     Err(error) => SearchResponseResult::InvalidReference {
                         invalid_reference: error.to_string(),
