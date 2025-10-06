@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 use unicode_normalization::UnicodeNormalization;
 
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
@@ -22,7 +22,7 @@ impl Book {
             if ch.is_whitespace() {
                 continue;
             }
-            let _ = write!(real_book, "{}", ch.to_lowercase());
+            real_book.extend(ch.to_lowercase());
         }
         let real_book = real_book.as_str();
         BOOK_ALIASES
