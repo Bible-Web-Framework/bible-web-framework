@@ -15,6 +15,7 @@ impl Book {
         include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 
+    /// Requires that `additional_aliases` be a map from lowercase NFKC-normalized strings with no spaces
     pub fn parse(book: &str, additional_aliases: Option<&HashMap<String, Self>>) -> Option<Self> {
         let mut real_book = String::with_capacity(book.len());
         for ch in book.nfkc() {
