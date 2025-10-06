@@ -182,7 +182,7 @@ pub enum UsjLoadError {
 }
 
 pub fn load_usj(path: impl AsRef<Path>) -> Result<(Book, UsjRoot), UsjLoadError> {
-    let reader = std::fs::File::open(path)?;
+    let reader = std::io::BufReader::new(std::fs::File::open(path)?);
     let usj: UsjRoot = serde_json::from_reader(reader)?;
     Ok((usj.book().ok_or(UsjLoadError::NoBook)?, usj))
 }
