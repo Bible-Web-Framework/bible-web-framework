@@ -16,18 +16,17 @@ impl BibleConfig {
         Ok(BibleConfig {
             usj_files: std::fs::read_dir(usj_dir)?
                 .par_bridge()
-                .filter_map(|file| {
-                    let entry = match file {
-                        Ok(f) => f,
-                        Err(e) => return Some(Err(e)),
+                .filter_map(|entry| {
+                    let entry = match entry {
+                        Ok(entry) => entry,
+                        Err(err) => return Some(Err(err)),
                     };
-                    match load_usj(entry.path()) {
-                        Ok(usj) => Some(Ok(usj)),
-                        Err(err) => {
-                            tracing::error!("Failed to load {}: {err}", entry.path().display());
-                            None
-                        }
-                    }
+                    load_usj(entry.path())
+                        .inspect_err(|err| {
+                            tracing::error!("Failed to load {}: {err}", entry.path().display())
+                        })
+                        .ok()
+                        .map(Ok)
                 })
                 .collect::<std::io::Result<HashMap<_, _>>>()?,
             additional_aliases: HashMap::new(), // TODO: Parse from config
