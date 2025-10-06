@@ -17,7 +17,7 @@ for parameter in sys.argv[1:]:
     filenames.extend(globber)
 
 for input_filename in filenames:
-    output_filename = input_filename.rsplit('.', 1)[0] + '.usfj'
+    output_filename = input_filename.rsplit('.', 1)[0] + '.usj'
 
     print(f"Converting '{input_filename}' to '{output_filename}'...")
     sys.stdin.reconfigure(encoding='utf-8')
