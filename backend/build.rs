@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
 use std::{env, fs};
+use unicase::UniCase;
 
 fn main() {
     println!("cargo::rerun-if-changed=book_aliases.json");
@@ -41,14 +42,14 @@ fn main() {
             aliases
                 .first()
                 .take_if(|x| x.len() == 3)
-                .map_or_else(|| book_name.to_uppercase(), ToString::to_string)
+                .map_or_else(|| book_name.to_ascii_uppercase(), ToString::to_string)
         );
 
         let book_str = format!("Book::{book_name}");
         for alias in aliases {
-            book_aliases_result.entry(alias.to_lowercase(), book_str.clone());
+            book_aliases_result.entry(UniCase::new(alias), book_str.clone());
         }
-        book_aliases_result.entry(book_name.to_lowercase(), book_str);
+        book_aliases_result.entry(UniCase::new(book_name), book_str);
     }
     book_names.push('}');
     verse_counts_result.push_str("})");

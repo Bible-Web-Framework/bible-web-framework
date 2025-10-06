@@ -2,13 +2,15 @@ use crate::ServerError;
 use crate::book_data::Book;
 use crate::usj::{UsjRoot, load_usj};
 use rayon::iter::{ParallelBridge, ParallelIterator};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
+use unicase::UniCase;
 
 #[derive(Debug)]
 pub struct BibleConfig {
     pub usj_files: HashMap<Book, UsjRoot>,
-    pub additional_aliases: HashMap<String, Book>,
+    pub additional_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
 }
 
 impl BibleConfig {

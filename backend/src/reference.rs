@@ -1,10 +1,12 @@
 use crate::book_data::Book;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::LazyLock;
 use thiserror::Error;
+use unicase::UniCase;
 
 pub type VerseRange = (u8, u8);
 
@@ -79,7 +81,7 @@ impl ParseReferenceError {
 
 pub fn parse_references(
     reference: &str,
-    additional_aliases: Option<&HashMap<String, Book>>,
+    additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
 ) -> Vec<Result<ChapterReference, ParseReferenceError>> {
     let mut book = None;
     reference
@@ -93,7 +95,7 @@ pub fn parse_references(
 fn parse_reference_part(
     reference: &str,
     book: &mut Option<Book>,
-    additional_aliases: Option<&HashMap<String, Book>>,
+    additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
 ) -> Result<ChapterReference, ParseReferenceError> {
     static BOOK_DATA_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         /*
@@ -200,7 +202,9 @@ mod tests {
     use super::ParseReferenceError::*;
     use super::{ChapterReference, parse_references};
     use crate::book_data::Book::*;
+    use std::borrow::Cow;
     use std::collections::HashMap;
+    use unicase::UniCase;
 
     macro_rules! reference_result {
         (Ok($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal)) => {
@@ -222,7 +226,7 @@ mod tests {
         };
 
         ($reference:literal, $($name:literal => $book:ident),+) => {
-            parse_references($reference, Some(&HashMap::from([$(($name.to_string(), $book)),+])))
+            parse_references($reference, Some(&HashMap::from([$((UniCase::new(Cow::Borrowed($name)), $book)),+])))
         };
     }
 

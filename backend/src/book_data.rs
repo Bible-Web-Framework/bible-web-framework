@@ -1,7 +1,10 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use unicode_normalization::UnicodeNormalization;
+use std::hash::Hash;
+use unicase::UniCase;
+use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
@@ -15,24 +18,37 @@ impl Book {
         include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 
-    /// Requires that `additional_aliases` be a map from lowercase NFKC-normalized strings with no spaces
-    pub fn parse(book: &str, additional_aliases: Option<&HashMap<String, Self>>) -> Option<Self> {
-        let mut real_book = String::with_capacity(book.len());
-        for ch in book.nfkc() {
-            if ch.is_whitespace() {
-                continue;
-            }
-            real_book.extend(ch.to_lowercase());
-        }
-        let real_book = real_book.as_str();
+    /// Requires that `additional_aliases` be a map from NFKC-normalized case-folded strings with no spaces
+    pub fn parse(
+        book: &str,
+        additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Self>>,
+    ) -> Option<Self> {
+        let mut real_book = String::new();
+        let real_book = if book.chars().any(|x| x.is_whitespace())
+            || is_nfkc_quick(book.chars()) != IsNormalized::Yes
+        {
+            real_book.reserve_exact(book.len());
+            real_book.extend(book.nfkc().filter(|x| !x.is_whitespace()));
+            UniCase::new(real_book.as_str())
+        } else {
+            UniCase::new(book)
+        };
         BOOK_ALIASES
-            .get(real_book)
+            .get(&real_book)
             .copied()
-            .or_else(|| additional_aliases.and_then(|x| x.get(real_book).copied()))
+            .or_else(|| additional_aliases.and_then(|x| x.get(&to_unicase_cow(real_book)).copied()))
     }
 }
 
-pub const BOOK_ALIASES: phf::Map<&str, Book> =
+fn to_unicase_cow(unicase: UniCase<&str>) -> UniCase<Cow<'_, str>> {
+    if unicase.is_ascii() {
+        UniCase::ascii(Cow::Borrowed(unicase.into_inner()))
+    } else {
+        UniCase::unicode(Cow::Borrowed(unicase.into_inner()))
+    }
+}
+
+pub const BOOK_ALIASES: phf::Map<UniCase<&'static str>, Book> =
     include!(concat!(env!("OUT_DIR"), "/book_aliases.rs"));
 
 impl Serialize for Book {
