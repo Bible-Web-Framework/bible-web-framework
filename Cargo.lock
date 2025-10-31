@@ -266,6 +266,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "dotenvy",
+ "ere",
  "hashlink",
  "phf",
  "phf_codegen",
@@ -558,6 +559,40 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "ere"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fecc20a1ead19c6785449bb035fe3fd4cf117c4ad17416c489f5b795554a6311"
+dependencies = [
+ "ere-core",
+ "ere-macros",
+]
+
+[[package]]
+name = "ere-core"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ddf8824d9c9e0b577892b6bc53afd57c716236c027853b1866728220374669d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "thiserror",
+ "utf8-ranges",
+]
+
+[[package]]
+name = "ere-macros"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "725f4422b060f9b4672f5f5b1bfa6edcef4c40ac061fb5374383ca8ea32e9b15"
+dependencies = [
+ "ere-core",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "fastrand"
@@ -1807,6 +1842,12 @@ dependencies = [
  "percent-encoding",
  "serde",
 ]
+
+[[package]]
+name = "utf8-ranges"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcfc827f90e53a02eaef5e535ee14266c1d569214c6aa70133a624d8a3164ba"
 
 [[package]]
 name = "utf8_iter"

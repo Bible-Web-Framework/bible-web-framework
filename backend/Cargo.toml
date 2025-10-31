@@ -23,6 +23,7 @@ phf = { version = "0.13.1", features = ["unicase"] }
 unicode-normalization = "0.1.24"
 rayon = "1.11.0"
 unicase = "2.8.1"
+ere = "0.2.3"
 
 [build-dependencies]
 phf_codegen = "0.13.1"

@@ -1,5 +1,6 @@
 use crate::book_data::Book;
 use crate::reference::VerseRange;
+use ere::compile_regex;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use std::path::Path;
@@ -28,23 +29,43 @@ impl UsjRoot {
     pub fn find_reference(&self, chapter: u8, verse_range: VerseRange) -> Option<Vec<UsjContent>> {
         let chapter_start = self.find_chapter_start(chapter)?;
 
-        let start = if verse_range.0 == 1 {
-            chapter_start
+        let (start, base_chapter_label) = if verse_range.0 == 1 {
+            (chapter_start, self.find_chapter_label())
         } else {
             let after_chapter_start = self.next_para_index(chapter_start)?;
-            let this_verse = self.find_verse_para(verse_range.0, after_chapter_start)?;
-            if this_verse.1 == 0 {
-                let prev_verse = self.find_verse_para(verse_range.0 - 1, after_chapter_start)?;
-                (prev_verse.0 + 1, 0)
-            } else {
-                this_verse
-            }
+            (
+                self.find_verse_start_para(verse_range.0, after_chapter_start)?,
+                None,
+            )
         };
         let end = self
-            .find_verse_para(verse_range.1 + 1, self.next_para_index(start)?)
+            .find_verse_start_para(verse_range.1 + 1, self.next_para_index(start)?)
             .or_else(|| self.find_chapter_start(chapter + 1));
 
-        Some(self.slice_para(start, end))
+        let mut result = self.slice_para(start, end);
+        if let Some(label) = base_chapter_label {
+            result.insert(0, label);
+        }
+        Some(result)
+    }
+
+    fn find_chapter_label(&self) -> Option<UsjContent> {
+        self.content
+            .iter()
+            .take_while(|x| !matches!(x, UsjContent::Chapter { .. }))
+            .find(|x| {
+                if let UsjContent::Para {
+                    marker, content, ..
+                } = x
+                    && marker == "cl"
+                    && let &[UsjContent::Plain(_)] = &content.as_slice()
+                {
+                    true
+                } else {
+                    false
+                }
+            })
+            .cloned()
     }
 
     fn find_chapter_start(&self, chapter: u8) -> Option<ParaIndex> {
@@ -56,7 +77,10 @@ impl UsjRoot {
     }
 
     fn next_para_index(&self, index: ParaIndex) -> Option<ParaIndex> {
-        if let Some(para_content) = self.content.get(index.0).and_then(UsjContent::as_p_para)
+        if let Some(para_content) = self
+            .content
+            .get(index.0)
+            .and_then(UsjContent::as_para_content)
             && index.1 + 1 < para_content.len()
         {
             Some((index.0, index.1 + 1))
@@ -65,22 +89,52 @@ impl UsjRoot {
         }
     }
 
-    fn find_verse_para(&self, verse: u8, start: ParaIndex) -> Option<ParaIndex> {
+    fn prev_para_index(&self, index: ParaIndex) -> Option<ParaIndex> {
+        if index.1 > 0 {
+            Some((index.0, index.1 - 1))
+        } else if index.0 > 0 {
+            let prev_index = index.0 - 1;
+            if let Some(para_content) = self
+                .content
+                .get(prev_index)
+                .and_then(UsjContent::as_para_content)
+            {
+                Some((prev_index, para_content.len() - 1))
+            } else {
+                Some((prev_index, 0))
+            }
+        } else {
+            None
+        }
+    }
+
+    fn find_verse_start_para(&self, verse: u8, start: ParaIndex) -> Option<ParaIndex> {
         let (start_root, mut start_inner) = start;
-        self.content
+        let mut verse_start = self
+            .content
             .iter()
             .enumerate()
             .skip(start_root)
             .take_while(|(_, element)| !matches!(element, UsjContent::Chapter { .. }))
             .find_map(|(root_index, element)| {
-                let content = element.as_p_para()?;
+                let content = element.as_para_content()?;
                 let skip = std::mem::take(&mut start_inner);
                 content
                     .iter()
                     .skip(skip)
                     .position(|x| matches!(x, UsjContent::Verse { number, .. } if *number == verse))
                     .map(|inner_index| (root_index, inner_index + skip))
-            })
+            })?;
+        loop {
+            let Some(prev_index) = self.prev_para_index(verse_start) else {
+                break;
+            };
+            if prev_index.1 > 0 || !self.content[prev_index.0].is_title_para() {
+                break;
+            }
+            verse_start = prev_index;
+        }
+        Some(verse_start)
     }
 
     fn slice_para(&self, start: ParaIndex, end: Option<ParaIndex>) -> Vec<UsjContent> {
@@ -113,7 +167,7 @@ impl UsjRoot {
                 marker,
                 content,
                 remainder,
-            } if marker == "p" => UsjContent::Para {
+            } => UsjContent::Para {
                 content: Vec::from(&content[sub_index]),
                 marker: marker.to_string(),
                 remainder: remainder.clone(),
@@ -158,16 +212,18 @@ pub enum UsjContent {
 }
 
 impl UsjContent {
-    fn as_p_para(&self) -> Option<&Vec<UsjContent>> {
-        if let UsjContent::Para {
-            content, marker, ..
-        } = self
-            && marker == "p"
-        {
+    fn as_para_content(&self) -> Option<&Vec<UsjContent>> {
+        if let UsjContent::Para { content, .. } = self {
             Some(content)
         } else {
             None
         }
+    }
+
+    fn is_title_para(&self) -> bool {
+        const REGEX: ere::Regex =
+            compile_regex!("mt[1-4]?|mte[1-2]?|cl|cd|ms[1-3]?|mr|s[1-4]?|sr|r|d|sp|sd[1-4]?");
+        matches!(self, UsjContent::Para { marker, .. } if REGEX.test(marker))
     }
 }
 
