@@ -1,10 +1,10 @@
+use crate::str_utils::with_normalized_str;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use unicase::UniCase;
-use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
@@ -23,20 +23,13 @@ impl Book {
         book: &str,
         additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Self>>,
     ) -> Option<Self> {
-        let mut real_book = String::new();
-        let real_book = if book.chars().any(|x| x.is_whitespace())
-            || is_nfkc_quick(book.chars()) != IsNormalized::Yes
-        {
-            real_book.reserve_exact(book.len());
-            real_book.extend(book.nfkc().filter(|x| !x.is_whitespace()));
-            UniCase::new(real_book.as_str())
-        } else {
-            UniCase::new(book)
-        };
-        BOOK_ALIASES
-            .get(&real_book)
-            .copied()
-            .or_else(|| additional_aliases.and_then(|x| x.get(&to_unicase_cow(real_book)).copied()))
+        with_normalized_str(book, |book| {
+            let book = UniCase::new(book);
+            BOOK_ALIASES
+                .get(&book)
+                .copied()
+                .or_else(|| additional_aliases.and_then(|x| x.get(&to_unicase_cow(book)).copied()))
+        })
     }
 }
 

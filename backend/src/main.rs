@@ -15,6 +15,7 @@ mod book_data;
 mod config;
 mod reference;
 mod search;
+mod str_utils;
 mod usj;
 
 #[derive(Debug, thiserror::Error)]

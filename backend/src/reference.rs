@@ -1,4 +1,5 @@
 use crate::book_data::Book;
+use crate::str_utils::with_normalized_str;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -83,13 +84,14 @@ pub fn parse_references(
     reference: &str,
     additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
 ) -> Vec<Result<ChapterReference, ParseReferenceError>> {
-    let mut book = None;
-    reference
-        .replace(" ", "")
-        .split([';', ','])
-        .filter(|x| !x.is_empty())
-        .map(|x| parse_reference_part(x, &mut book, additional_aliases))
-        .collect()
+    with_normalized_str(reference, |reference| {
+        let mut book = None;
+        reference
+            .split([';', ','])
+            .filter(|x| !x.is_empty())
+            .map(|x| parse_reference_part(x, &mut book, additional_aliases))
+            .collect()
+    })
 }
 
 fn parse_reference_part(
