@@ -222,7 +222,7 @@ impl UsjContent {
 
     fn is_title_para(&self) -> bool {
         const REGEX: ere::Regex =
-            compile_regex!("mt[1-4]?|mte[1-2]?|cl|cd|ms[1-3]?|mr|s[1-4]?|sr|r|d|sp|sd[1-4]?");
+            compile_regex!("mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?");
         matches!(self, UsjContent::Para { marker, .. } if REGEX.test(marker))
     }
 }
