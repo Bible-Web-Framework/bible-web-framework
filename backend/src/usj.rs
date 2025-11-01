@@ -3,8 +3,25 @@ use crate::reference::VerseRange;
 use ere::compile_regex;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
+use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::slice::SliceIndex;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UsjBookInfo {
+    pub book: Book,
+    pub description: Option<String>,
+}
+
+impl Display for UsjBookInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(description) = &self.description {
+            f.write_fmt(format_args!("{} ({})", self.book, description))
+        } else {
+            self.book.fmt(f)
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsjRoot {
@@ -16,10 +33,13 @@ pub struct UsjRoot {
 type ParaIndex = (usize, usize);
 
 impl UsjRoot {
-    pub fn book(&self) -> Option<Book> {
+    pub fn book_info(&self) -> Option<UsjBookInfo> {
         self.content.iter().find_map(|content| {
-            if let UsjContent::Book { code, .. } = content {
-                Some(*code)
+            if let UsjContent::Book { code, content, .. } = content {
+                Some(UsjBookInfo {
+                    book: *code,
+                    description: content.first().cloned(),
+                })
             } else {
                 None
             }
@@ -182,6 +202,7 @@ impl UsjRoot {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UsjContent {
     Book {
+        content: Vec<String>,
         code: Book,
         #[serde(flatten)]
         remainder: serde_json::Value,
@@ -233,12 +254,9 @@ pub enum UsjLoadError {
     Io(#[from] std::io::Error),
     #[error("Json error: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("No book ID tag")]
-    NoBook,
 }
 
-pub fn load_usj(path: impl AsRef<Path>) -> Result<(Book, UsjRoot), UsjLoadError> {
+pub fn load_usj(path: impl AsRef<Path>) -> Result<UsjRoot, UsjLoadError> {
     let reader = std::io::BufReader::new(std::fs::File::open(path)?);
-    let usj: UsjRoot = serde_json::from_reader(reader)?;
-    Ok((usj.book().ok_or(UsjLoadError::NoBook)?, usj))
+    Ok(serde_json::from_reader(reader)?)
 }

@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::config::BibleConfig;
+use crate::config::BibleConfigLock;
 use crate::search::search_bible;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError, get, web};
@@ -55,13 +55,14 @@ pub async fn route_not_found(req: HttpRequest) -> ApiResult<()> {
 #[get("/book/{book}")]
 pub async fn book(
     book: web::Path<String>,
-    config: web::Data<BibleConfig>,
+    config: web::Data<BibleConfigLock>,
 ) -> ApiResult<HttpResponse> {
     let book = book.into_inner();
+    let config = config.read().unwrap();
     let Some(book) = Book::parse(&book, Some(&config.additional_aliases)) else {
         return Err(ApiError::InvalidBook(book));
     };
-    let Some(usj) = config.usj_files.get(&book) else {
+    let Some(usj) = config.usj.files.get(&book) else {
         return Err(ApiError::MissingUsj(book));
     };
     Ok(HttpResponse::Ok().json(usj))
@@ -75,11 +76,11 @@ struct SearchQueryParams {
 #[get("/search")]
 pub async fn search(
     query: web::Query<SearchQueryParams>,
-    config: web::Data<BibleConfig>,
+    config: web::Data<BibleConfigLock>,
 ) -> ApiResult<HttpResponse> {
     let params = query.into_inner();
     let Some(term) = params.term else {
         return Err(ApiError::MissingTermParam);
     };
-    Ok(HttpResponse::Ok().json(search_bible(term, &config)))
+    Ok(HttpResponse::Ok().json(search_bible(term, &config.read().unwrap())))
 }

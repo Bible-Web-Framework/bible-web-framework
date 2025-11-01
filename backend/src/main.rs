@@ -1,12 +1,15 @@
 use crate::api::route_not_found;
 use crate::config::BibleConfig;
 use actix_web::{App, HttpServer, web};
+use notify_debouncer_full::DebounceEventResult;
+use notify_debouncer_full::notify::RecursiveMode;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::time::Instant;
+use std::sync::RwLock;
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -28,6 +31,8 @@ pub enum ServerError {
     TracingEnv(#[from] tracing_subscriber::filter::FromEnvError),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("File watcher error: {0}")]
+    Notify(#[from] notify_debouncer_full::notify::Error),
 }
 
 #[actix_web::main]
@@ -50,20 +55,51 @@ async fn real_main() -> Result<(), ServerError> {
                 .from_env()?,
         )
         .init();
+    tracing::debug!("Debug logging is enabled");
 
-    let start = Instant::now();
-    let bible_config = web::Data::new(BibleConfig::load_initial(var::<PathBuf>("USJ_DIRECTORY")?)?);
-    tracing::info!(
-        "Loaded config and {} USJ files in {:?}",
-        bible_config.usj_files.len(),
-        start.elapsed(),
-    );
+    let usj_dir = var::<PathBuf>("USJ_DIRECTORY")?;
+    let bible_config = BibleConfig::load_initial(usj_dir.clone())?;
+    let bible_config = web::Data::new(RwLock::new(bible_config));
+
+    let usj_watcher = {
+        let config = bible_config.clone();
+        let mut usj_watcher = notify_debouncer_full::new_debouncer(
+            Duration::from_secs(2),
+            None,
+            move |event: DebounceEventResult| {
+                tracing::debug!("Received file watch event {event:?}");
+                match event {
+                    Ok(evs) => {
+                        let mut config = config.write().unwrap();
+                        for ev in evs {
+                            if let Err(err) = config.usj.handle_file_change(ev.event) {
+                                tracing::error!(
+                                    "Failed to update loaded USJs from file watch event: {err}"
+                                );
+                            }
+                        }
+                    }
+                    Err(errs) => {
+                        for err in errs {
+                            tracing::error!("Error in USJ file watcher: {err}");
+                        }
+                        if let Err(err) = config.write().unwrap().usj.reload_all_from_dir() {
+                            tracing::error!("Failed to reload all USJs: {err}");
+                        }
+                    }
+                };
+            },
+        )?;
+        usj_watcher.watch(usj_dir, RecursiveMode::NonRecursive)?;
+        web::Data::new(usj_watcher)
+    };
 
     let bind_host: String = var("BIND_HOST")?;
     let bind_port = var("BIND_PORT")?;
     HttpServer::new(move || {
         App::new()
             .app_data(bible_config.clone())
+            .app_data(usj_watcher.clone())
             .default_service(web::to(route_not_found))
             .service(web::scope("/v1").service(api::book).service(api::search))
     })
