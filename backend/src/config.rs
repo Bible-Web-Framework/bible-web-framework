@@ -4,10 +4,11 @@ use bimap::BiMap;
 use notify_debouncer_full::notify;
 use notify_debouncer_full::notify::EventKind;
 use notify_debouncer_full::notify::event::{CreateKind, ModifyKind, RemoveKind, RenameMode};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs::canonicalize;
 use std::io;
 use std::path::PathBuf;
@@ -71,10 +72,14 @@ impl UsjFileMap {
         Some(book)
     }
 
-    fn insert_from_file_or_warn(&mut self, file: OsString) -> Option<UsjBookInfo> {
-        load_usj(self.root_dir.join(&file))
+    fn load_usj_or_warn(&self, file: &OsStr) -> Option<UsjRoot> {
+        load_usj(self.root_dir.join(file))
             .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
             .ok()
+    }
+
+    fn insert_from_file_or_warn(&mut self, file: OsString) -> Option<UsjBookInfo> {
+        self.load_usj_or_warn(&file)
             .and_then(|usj| self.insert_or_warn(usj, file))
     }
 
@@ -83,12 +88,28 @@ impl UsjFileMap {
         self.sources.clear();
         self.has_ignored_files = false;
         let start = Instant::now();
-        for entry in std::fs::read_dir(&self.root_dir)? {
-            let entry = entry?;
-            if entry.file_type()?.is_file() {
-                self.insert_from_file_or_warn(entry.file_name());
-            }
-        }
+        std::fs::read_dir(&self.root_dir)?
+            .par_bridge()
+            .filter_map(|entry| {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(err) => return Some(Err(err)),
+                };
+                let file_type = match entry.file_type() {
+                    Ok(t) => t,
+                    Err(err) => return Some(Err(err)),
+                };
+                if !file_type.is_file() {
+                    return None;
+                }
+                let file = entry.file_name();
+                self.load_usj_or_warn(&file).map(|usj| Ok((usj, file)))
+            })
+            .collect::<io::Result<Vec<_>>>()?
+            .into_iter()
+            .for_each(|(usj, source)| {
+                self.insert_or_warn(usj, source);
+            });
         tracing::info!(
             "Loaded {} USJ files in {:?}",
             self.files.len(),
