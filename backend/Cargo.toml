@@ -11,16 +11,16 @@ path = "src/main.rs"
 
 [dependencies]
 dotenvy = "0.15.7"
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 actix-web = "4.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-serde_with = "3.15.0"
-regex = "1.11.3"
+serde_with = "3.15.1"
+regex = "1.12.2"
 phf = { version = "0.13.1", features = ["unicase"] }
-unicode-normalization = "0.1.24"
+unicode-normalization = "0.1.25"
 rayon = "1.11.0"
 unicase = "2.8.1"
 ere = "0.2.3"
@@ -31,7 +31,7 @@ notify-debouncer-full = "0.6.0"
 phf_codegen = "0.13.1"
 phf_shared = { version = "0.13.1", features = ["unicase"] }
 serde_json = "1.0.145"
-hashlink = { version = "0.10.0", features = ["serde_impl"] }
+hashlink = { version = "0.11.0", features = ["serde_impl"] }
 unicase = "2.8.1"
 
 [lints]
