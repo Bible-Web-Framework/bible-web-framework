@@ -25,7 +25,7 @@ for input_filename in filenames:
 
     with open(input_filename, encoding='utf-8') as book_in:
         my_parser = USFMParser(book_in.read())
-        scripture_dict: dict = my_parser.to_usj(ignore_errors=True)
+        scripture_dict: dict = my_parser.to_usj(ignore_errors=False)
 
     with open(output_filename, 'w', encoding='utf-8') as book_out:
         json.dump(scripture_dict, book_out, ensure_ascii=False, separators=(',', ':'))

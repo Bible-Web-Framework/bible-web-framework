@@ -1,5 +1,6 @@
 use crate::book_data::Book;
 use crate::reference::VerseRange;
+use crate::usfm_converter::{UsfmNewError, UsfmParser};
 use ere::compile_regex;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
@@ -23,11 +24,80 @@ impl Display for UsjBookInfo {
     }
 }
 
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum UsjContent {
+    #[serde(rename = "USJ")]
+    Root(UsjRoot),
+
+    #[serde(rename = "para")]
+    Paragraph {
+        marker: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        content: Vec<UsjContent>,
+    },
+
+    #[serde(rename = "char")]
+    Character {},
+
+    Book {
+        content: Vec<String>,
+        code: Book,
+    },
+
+    Chapter {
+        #[serde_as(as = "DisplayFromStr")]
+        number: u8,
+    },
+
+    Verse {
+        #[serde_as(as = "DisplayFromStr")]
+        number: u8,
+    },
+
+    #[serde(rename = "ms")]
+    Milestone {},
+
+    Note {},
+
+    #[serde(untagged)]
+    Plain(String),
+}
+
+impl UsjContent {
+    pub fn as_root(&self) -> Option<&UsjRoot> {
+        if let UsjContent::Root(root) = self {
+            Some(root)
+        } else {
+            None
+        }
+    }
+
+    pub fn unwrap_root(&self) -> &UsjRoot {
+        self.as_root()
+            .expect("unwrap_root() called on a non-Root UsjContent")
+    }
+
+    fn as_para_content(&self) -> Option<&Vec<UsjContent>> {
+        if let UsjContent::Paragraph { content, .. } = self {
+            Some(content)
+        } else {
+            None
+        }
+    }
+
+    fn is_title_para(&self) -> bool {
+        const REGEX: ere::Regex =
+            compile_regex!("mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?");
+        matches!(self, UsjContent::Paragraph { marker, .. } if REGEX.test(marker))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsjRoot {
+    pub version: String,
     pub content: Vec<UsjContent>,
-    #[serde(flatten)]
-    remainder: serde_json::Value,
 }
 
 type ParaIndex = (usize, usize);
@@ -74,7 +144,7 @@ impl UsjRoot {
             .iter()
             .take_while(|x| !matches!(x, UsjContent::Chapter { .. }))
             .find(|x| {
-                if let UsjContent::Para {
+                if let UsjContent::Paragraph {
                     marker, content, ..
                 } = x
                     && marker == "cl"
@@ -183,68 +253,12 @@ impl UsjRoot {
         sub_index: impl SliceIndex<[UsjContent], Output = [UsjContent]>,
     ) -> UsjContent {
         match &self.content[index] {
-            UsjContent::Para {
-                marker,
-                content,
-                remainder,
-            } => UsjContent::Para {
+            UsjContent::Paragraph { marker, content } => UsjContent::Paragraph {
                 content: Vec::from(&content[sub_index]),
                 marker: marker.to_string(),
-                remainder: remainder.clone(),
             },
             element => element.clone(),
         }
-    }
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum UsjContent {
-    Book {
-        content: Vec<String>,
-        code: Book,
-        #[serde(flatten)]
-        remainder: serde_json::Value,
-    },
-    Para {
-        marker: String,
-        content: Vec<UsjContent>,
-        #[serde(flatten)]
-        remainder: serde_json::Value,
-    },
-    Chapter {
-        #[serde_as(as = "DisplayFromStr")]
-        number: u8,
-        #[serde(flatten)]
-        remainder: serde_json::Value,
-    },
-    Verse {
-        #[serde_as(as = "DisplayFromStr")]
-        number: u8,
-        #[serde(flatten)]
-        remainder: serde_json::Value,
-    },
-
-    #[serde(untagged)]
-    Plain(String),
-    #[serde(untagged)]
-    Other(serde_json::Value),
-}
-
-impl UsjContent {
-    fn as_para_content(&self) -> Option<&Vec<UsjContent>> {
-        if let UsjContent::Para { content, .. } = self {
-            Some(content)
-        } else {
-            None
-        }
-    }
-
-    fn is_title_para(&self) -> bool {
-        const REGEX: ere::Regex =
-            compile_regex!("mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?");
-        matches!(self, UsjContent::Para { marker, .. } if REGEX.test(marker))
     }
 }
 
@@ -254,9 +268,18 @@ pub enum UsjLoadError {
     Io(#[from] std::io::Error),
     #[error("Json error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("Failed to load USFM: {0}")]
+    Usfm(#[from] UsfmNewError),
 }
 
-pub fn load_usj(path: impl AsRef<Path>) -> Result<UsjRoot, UsjLoadError> {
+pub fn load_usj(path: impl AsRef<Path>) -> Result<UsjContent, UsjLoadError> {
     let reader = std::io::BufReader::new(std::fs::File::open(path)?);
     Ok(serde_json::from_reader(reader)?)
+}
+
+pub fn load_usj_from_usfm(
+    path: impl AsRef<Path>,
+) -> Result<(UsjContent, UsfmParser), UsjLoadError> {
+    let parser = UsfmParser::new(std::fs::read_to_string(path)?)?;
+    Ok((parser.to_usj(), parser))
 }

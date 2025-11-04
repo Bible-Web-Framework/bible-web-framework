@@ -62,7 +62,7 @@ pub async fn book(
     let Some(book) = Book::parse(&book, Some(&config.additional_aliases)) else {
         return Err(ApiError::InvalidBook(book));
     };
-    let Some(usj) = config.usj.files.get(&book) else {
+    let Some(usj) = config.us.files.get(&book) else {
         return Err(ApiError::MissingUsj(book));
     };
     Ok(HttpResponse::Ok().json(usj))

@@ -54,8 +54,9 @@ pub fn search_bible(term: String, config: &BibleConfig) -> SearchResponse {
                     Ok(reference) => SearchResponseResult::ReferenceContent {
                         reference: reference.to_string(),
                         reference_details: reference,
-                        content: config.usj.files.get(&reference.book).and_then(|usj| {
-                            usj.find_reference(reference.chapter, reference.verse_range)
+                        content: config.us.files.get(&reference.book).and_then(|usj| {
+                            usj.unwrap_root()
+                                .find_reference(reference.chapter, reference.verse_range)
                         }),
                     },
                     Err(error) => SearchResponseResult::InvalidReference {

@@ -1,6 +1,7 @@
 use crate::book_data::Book;
-use crate::usj::{UsjBookInfo, UsjRoot, load_usj};
+use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
+use miette::{GraphicalReportHandler, NamedSource};
 use notify_debouncer_full::notify;
 use notify_debouncer_full::notify::EventKind;
 use notify_debouncer_full::notify::event::{CreateKind, ModifyKind, RemoveKind, RenameMode};
@@ -12,22 +13,22 @@ use std::ffi::{OsStr, OsString};
 use std::fs::canonicalize;
 use std::io;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use unicase::UniCase;
 
 #[derive(Debug)]
-pub struct UsjFileMap {
+pub struct UsFileMap {
     pub root_dir: PathBuf,
-    pub files: HashMap<Book, UsjRoot>,
+    pub files: HashMap<Book, UsjContent>,
     pub sources: BiMap<Book, OsString>,
     has_ignored_files: bool,
 }
 
-impl UsjFileMap {
+impl UsFileMap {
     pub fn new(root_dir: PathBuf) -> io::Result<Self> {
         const BOOK_COUNT: usize = 66;
-        Ok(UsjFileMap {
+        Ok(UsFileMap {
             root_dir: canonicalize(root_dir)?,
             files: HashMap::with_capacity(BOOK_COUNT),
             sources: BiMap::with_capacity(BOOK_COUNT),
@@ -35,9 +36,12 @@ impl UsjFileMap {
         })
     }
 
-    fn insert_or_warn(&mut self, usj: UsjRoot, source: OsString) -> Option<UsjBookInfo> {
-        let Some(book) = usj.book_info() else {
-            tracing::error!("Book at {} missing book identifier", source.display());
+    fn insert_or_warn(&mut self, usj: UsjContent, source: OsString) -> Option<UsjBookInfo> {
+        let Some(book) = usj.as_root().and_then(UsjRoot::book_info) else {
+            tracing::error!(
+                "Book at {} missing root element or book identifier",
+                source.display()
+            );
             return None;
         };
         match self.files.entry(book.book) {
@@ -59,6 +63,7 @@ impl UsjFileMap {
                         book.book,
                         old_path.display(),
                         e.get()
+                            .unwrap_root()
                             .book_info()
                             .unwrap()
                             .description
@@ -72,14 +77,53 @@ impl UsjFileMap {
         Some(book)
     }
 
-    fn load_usj_or_warn(&self, file: &OsStr) -> Option<UsjRoot> {
-        load_usj(self.root_dir.join(file))
-            .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
-            .ok()
+    fn load_us_or_warn(&self, file: &OsStr) -> Option<UsjContent> {
+        let full_path = self.root_dir.join(file);
+        match full_path
+            .extension()
+            .and_then(OsStr::to_str)
+            .map(str::to_ascii_lowercase)
+            .as_deref()
+        {
+            Some("usj") => load_usj(full_path)
+                .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
+                .ok(),
+            Some("usfm") => {
+                let (usj, parser) = load_usj_from_usfm(full_path)
+                    .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
+                    .ok()?;
+                for warning in parser.warnings {
+                    tracing::warn!("Usfm warning in {}: {warning}", file.display());
+                }
+                if !parser.errors.is_empty() {
+                    let mut error_message = String::new();
+                    let source_code =
+                        Arc::new(NamedSource::new(file.display().to_string(), parser.usfm));
+                    let reporter = GraphicalReportHandler::new();
+                    for error in parser.errors {
+                        let report = miette::Report::new(
+                            miette::MietteDiagnostic::new("Usfm syntax error").with_label(error),
+                        )
+                        .with_source_code(source_code.clone());
+                        error_message.push('\n');
+                        let _ = reporter.render_report(&mut error_message, &*report);
+                    }
+                    tracing::error!(
+                        "Errors in {}. The file will be attempted to be loaded, but some issues my arise.{error_message}",
+                        file.display()
+                    );
+                }
+                Some(usj)
+            }
+            Some(_) | None => {
+                tracing::warn!("Found non-USFM/USJ file {}", file.display());
+                None
+            }
+        }
     }
 
     fn insert_from_file_or_warn(&mut self, file: OsString) -> Option<UsjBookInfo> {
-        self.load_usj_or_warn(&file)
+        self.load_us_or_warn(&file)
             .and_then(|usj| self.insert_or_warn(usj, file))
     }
 
@@ -103,7 +147,7 @@ impl UsjFileMap {
                     return None;
                 }
                 let file = entry.file_name();
-                self.load_usj_or_warn(&file).map(|usj| Ok((usj, file)))
+                self.load_us_or_warn(&file).map(|usj| Ok((usj, file)))
             })
             .collect::<io::Result<Vec<_>>>()?
             .into_iter()
@@ -111,7 +155,7 @@ impl UsjFileMap {
                 self.insert_or_warn(usj, source);
             });
         tracing::info!(
-            "Loaded {} USJ files in {:?}",
+            "Loaded {} USFM/USJ files in {:?}",
             self.files.len(),
             start.elapsed()
         );
@@ -140,7 +184,7 @@ impl UsjFileMap {
                     .sources
                     .remove_by_right(&path)
                     .and_then(|(b, _)| self.files.remove(&b))
-                    .and_then(|b| b.book_info());
+                    .and_then(|b| b.unwrap_root().book_info());
                 if let Some(new_book) = self.insert_from_file_or_warn(path.clone()) {
                     if let Some(old_book) = old_book
                         && new_book != old_book
@@ -186,16 +230,16 @@ impl UsjFileMap {
 
 #[derive(Debug)]
 pub struct BibleConfig {
-    pub usj: UsjFileMap,
+    pub us: UsFileMap,
     pub additional_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
 }
 
 impl BibleConfig {
-    pub fn load_initial(usj_dir: PathBuf) -> io::Result<BibleConfig> {
-        let mut usj = UsjFileMap::new(usj_dir)?;
-        usj.reload_all_from_dir()?;
+    pub fn load_initial(us_dir: PathBuf) -> io::Result<BibleConfig> {
+        let mut us = UsFileMap::new(us_dir)?;
+        us.reload_all_from_dir()?;
         Ok(BibleConfig {
-            usj,
+            us,
             additional_aliases: HashMap::new(), // TODO: Parse from config
         })
     }

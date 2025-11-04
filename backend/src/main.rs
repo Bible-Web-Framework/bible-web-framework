@@ -19,6 +19,7 @@ mod config;
 mod reference;
 mod search;
 mod str_utils;
+mod usfm_converter;
 mod usj;
 
 #[derive(Debug, thiserror::Error)]
@@ -57,8 +58,8 @@ async fn real_main() -> Result<(), ServerError> {
         .init();
     tracing::debug!("Debug logging is enabled");
 
-    let usj_dir = var::<PathBuf>("USJ_DIRECTORY")?;
-    let bible_config = BibleConfig::load_initial(usj_dir.clone())?;
+    let us_dir = var::<PathBuf>("US_DIRECTORY")?;
+    let bible_config = BibleConfig::load_initial(us_dir.clone())?;
     let bible_config = web::Data::new(RwLock::new(bible_config));
 
     let usj_watcher = {
@@ -72,7 +73,7 @@ async fn real_main() -> Result<(), ServerError> {
                     Ok(evs) => {
                         let mut config = config.write().unwrap();
                         for ev in evs {
-                            if let Err(err) = config.usj.handle_file_change(ev.event) {
+                            if let Err(err) = config.us.handle_file_change(ev.event) {
                                 tracing::error!(
                                     "Failed to update loaded USJs from file watch event: {err}"
                                 );
@@ -83,14 +84,14 @@ async fn real_main() -> Result<(), ServerError> {
                         for err in errs {
                             tracing::error!("Error in USJ file watcher: {err}");
                         }
-                        if let Err(err) = config.write().unwrap().usj.reload_all_from_dir() {
+                        if let Err(err) = config.write().unwrap().us.reload_all_from_dir() {
                             tracing::error!("Failed to reload all USJs: {err}");
                         }
                     }
                 };
             },
         )?;
-        usj_watcher.watch(usj_dir, RecursiveMode::NonRecursive)?;
+        usj_watcher.watch(us_dir, RecursiveMode::NonRecursive)?;
         web::Data::new(usj_watcher)
     };
 

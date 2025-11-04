@@ -13,19 +13,24 @@ path = "src/main.rs"
 dotenvy = "0.15.7"
 thiserror = "2.0.17"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+tracing-subscriber = { version = "=0.3.19", features = ["env-filter"] } # TODO: Remove version lock when https://github.com/tokio-rs/tracing/issues/3369 is fixed
 actix-web = "4.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 serde_with = "3.15.1"
 regex = "1.12.2"
-phf = { version = "0.13.1", features = ["unicase"] }
+phf = { version = "0.13.1", features = ["unicase", "macros"] }
 unicode-normalization = "0.1.25"
 rayon = "1.11.0"
 unicase = "2.8.1"
 ere = "0.2.3"
 bimap = "0.6.3"
 notify-debouncer-full = "0.6.0"
+tree-sitter = "0.25.10"
+tree-sitter-usfm3 = "3.0.0-alpha.1"
+subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/issues/126769 becomes stable (probably Rust 1.93.0)
+miette = { version = "7.6.0", features = ["fancy"] }
+itertools = "0.14.0"
 
 [build-dependencies]
 phf_codegen = "0.13.1"
