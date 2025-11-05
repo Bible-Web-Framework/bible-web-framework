@@ -15,3 +15,13 @@ pub fn with_normalized_str<T>(s: &str, operation: impl FnOnce(&str) -> T) -> T {
     let normalized = normalize_str(s);
     operation(normalized.as_deref().unwrap_or(s))
 }
+
+#[macro_export]
+macro_rules! nz_u8 {
+    ($e:expr) => {
+        const {
+            ::core::assert!($e != 0);
+            unsafe { ::std::num::NonZeroU8::new_unchecked($e) }
+        }
+    };
+}

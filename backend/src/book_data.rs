@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
+use std::num::NonZeroU8;
 use unicase::UniCase;
 
 // TODO: Support all books listed in https://docs.usfm.bible/usfm/3.1/doc/books.html
@@ -11,11 +12,11 @@ include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
 impl Book {
     #[allow(unused_variables)]
-    pub fn verse_count(&self, chapter: u8) -> Option<u8> {
+    pub const fn verse_count(&self, chapter: u8) -> Option<NonZeroU8> {
         include!(concat!(env!("OUT_DIR"), "/verse_counts.rs"))
     }
 
-    pub fn usfm_id(&self) -> &'static str {
+    pub const fn usfm_id(&self) -> &'static str {
         include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 

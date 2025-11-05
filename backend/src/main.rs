@@ -21,6 +21,7 @@ mod search;
 mod usfm_converter;
 mod usj;
 mod utils;
+mod verse_range;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {

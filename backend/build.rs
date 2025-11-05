@@ -1,6 +1,7 @@
 use hashlink::LinkedHashMap;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::num::NonZeroU8;
 use std::path::Path;
 use std::{env, fs};
 use unicase::UniCase;
@@ -14,7 +15,7 @@ fn main() {
         serde_json::from_slice(&book_aliases).unwrap();
 
     let verse_counts = fs::read("book_verse_counts.json").unwrap();
-    let verse_counts: HashMap<&str, LinkedHashMap<u8, u8>> =
+    let verse_counts: HashMap<&str, LinkedHashMap<u8, NonZeroU8>> =
         serde_json::from_slice(&verse_counts).unwrap();
 
     let mut book_names = r#"
@@ -31,7 +32,7 @@ fn main() {
 
         let _ = writeln!(verse_counts_result, "Book::{book_name} => match chapter {{");
         for (chapter, length) in &verse_counts[book_name] {
-            let _ = writeln!(verse_counts_result, "{chapter} => {length},");
+            let _ = writeln!(verse_counts_result, "{chapter} => crate::nz_u8!({length}),");
         }
         let _ = writeln!(verse_counts_result, "_ => return None,");
         let _ = writeln!(verse_counts_result, "}},");

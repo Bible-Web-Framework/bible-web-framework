@@ -1,6 +1,6 @@
 use crate::book_data::Book;
-use crate::reference::VerseRange;
 use crate::usfm_converter::{FatalUsfmError, UsfmParser};
+use crate::verse_range::VerseRange;
 use ere::compile_regex;
 use miette::MietteDiagnostic;
 use monostate::MustBe;
@@ -192,17 +192,17 @@ impl UsjRoot {
     pub fn find_reference(&self, chapter: u8, verse_range: VerseRange) -> Option<Vec<UsjContent>> {
         let chapter_start = self.find_chapter_start(chapter)?;
 
-        let (start, base_chapter_label) = if verse_range.0 == 1 {
+        let (start, base_chapter_label) = if verse_range.first() == 1 {
             (chapter_start, self.find_chapter_label())
         } else {
             let after_chapter_start = self.next_para_index(chapter_start)?;
             (
-                self.find_verse_start_para(verse_range.0, after_chapter_start)?,
+                self.find_verse_start_para(verse_range.first(), after_chapter_start)?,
                 None,
             )
         };
         let end = self
-            .find_verse_start_para(verse_range.1 + 1, self.next_para_index(start)?)
+            .find_verse_start_para(verse_range.last() + 1, self.next_para_index(start)?)
             .or_else(|| self.find_chapter_start(chapter + 1));
 
         let mut result = self.slice_para(start, end);
