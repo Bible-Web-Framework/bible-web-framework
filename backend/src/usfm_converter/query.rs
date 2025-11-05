@@ -22,21 +22,22 @@ macro_rules! usfm_queries {
 }
 
 impl UsfmQuery {
+    #[must_use]
     pub fn captures<'query, 'tree, 'source>(
         &'query self,
         node: Node<'tree>,
         source: &'source str,
-    ) -> HashMap<&'query str, Vec<Node<'tree>>> {
+    ) -> HashMap<&'query str, (Node<'tree>, &'source str)> {
         let mut cursor = QueryCursor::new();
         let mut captures = cursor.captures(&self.0, node, source.as_bytes());
-        let mut result: HashMap<&'query str, Vec<Node<'tree>>> =
-            HashMap::with_capacity(self.0.capture_names().len());
+        let mut result = HashMap::with_capacity(self.0.capture_names().len());
         while let Some((query_match, capture_index)) = captures.next() {
             let capture = query_match.captures[*capture_index];
-            result
-                .entry(self.0.capture_names()[capture.index as usize])
-                .or_default()
-                .push(capture.node);
+            let capture_text = &source[capture.node.byte_range()];
+            result.insert(
+                self.0.capture_names()[capture.index as usize],
+                (capture.node, capture_text),
+            );
         }
         result
     }

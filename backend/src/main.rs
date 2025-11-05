@@ -18,9 +18,9 @@ mod book_data;
 mod config;
 mod reference;
 mod search;
-mod str_utils;
 mod usfm_converter;
 mod usj;
+mod utils;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {

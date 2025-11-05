@@ -1,4 +1,4 @@
-use crate::str_utils::with_normalized_str;
+use crate::utils::with_normalized_str;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use unicase::UniCase;
 
+// TODO: Support all books listed in https://docs.usfm.bible/usfm/3.1/doc/books.html
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
 impl Book {
@@ -41,7 +42,7 @@ fn to_unicase_cow(unicase: UniCase<&str>) -> UniCase<Cow<'_, str>> {
     }
 }
 
-pub const BOOK_ALIASES: phf::Map<UniCase<&'static str>, Book> =
+pub const BOOK_ALIASES: phf::Map<UniCase<&str>, Book> =
     include!(concat!(env!("OUT_DIR"), "/book_aliases.rs"));
 
 impl Serialize for Book {

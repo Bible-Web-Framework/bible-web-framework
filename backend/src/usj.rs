@@ -1,9 +1,12 @@
 use crate::book_data::Book;
 use crate::reference::VerseRange;
-use crate::usfm_converter::{UsfmNewError, UsfmParser};
+use crate::usfm_converter::{FatalUsfmError, UsfmParser};
 use ere::compile_regex;
+use miette::MietteDiagnostic;
+use monostate::MustBe;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::slice::SliceIndex;
@@ -24,10 +27,18 @@ impl Display for UsjBookInfo {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsjContent {
+    #[serde(flatten)]
+    pub value: UsjContentValue,
+    #[serde(flatten)]
+    pub attributes: HashMap<String, String>,
+}
+
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum UsjContent {
+pub enum UsjContentValue {
     #[serde(rename = "USJ")]
     Root(UsjRoot),
 
@@ -35,39 +46,79 @@ pub enum UsjContent {
     Paragraph {
         marker: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        content: Vec<UsjContent>,
+        content: Vec<ParaContent>,
     },
 
     #[serde(rename = "char")]
-    Character {},
+    Character {
+        marker: String,
+    },
 
     Book {
-        content: Vec<String>,
+        marker: MustBe!("id"),
         code: Book,
+        content: Vec<String>,
     },
 
     Chapter {
+        marker: MustBe!("c"),
         #[serde_as(as = "DisplayFromStr")]
         number: u8,
     },
 
     Verse {
+        marker: MustBe!("v"),
         #[serde_as(as = "DisplayFromStr")]
-        number: u8,
+        number: u8, // TODO: Support verse ranges
     },
 
     #[serde(rename = "ms")]
-    Milestone {},
+    Milestone {
+        marker: String,
+    },
 
-    Note {},
+    Note {
+        marker: String,
+    },
 
-    #[serde(untagged)]
+    Table {},
+
+    #[serde(rename = "table:row")]
+    TableRow {
+        marker: MustBe!("tr"),
+    },
+
+    #[serde(rename = "table:cell")]
+    TableCell {
+        marker: String,
+    },
+
+    Sidebar {
+        marker: MustBe!("esb"),
+    },
+
+    Figure {
+        marker: MustBe!("fig"),
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ParaContent {
+    Usj(UsjContent),
     Plain(String),
 }
 
 impl UsjContent {
+    pub fn new(value: UsjContentValue) -> Self {
+        Self {
+            value,
+            attributes: HashMap::new(),
+        }
+    }
+
     pub fn as_root(&self) -> Option<&UsjRoot> {
-        if let UsjContent::Root(root) = self {
+        if let UsjContentValue::Root(root) = &self.value {
             Some(root)
         } else {
             None
@@ -79,8 +130,30 @@ impl UsjContent {
             .expect("unwrap_root() called on a non-Root UsjContent")
     }
 
-    fn as_para_content(&self) -> Option<&Vec<UsjContent>> {
-        if let UsjContent::Paragraph { content, .. } = self {
+    pub fn marker(&self) -> Option<&str> {
+        #[inline(always)]
+        const fn get_value<T: MustBe>(_: &T) -> <T as MustBe>::Type {
+            <T as MustBe>::VALUE
+        }
+        match &self.value {
+            UsjContentValue::Root(_) => None,
+            UsjContentValue::Paragraph { marker, .. } => Some(marker),
+            UsjContentValue::Character { marker, .. } => Some(marker),
+            UsjContentValue::Book { marker, .. } => Some(get_value(marker)),
+            UsjContentValue::Chapter { marker, .. } => Some(get_value(marker)),
+            UsjContentValue::Verse { marker, .. } => Some(get_value(marker)),
+            UsjContentValue::Milestone { marker, .. } => Some(marker),
+            UsjContentValue::Note { marker, .. } => Some(marker),
+            UsjContentValue::Table { .. } => None,
+            UsjContentValue::TableRow { marker, .. } => Some(get_value(marker)),
+            UsjContentValue::TableCell { marker, .. } => Some(marker),
+            UsjContentValue::Sidebar { marker, .. } => Some(get_value(marker)),
+            UsjContentValue::Figure { marker, .. } => Some(get_value(marker)),
+        }
+    }
+
+    fn as_para_content(&self) -> Option<&Vec<ParaContent>> {
+        if let UsjContentValue::Paragraph { content, .. } = &self.value {
             Some(content)
         } else {
             None
@@ -90,7 +163,7 @@ impl UsjContent {
     fn is_title_para(&self) -> bool {
         const REGEX: ere::Regex =
             compile_regex!("mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?");
-        matches!(self, UsjContent::Paragraph { marker, .. } if REGEX.test(marker))
+        matches!(&self.value, UsjContentValue::Paragraph { marker, .. } if REGEX.test(marker))
     }
 }
 
@@ -105,7 +178,7 @@ type ParaIndex = (usize, usize);
 impl UsjRoot {
     pub fn book_info(&self) -> Option<UsjBookInfo> {
         self.content.iter().find_map(|content| {
-            if let UsjContent::Book { code, content, .. } = content {
+            if let UsjContentValue::Book { code, content, .. } = &content.value {
                 Some(UsjBookInfo {
                     book: *code,
                     description: content.first().cloned(),
@@ -142,13 +215,13 @@ impl UsjRoot {
     fn find_chapter_label(&self) -> Option<UsjContent> {
         self.content
             .iter()
-            .take_while(|x| !matches!(x, UsjContent::Chapter { .. }))
+            .take_while(|x| !matches!(&x.value, UsjContentValue::Chapter { .. }))
             .find(|x| {
-                if let UsjContent::Paragraph {
+                if let UsjContentValue::Paragraph {
                     marker, content, ..
-                } = x
+                } = &x.value
                     && marker == "cl"
-                    && let &[UsjContent::Plain(_)] = &content.as_slice()
+                    && let &[ParaContent::Plain(_)] = &content.as_slice()
                 {
                     true
                 } else {
@@ -159,10 +232,9 @@ impl UsjRoot {
     }
 
     fn find_chapter_start(&self, chapter: u8) -> Option<ParaIndex> {
-        let chapter_index = self
-            .content
-            .iter()
-            .position(|x| matches!(x, UsjContent::Chapter { number, .. } if *number == chapter))?;
+        let chapter_index = self.content.iter().position(
+            |x| matches!(&x.value, UsjContentValue::Chapter { number, .. } if *number == chapter),
+        )?;
         Some((chapter_index, 0))
     }
 
@@ -205,14 +277,21 @@ impl UsjRoot {
             .iter()
             .enumerate()
             .skip(start_root)
-            .take_while(|(_, element)| !matches!(element, UsjContent::Chapter { .. }))
+            .take_while(|(_, element)| !matches!(&element.value, UsjContentValue::Chapter { .. }))
             .find_map(|(root_index, element)| {
                 let content = element.as_para_content()?;
                 let skip = std::mem::take(&mut start_inner);
                 content
                     .iter()
                     .skip(skip)
-                    .position(|x| matches!(x, UsjContent::Verse { number, .. } if *number == verse))
+                    .position(|x| {
+                        matches!(
+                            x,
+                            ParaContent::Usj(UsjContent {
+                                value: UsjContentValue::Verse { number, .. }, ..
+                            }) if *number == verse,
+                        )
+                    })
                     .map(|inner_index| (root_index, inner_index + skip))
             })?;
         loop {
@@ -250,12 +329,18 @@ impl UsjRoot {
     fn slice_single_para(
         &self,
         index: usize,
-        sub_index: impl SliceIndex<[UsjContent], Output = [UsjContent]>,
+        sub_index: impl SliceIndex<[ParaContent], Output = [ParaContent]>,
     ) -> UsjContent {
         match &self.content[index] {
-            UsjContent::Paragraph { marker, content } => UsjContent::Paragraph {
-                content: Vec::from(&content[sub_index]),
-                marker: marker.to_string(),
+            UsjContent {
+                value: UsjContentValue::Paragraph { marker, content },
+                attributes,
+            } => UsjContent {
+                value: UsjContentValue::Paragraph {
+                    content: Vec::from(&content[sub_index]),
+                    marker: marker.to_string(),
+                },
+                attributes: attributes.clone(),
             },
             element => element.clone(),
         }
@@ -269,7 +354,7 @@ pub enum UsjLoadError {
     #[error("Json error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("Failed to load USFM: {0}")]
-    Usfm(#[from] UsfmNewError),
+    Usfm(#[from] FatalUsfmError),
 }
 
 pub fn load_usj(path: impl AsRef<Path>) -> Result<UsjContent, UsjLoadError> {
@@ -277,9 +362,22 @@ pub fn load_usj(path: impl AsRef<Path>) -> Result<UsjContent, UsjLoadError> {
     Ok(serde_json::from_reader(reader)?)
 }
 
-pub fn load_usj_from_usfm(
-    path: impl AsRef<Path>,
-) -> Result<(UsjContent, UsfmParser), UsjLoadError> {
+pub struct LoadedUsjFromUsfm {
+    pub usj: UsjContent,
+    pub source: String,
+    pub diagnostics: Vec<MietteDiagnostic>,
+}
+
+pub fn load_usj_from_usfm(path: impl AsRef<Path>) -> Result<LoadedUsjFromUsfm, UsjLoadError> {
     let parser = UsfmParser::new(std::fs::read_to_string(path)?)?;
-    Ok((parser.to_usj(), parser))
+
+    let (usj, conversion_diags) = parser.to_usj();
+    let mut all_diags = parser.diagnostics;
+    all_diags.extend(conversion_diags);
+
+    Ok(LoadedUsjFromUsfm {
+        usj,
+        source: parser.usfm,
+        diagnostics: all_diags,
+    })
 }

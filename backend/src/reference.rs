@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::str_utils::with_normalized_str;
+use crate::utils::with_normalized_str;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;

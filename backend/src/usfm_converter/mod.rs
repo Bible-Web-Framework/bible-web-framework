@@ -4,4 +4,4 @@ mod query;
 mod usfm_parser;
 mod usj_generator;
 
-pub use usfm_parser::{UsfmNewError, UsfmParser};
+pub use usfm_parser::{FatalUsfmError, UsfmParser};

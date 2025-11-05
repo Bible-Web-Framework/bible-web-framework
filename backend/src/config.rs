@@ -1,7 +1,7 @@
 use crate::book_data::Book;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
-use miette::{GraphicalReportHandler, NamedSource};
+use miette::{Diagnostic, GraphicalReportHandler, NamedSource, Severity};
 use notify_debouncer_full::notify;
 use notify_debouncer_full::notify::EventKind;
 use notify_debouncer_full::notify::event::{CreateKind, ModifyKind, RemoveKind, RenameMode};
@@ -89,31 +89,34 @@ impl UsFileMap {
                 .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
                 .ok(),
             Some("usfm") => {
-                let (usj, parser) = load_usj_from_usfm(full_path)
+                let usj = load_usj_from_usfm(full_path)
                     .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
                     .ok()?;
-                for warning in parser.warnings {
-                    tracing::warn!("Usfm warning in {}: {warning}", file.display());
-                }
-                if !parser.errors.is_empty() {
-                    let mut error_message = String::new();
+                if !usj.diagnostics.is_empty() {
+                    let mut diag_message = String::new();
                     let source_code =
-                        Arc::new(NamedSource::new(file.display().to_string(), parser.usfm));
+                        Arc::new(NamedSource::new(file.display().to_string(), usj.source));
                     let reporter = GraphicalReportHandler::new();
-                    for error in parser.errors {
-                        let report = miette::Report::new(
-                            miette::MietteDiagnostic::new("Usfm syntax error").with_label(error),
-                        )
-                        .with_source_code(source_code.clone());
-                        error_message.push('\n');
-                        let _ = reporter.render_report(&mut error_message, &*report);
+                    let is_all_error = usj
+                        .diagnostics
+                        .iter()
+                        .all(|x| x.severity.unwrap_or_default() == Severity::Error);
+                    for diag in usj.diagnostics {
+                        let report =
+                            miette::Report::new(diag).with_source_code(source_code.clone());
+                        diag_message.push('\n');
+                        let _ = reporter.render_report(&mut diag_message, &*report);
                     }
-                    tracing::error!(
-                        "Errors in {}. The file will be attempted to be loaded, but some issues my arise.{error_message}",
-                        file.display()
-                    );
+                    if is_all_error {
+                        tracing::error!(
+                            "Errors in {}. The file will be attempted to be loaded, but errors may occur.{diag_message}",
+                            file.display()
+                        );
+                    } else {
+                        tracing::warn!("Warnings in {}.{diag_message}", file.display());
+                    }
                 }
-                Some(usj)
+                Some(usj.usj)
             }
             Some(_) | None => {
                 tracing::warn!("Found non-USFM/USJ file {}", file.display());

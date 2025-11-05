@@ -31,6 +31,7 @@ tree-sitter-usfm3 = "3.0.0-alpha.1"
 subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/issues/126769 becomes stable (probably Rust 1.93.0)
 miette = { version = "7.6.0", features = ["fancy"] }
 itertools = "0.14.0"
+monostate = "1.0.2"
 
 [build-dependencies]
 phf_codegen = "0.13.1"
