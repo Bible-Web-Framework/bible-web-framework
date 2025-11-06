@@ -1,6 +1,6 @@
 use crate::book_data::Book;
 use crate::usfm_queries;
-use crate::usj::{ParaContent, UsjContent, UsjContentValue, UsjRoot};
+use crate::usj::{ParaContent, UsjContent, UsjRoot};
 use miette::{LabeledSpan, MietteDiagnostic};
 use monostate::MustBeStr;
 use std::num::NonZeroU8;
@@ -36,7 +36,7 @@ impl UsjGenerator<'_> {
         }
     }
 
-    fn convert_node_attrib(&self, cursor: &mut TreeCursor, into: &mut UsjContent) {
+    fn convert_node_attrib(&mut self, cursor: &mut TreeCursor, into: &mut UsjContent) {
         let node = cursor.node();
         let mut attrib_name = &self.source[node.child(0).unwrap().byte_range()];
 
@@ -57,17 +57,17 @@ impl UsjGenerator<'_> {
             .get("attrib-val")
             .map_or("", |(_, x)| x.trim());
 
-        into.attributes
-            .insert(attrib_name.to_string(), attrib_value.to_string());
+        if let Some(attributes) = into.attributes_mut() {
+            attributes.insert(attrib_name.to_string(), attrib_value.to_string());
+        } else {
+            self.unsupported_child(cursor, into, "Attributes not supported in");
+        }
     }
 
-    fn unexpected_under(&mut self, cursor: &mut TreeCursor, into: &mut UsjContent, what: &str) {
+    fn unsupported_child(&mut self, cursor: &mut TreeCursor, into: &mut UsjContent, message: &str) {
         self.errors.push(
-            MietteDiagnostic::new(format!(
-                "Unexpected {what} under {}",
-                into.marker().unwrap_or_default()
-            ))
-            .with_label(LabeledSpan::new_with_span(None, cursor.node().byte_range())),
+            MietteDiagnostic::new(format!("{message} {}", into.marker().unwrap_or_default()))
+                .with_label(LabeledSpan::new_with_span(None, cursor.node().byte_range())),
         );
     }
 }
@@ -86,10 +86,10 @@ fn for_each_child(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCurso
 
 fn push_text_node(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
     let text_val = generator.source[cursor.node().byte_range()].to_string();
-    match &mut into.value {
-        UsjContentValue::Paragraph { content, .. } => content.push(ParaContent::Plain(text_val)),
-        UsjContentValue::Book { content, .. } => content.push(text_val),
-        _ => generator.unexpected_under(cursor, into, "plaintext"),
+    match into {
+        UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text_val)),
+        UsjContent::Book { content, .. } => content.push(text_val),
+        _ => generator.unsupported_child(cursor, into, "Unexpected plain text under"),
     }
 }
 
@@ -139,18 +139,14 @@ fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: 
         .take_if(|x| !x.is_empty());
 
     generator.book_slug = Some(book);
-    if let UsjContent {
-        value: UsjContentValue::Root(UsjRoot { content, .. }),
-        ..
-    } = into
-    {
-        content.push(UsjContent::new(UsjContentValue::Book {
+    if let UsjContent::Root(UsjRoot { content, .. }) = into {
+        content.push(UsjContent::Book {
             marker: MustBeStr,
             code: book,
             content: desc.into_iter().map(str::to_string).collect(),
-        }));
+        });
     } else {
-        generator.unexpected_under(cursor, into, "\\id");
+        generator.unsupported_child(cursor, into, "Unexpected \\id under");
     }
 }
 

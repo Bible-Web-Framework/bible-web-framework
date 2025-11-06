@@ -1,5 +1,5 @@
 use crate::usfm_converter::usj_generator::UsjGenerator;
-use crate::usj::{UsjContent, UsjContentValue, UsjRoot};
+use crate::usj::{UsjContent, UsjRoot};
 use ere::compile_regex;
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use std::ops::Range;
@@ -70,10 +70,10 @@ impl UsfmParser {
     }
 
     pub fn to_usj(&self) -> (UsjContent, Vec<MietteDiagnostic>) {
-        let mut result = UsjContent::new(UsjContentValue::Root(UsjRoot {
+        let mut result = UsjContent::Root(UsjRoot {
             version: "3.1".to_string(),
             content: vec![],
-        }));
+        });
         let mut generator = UsjGenerator::new(&self.usfm);
         generator.convert_node(&mut self.syntax_tree.walk(), &mut result);
         (result, generator.errors)
