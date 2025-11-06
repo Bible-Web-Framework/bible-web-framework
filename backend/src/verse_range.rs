@@ -19,24 +19,28 @@ impl VerseRange {
         Ok(Self { first, last })
     }
 
-    pub fn first(&self) -> u8 {
-        self.first.get()
-    }
-
-    pub fn first_nz(&self) -> NonZeroU8 {
+    pub fn first(&self) -> NonZeroU8 {
         self.first
     }
 
-    pub fn last(&self) -> u8 {
-        self.last.get()
+    pub fn first_u8(&self) -> u8 {
+        self.first.get()
     }
 
-    pub fn last_nz(&self) -> NonZeroU8 {
+    pub fn last(&self) -> NonZeroU8 {
         self.last
     }
 
-    pub fn range(&self) -> RangeInclusive<u8> {
+    pub fn last_u8(&self) -> u8 {
+        self.last.get()
+    }
+
+    pub fn range(&self) -> RangeInclusive<NonZeroU8> {
         self.first()..=self.last()
+    }
+
+    pub fn contains(&self, verse: NonZeroU8) -> bool {
+        self.range().contains(&verse)
     }
 }
 

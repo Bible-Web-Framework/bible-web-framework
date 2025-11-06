@@ -1,7 +1,7 @@
 use crate::book_data::Book;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
-use miette::{Diagnostic, GraphicalReportHandler, NamedSource, Severity};
+use miette::{GraphicalReportHandler, NamedSource, Severity};
 use notify_debouncer_full::notify;
 use notify_debouncer_full::notify::EventKind;
 use notify_debouncer_full::notify::event::{CreateKind, ModifyKind, RemoveKind, RenameMode};

@@ -31,8 +31,8 @@ impl Debug for ChapterReference {
 impl Display for ChapterReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{} {}", self.book, self.chapter))?;
-        if self.verses.first() != 1
-            || Some(self.verses.last_nz()) != self.book.verse_count(self.chapter.get())
+        if self.verses.first_u8() != 1
+            || Some(self.verses.last()) != self.book.verse_count(self.chapter.get())
         {
             f.write_fmt(format_args!(":{}", self.verses,))
         } else {

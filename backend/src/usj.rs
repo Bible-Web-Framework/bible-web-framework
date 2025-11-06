@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
+use std::num::NonZeroU8;
 use std::path::Path;
 use std::slice::SliceIndex;
 
@@ -63,8 +64,7 @@ pub enum UsjContent {
 
     Verse {
         marker: MustBe!("v"),
-        #[serde_as(as = "DisplayFromStr")]
-        number: u8, // TODO: Support verse ranges
+        number: VerseRange,
     },
 
     #[serde(rename = "ms")]
@@ -203,17 +203,29 @@ impl UsjRoot {
     pub fn find_reference(&self, chapter: u8, verse_range: VerseRange) -> Option<Vec<UsjContent>> {
         let chapter_start = self.find_chapter_start(chapter)?;
 
-        let (start, base_chapter_label) = if verse_range.first() == 1 {
+        let (start, base_chapter_label) = if verse_range.first_u8() == 1 {
             (chapter_start, self.find_chapter_label())
         } else {
             let after_chapter_start = self.next_para_index(chapter_start)?;
             (
-                self.find_verse_start_para(verse_range.first(), after_chapter_start)?,
+                self.find_verse_start_para(verse_range.first(), after_chapter_start)?
+                    .0,
                 None,
             )
         };
         let end = self
-            .find_verse_start_para(verse_range.last() + 1, self.next_para_index(start)?)
+            .find_verse_start_para(verse_range.last().saturating_add(1), start)
+            .and_then(|(index, range)| {
+                Some(if range.first_u8() == verse_range.last_u8() + 1 {
+                    index
+                } else {
+                    self.find_verse_start_para(
+                        range.last().saturating_add(1),
+                        self.next_para_index(index)?,
+                    )?
+                    .0
+                })
+            })
             .or_else(|| self.find_chapter_start(chapter + 1));
 
         let mut result = self.slice_para(start, end);
@@ -282,9 +294,13 @@ impl UsjRoot {
         }
     }
 
-    fn find_verse_start_para(&self, verse: u8, start: ParaIndex) -> Option<ParaIndex> {
+    fn find_verse_start_para(
+        &self,
+        verse: NonZeroU8,
+        start: ParaIndex,
+    ) -> Option<(ParaIndex, VerseRange)> {
         let (start_root, mut start_inner) = start;
-        let mut verse_start = self
+        let (mut verse_start, verse_range) = self
             .content
             .iter()
             .enumerate()
@@ -295,14 +311,17 @@ impl UsjRoot {
                 let skip = std::mem::take(&mut start_inner);
                 content
                     .iter()
+                    .enumerate()
                     .skip(skip)
-                    .position(|x| {
-                        matches!(
-                            x,
-                            ParaContent::Usj(UsjContent::Verse { number, .. }) if *number == verse,
-                        )
+                    .find_map(|(index, content)| {
+                        if let ParaContent::Usj(UsjContent::Verse { number: range, .. }) = content
+                            && range.contains(verse)
+                        {
+                            Some(((root_index, index), *range))
+                        } else {
+                            None
+                        }
                     })
-                    .map(|inner_index| (root_index, inner_index + skip))
             })?;
         loop {
             let Some(prev_index) = self.prev_para_index(verse_start) else {
@@ -313,7 +332,7 @@ impl UsjRoot {
             }
             verse_start = prev_index;
         }
-        Some(verse_start)
+        Some((verse_start, verse_range))
     }
 
     fn slice_para(&self, start: ParaIndex, end: Option<ParaIndex>) -> Vec<UsjContent> {
