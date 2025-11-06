@@ -32,7 +32,7 @@ impl Display for ChapterReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{} {}", self.book, self.chapter))?;
         if self.verses.first_u8() != 1
-            || Some(self.verses.last()) != self.book.verse_count(self.chapter.get())
+            || Some(self.verses.last()) != self.book.verse_count(self.chapter)
         {
             f.write_fmt(format_args!(":{}", self.verses,))
         } else {
@@ -140,7 +140,7 @@ fn parse_reference_part(
                     chapter: chapter.to_string(),
                 })?;
         let verse_count = book
-            .verse_count(chapter.get())
+            .verse_count(chapter)
             .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
         let parse_verse = |verse: &str, default_verse: Option<NonZeroU8>| {
             if let Some(default_verse) = default_verse
@@ -192,7 +192,7 @@ fn parse_reference_part(
             )
         })?;
         let verse_count = book
-            .verse_count(chapter.get())
+            .verse_count(chapter)
             .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
         ChapterReference {
             book,

@@ -59,7 +59,7 @@ pub enum UsjContent {
     Chapter {
         marker: MustBe!("c"),
         #[serde_as(as = "DisplayFromStr")]
-        number: u8,
+        number: NonZeroU8,
     },
 
     Verse {
@@ -200,7 +200,11 @@ impl UsjRoot {
         })
     }
 
-    pub fn find_reference(&self, chapter: u8, verse_range: VerseRange) -> Option<Vec<UsjContent>> {
+    pub fn find_reference(
+        &self,
+        chapter: NonZeroU8,
+        verse_range: VerseRange,
+    ) -> Option<Vec<UsjContent>> {
         let chapter_start = self.find_chapter_start(chapter)?;
 
         let (start, base_chapter_label) = if verse_range.first_u8() == 1 {
@@ -226,7 +230,7 @@ impl UsjRoot {
                     .0
                 })
             })
-            .or_else(|| self.find_chapter_start(chapter + 1));
+            .or_else(|| self.find_chapter_start(chapter.saturating_add(1)));
 
         let mut result = self.slice_para(start, end);
         if let Some(label) = base_chapter_label {
@@ -254,7 +258,7 @@ impl UsjRoot {
             .cloned()
     }
 
-    fn find_chapter_start(&self, chapter: u8) -> Option<ParaIndex> {
+    fn find_chapter_start(&self, chapter: NonZeroU8) -> Option<ParaIndex> {
         let chapter_index = self
             .content
             .iter()

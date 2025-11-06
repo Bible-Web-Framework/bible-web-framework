@@ -12,7 +12,7 @@ include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
 impl Book {
     #[allow(unused_variables)]
-    pub const fn verse_count(&self, chapter: u8) -> Option<NonZeroU8> {
+    pub const fn verse_count(&self, chapter: NonZeroU8) -> Option<NonZeroU8> {
         include!(concat!(env!("OUT_DIR"), "/verse_counts.rs"))
     }
 

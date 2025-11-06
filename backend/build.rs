@@ -30,7 +30,10 @@ fn main() {
     for (book_name, aliases) in book_aliases {
         let _ = writeln!(book_names, "{book_name},");
 
-        let _ = writeln!(verse_counts_result, "Book::{book_name} => match chapter {{");
+        let _ = writeln!(
+            verse_counts_result,
+            "Book::{book_name} => match chapter.get() {{"
+        );
         for (chapter, length) in &verse_counts[book_name] {
             let _ = writeln!(verse_counts_result, "{chapter} => crate::nz_u8!({length}),");
         }
