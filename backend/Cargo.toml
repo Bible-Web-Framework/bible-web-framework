@@ -13,7 +13,7 @@ path = "src/main.rs"
 dotenvy = "0.15.7"
 thiserror = "2.0.17"
 tracing = "0.1.41"
-tracing-subscriber = { version = "=0.3.19", features = ["env-filter"] } # TODO: Remove version lock when https://github.com/tokio-rs/tracing/issues/3369 is fixed
+tracing-subscriber = { version = "=0.3.20", features = ["env-filter"] } # TODO: Remove version lock when https://github.com/tokio-rs/tracing/issues/3369 is fixed
 actix-web = "4.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
