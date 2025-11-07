@@ -1,15 +1,18 @@
 use crate::book_data::Book;
-use crate::usfm_queries;
 use crate::usj::{ParaContent, UsjContent, UsjRoot};
-use miette::{LabeledSpan, MietteDiagnostic};
+use crate::{nz_u8, usfm_queries};
+use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
+use std::collections::HashMap;
+use std::fmt::Display;
 use std::num::NonZeroU8;
-use tree_sitter::TreeCursor;
+use std::str::FromStr;
+use tree_sitter::{Node, TreeCursor};
 
 pub struct UsjGenerator<'a> {
     pub source: &'a str,
-    pub errors: Vec<MietteDiagnostic>,
-    book_slug: Option<Book>,
+    pub diagnostics: Vec<MietteDiagnostic>,
+    current_book: Option<Book>,
     current_chapter: Option<NonZeroU8>,
 }
 
@@ -17,8 +20,8 @@ impl<'a> UsjGenerator<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             source,
-            errors: vec![],
-            book_slug: None,
+            diagnostics: vec![],
+            current_book: None,
             current_chapter: None,
         }
     }
@@ -55,7 +58,8 @@ impl UsjGenerator<'_> {
         let attrib_value = ATTRIB_VAL_QUERY
             .captures(node, self.source)
             .get("attrib-val")
-            .map_or("", |(_, x)| x.trim());
+            .map(|(_, x)| x.trim())
+            .unwrap();
 
         if let Some(attributes) = into.attributes_mut() {
             attributes.insert(attrib_name.to_string(), attrib_value.to_string());
@@ -64,11 +68,45 @@ impl UsjGenerator<'_> {
         }
     }
 
-    fn unsupported_child(&mut self, cursor: &mut TreeCursor, into: &mut UsjContent, message: &str) {
-        self.errors.push(
-            MietteDiagnostic::new(format!("{message} {}", into.marker().unwrap_or_default()))
-                .with_label(LabeledSpan::new_with_span(None, cursor.node().byte_range())),
+    fn diagnostic(&mut self, node: Node, severity: Severity, message: impl Into<String>) {
+        self.diagnostics.push(
+            MietteDiagnostic::new(message)
+                .with_severity(severity)
+                .with_label(LabeledSpan::new_with_span(None, node.byte_range())),
         );
+    }
+
+    fn error(&mut self, node: Node, message: impl Into<String>) {
+        self.diagnostic(node, Severity::Error, message);
+    }
+
+    fn unsupported_child(&mut self, cursor: &mut TreeCursor, into: &mut UsjContent, message: &str) {
+        self.error(
+            cursor.node(),
+            format!("{message} {}", into.marker().unwrap_or_default()),
+        );
+    }
+
+    fn parse_from_query<T: FromStr>(
+        &mut self,
+        captures: &HashMap<&str, (Node, &str)>,
+        key: &str,
+        what: &str,
+    ) -> Result<Option<T>, T::Err>
+    where
+        T::Err: Display,
+    {
+        match captures
+            .get(key)
+            .map(|x| x.1.trim().parse::<T>().map_err(|e| (e, x)))
+        {
+            Some(Ok(book)) => Ok(Some(book)),
+            None => Ok(None),
+            Some(Err((err, (error_node, value)))) => {
+                self.error(*error_node, format!("Invalid {what} \"{value}\": {err}"));
+                Err(err)
+            }
+        }
     }
 }
 
@@ -85,7 +123,9 @@ fn for_each_child(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCurso
 }
 
 fn push_text_node(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
-    let text_val = generator.source[cursor.node().byte_range()].to_string();
+    let text_val = generator.source[cursor.node().byte_range()]
+        .trim_end_matches(['\r', '\n'])
+        .to_string();
     match into {
         UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text_val)),
         UsjContent::Book { content, .. } => content.push(text_val),
@@ -102,43 +142,51 @@ fn convert_node_verse(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
-    // let verse_num_cap = VERSE_NUM_CAP_QUERY.captures(cursor.node(), generator.source);
-    // let Some((_, verse_num)) = verse_num_cap.get("vnum") else {
-    //     return;
-    // };
-    //
-    // let mut verse_obj = UsjContent::new(UsjContentValue::Verse {
-    // });
+    let captures = VERSE_NUM_CAP_QUERY.captures(cursor.node(), generator.source);
+    let Ok(Some(verse_num)) = generator.parse_from_query(&captures, "vnum", "verse number/range")
+    else {
+        return;
+    };
+    let alt_number = generator
+        .parse_from_query(&captures, "alt-num", "verse number/range")
+        .unwrap_or(None);
+
+    if let UsjContent::Paragraph { content, .. } = into {
+        content.push(ParaContent::Usj(UsjContent::Verse {
+            marker: MustBeStr,
+            number: verse_num,
+            alt_number,
+            pub_number: captures.get("pub-num").map(|(_, x)| x.trim().to_string()),
+            sid: if let Some(current_book) = generator.current_book
+                && let Some(current_chapter) = generator.current_chapter
+            {
+                format!("{} {current_chapter}:{verse_num}", current_book.usfm_id())
+            } else {
+                generator.error(cursor.node(), "\\v outside of book or chapter");
+                format!(
+                    "{} {}:{verse_num}",
+                    // Ugly fallbacks, but they're what we have available
+                    generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
+                    generator.current_chapter.unwrap_or(nz_u8!(1))
+                )
+            },
+        }));
+    } else {
+        generator.unsupported_child(cursor, into, "Unexpected \\v under");
+    }
 }
 
 fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
-    let id_captures = ID_QUERY.captures(cursor.node(), generator.source);
-    let book = match id_captures
-        .get("book-code")
-        .map(|x| Book::parse(x.1, None).ok_or(x))
-    {
-        Some(Ok(book)) => book,
-        Some(Err((error_node, code))) => {
-            generator.errors.push(
-                MietteDiagnostic::new(format!("Unknown book code \"{code}\""))
-                    .with_label(LabeledSpan::new_with_span(None, error_node.byte_range())),
-            );
-            return;
-        }
-        None => {
-            generator.errors.push(
-                MietteDiagnostic::new("Missing book code in \\id")
-                    .with_label(LabeledSpan::new_with_span(None, cursor.node().byte_range())),
-            );
-            return;
-        }
+    let captures = ID_QUERY.captures(cursor.node(), generator.source);
+    let Ok(Some(book)) = generator.parse_from_query(&captures, "book-code", "book code") else {
+        return;
     };
-    let desc = id_captures
+    let desc = captures
         .get("desc")
         .map(|(_, x)| x.trim())
         .take_if(|x| !x.is_empty());
 
-    generator.book_slug = Some(book);
+    generator.current_book = Some(book);
     if let UsjContent::Root(UsjRoot { content, .. }) = into {
         content.push(UsjContent::Book {
             marker: MustBeStr,
@@ -155,9 +203,108 @@ fn convert_node_chapter(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    for_each_child(cursor, |cursor| {
+        let node = cursor.node();
+        if node.kind() != "c" {
+            return generator.convert_node(cursor, into);
+        }
+
+        let captures = CHAPTER_QUERY.captures(node, generator.source);
+        let Ok(Some(chapter_num)) = generator.parse_from_query(&captures, "cnum", "chapter number")
+        else {
+            return;
+        };
+        let alt_number = generator
+            .parse_from_query(&captures, "alt-num", "chapter number")
+            .unwrap_or(None);
+
+        generator.current_chapter = Some(chapter_num);
+        if let UsjContent::Root(UsjRoot { content, .. }) = into {
+            content.push(UsjContent::Chapter {
+                marker: MustBeStr,
+                number: chapter_num,
+                alt_number,
+                pub_number: captures.get("pub-num").map(|(_, x)| x.trim().to_string()),
+                sid: if let Some(current_book) = generator.current_book {
+                    format!("{} {chapter_num}", current_book.usfm_id())
+                } else {
+                    generator.error(cursor.node(), "\\v outside of book or chapter");
+                    format!(
+                        // Ugly fallback, but it's what we have available
+                        "{} {chapter_num}",
+                        generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
+                    )
+                },
+            });
+        } else {
+            generator.unsupported_child(cursor, into, "Unexpected \\c under");
+        }
+
+        for_each_child(cursor, |c| generator.convert_node(c, into));
+    });
 }
+
 fn convert_node_para(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
+    let node = cursor.node();
+    if node.child(0).is_some_and(|x| x.kind().ends_with("Block")) {
+        return for_each_child(cursor, |c| convert_node_para(generator, c, into));
+    }
+    let para = match node.kind() {
+        "paragraph" => {
+            if !cursor.goto_first_child() {
+                return generator.diagnostic(node, Severity::Warning, "Empty \\p");
+            }
+            let para_node = cursor.node();
+
+            let para_marker = para_node.kind();
+            let mut para = UsjContent::Paragraph {
+                marker: para_marker.to_string(),
+                content: vec![],
+            };
+            if para_marker.ends_with("Block") {
+                cursor.goto_parent();
+                return;
+            }
+            if para_marker != "b" {
+                loop {
+                    generator.convert_node(cursor, &mut para);
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+            cursor.goto_parent();
+            para
+        }
+        "pi" | "ph" => {
+            if !cursor.goto_first_child() {
+                return generator.error(node, format!("\\{} missing marker", node.kind()));
+            }
+            let mut para = UsjContent::Paragraph {
+                marker: generator.source[cursor.node().byte_range()].to_string(),
+                content: vec![],
+            };
+            while cursor.goto_next_sibling() {
+                generator.convert_node(cursor, &mut para);
+            }
+            cursor.goto_parent();
+            para
+        }
+        unknown => {
+            return generator.diagnostic(
+                node,
+                Severity::Warning,
+                format!("Unknown para block type {unknown}"),
+            );
+        }
+    };
+    if let UsjContent::Root(UsjRoot { content, .. }) = into {
+        content.push(para);
+    } else {
+        generator.unsupported_child(cursor, into, "Unexpected \\p under");
+    }
 }
+
 fn convert_node_generic(
     generator: &mut UsjGenerator,
     cursor: &mut TreeCursor,
@@ -198,13 +345,20 @@ fn convert_node_char(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into
 }
 
 usfm_queries! {
-    static ID_QUERY = "(id (bookcode) @book-code (description)? @desc)";
     static ATTRIB_VAL_QUERY = "((attributeValue) @attrib-val)";
+    static CHAPTER_QUERY = r#"
+        (c
+            (chapterNumber) @cnum
+            (ca (chapterNumber) @alt-num)?
+            (cp (text) @pub-num)?
+        )
+    "#;
+    static ID_QUERY = "(id (bookcode) @book-code (description)? @desc)";
     static VERSE_NUM_CAP_QUERY = r#"
         (v
             (verseNumber) @vnum
-            (va (verseNumber) @alt)?
-            (vp (text) @vp)?
+            (va (verseNumber) @alt-num)?
+            (vp (text) @pub-num)?
         )
     "#;
 }

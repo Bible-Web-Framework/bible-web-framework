@@ -60,11 +60,21 @@ pub enum UsjContent {
         marker: MustBe!("c"),
         #[serde_as(as = "DisplayFromStr")]
         number: NonZeroU8,
+        #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
+        alt_number: Option<NonZeroU8>,
+        #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
+        pub_number: Option<String>,
+        sid: String,
     },
 
     Verse {
         marker: MustBe!("v"),
         number: VerseRange,
+        #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
+        alt_number: Option<VerseRange>,
+        #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
+        pub_number: Option<String>,
+        sid: String,
     },
 
     #[serde(rename = "ms")]

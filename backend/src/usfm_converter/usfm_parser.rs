@@ -76,7 +76,7 @@ impl UsfmParser {
         });
         let mut generator = UsjGenerator::new(&self.usfm);
         generator.convert_node(&mut self.syntax_tree.walk(), &mut result);
-        (result, generator.errors)
+        (result, generator.diagnostics)
     }
 }
 

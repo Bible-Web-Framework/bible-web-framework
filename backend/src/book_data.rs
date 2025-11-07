@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::num::NonZeroU8;
+use std::str::FromStr;
+use thiserror::Error;
 use unicase::UniCase;
 
 // TODO: Support all books listed in https://docs.usfm.bible/usfm/3.1/doc/books.html
@@ -32,6 +34,18 @@ impl Book {
                 .copied()
                 .or_else(|| additional_aliases.and_then(|x| x.get(&to_unicase_cow(book)).copied()))
         })
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("Unknown book '{0}'")]
+pub struct BookFromStrError(String);
+
+impl FromStr for Book {
+    type Err = BookFromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s, None).ok_or_else(|| BookFromStrError(s.to_string()))
     }
 }
 
