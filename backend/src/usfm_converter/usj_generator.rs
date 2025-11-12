@@ -1,8 +1,9 @@
 use crate::book_data::Book;
-use crate::usj::{ParaContent, UsjContent, UsjRoot};
+use crate::usj::{TableCellAlignment, UsjContent};
 use crate::{nz_u8, usfm_queries};
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::num::NonZeroU8;
@@ -80,11 +81,29 @@ impl UsjGenerator<'_> {
         self.diagnostic(node, Severity::Error, message);
     }
 
-    fn unsupported_child(&mut self, cursor: &mut TreeCursor, into: &mut UsjContent, message: &str) {
+    fn unsupported_child(&mut self, cursor: &TreeCursor, into: &UsjContent, message: &str) {
         self.error(
             cursor.node(),
             format!("{message} {}", into.marker().unwrap_or_default()),
         );
+    }
+
+    fn try_push_text(&mut self, cursor: &TreeCursor, into: &mut UsjContent, content: String) {
+        if !into.push_text_content(content) {
+            self.unsupported_child(cursor, into, "Unexpected plain text under");
+        }
+    }
+
+    fn try_push_usj(
+        &mut self,
+        cursor: &TreeCursor,
+        into: &mut UsjContent,
+        error_message: &str,
+        content: UsjContent,
+    ) {
+        if !into.push_usj_content(content) {
+            self.unsupported_child(cursor, into, error_message);
+        }
     }
 
     fn parse_from_query<T: FromStr>(
@@ -126,11 +145,7 @@ fn push_text_node(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &
     let text_val = generator.source[cursor.node().byte_range()]
         .trim_end_matches(['\r', '\n'])
         .to_string();
-    match into {
-        UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text_val)),
-        UsjContent::Book { content, .. } => content.push(text_val),
-        _ => generator.unsupported_child(cursor, into, "Unexpected plain text under"),
-    }
+    generator.try_push_text(cursor, into, text_val);
 }
 
 fn handle_verse_text(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
@@ -151,29 +166,26 @@ fn convert_node_verse(
         .parse_from_query(&captures, "alt-num", "verse number/range")
         .unwrap_or(None);
 
-    if let UsjContent::Paragraph { content, .. } = into {
-        content.push(ParaContent::Usj(UsjContent::Verse {
-            marker: MustBeStr,
-            number: verse_num,
-            alt_number,
-            pub_number: captures.get("pub-num").map(|(_, x)| x.trim().to_string()),
-            sid: if let Some(current_book) = generator.current_book
-                && let Some(current_chapter) = generator.current_chapter
-            {
-                format!("{} {current_chapter}:{verse_num}", current_book.usfm_id())
-            } else {
-                generator.error(cursor.node(), "\\v outside of book or chapter");
-                format!(
-                    "{} {}:{verse_num}",
-                    // Ugly fallbacks, but they're what we have available
-                    generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
-                    generator.current_chapter.unwrap_or(nz_u8!(1))
-                )
-            },
-        }));
-    } else {
-        generator.unsupported_child(cursor, into, "Unexpected \\v under");
-    }
+    let content = UsjContent::Verse {
+        marker: MustBeStr,
+        number: verse_num,
+        alt_number,
+        pub_number: captures.get("pub-num").map(|(_, x)| x.trim().to_string()),
+        sid: if let Some(current_book) = generator.current_book
+            && let Some(current_chapter) = generator.current_chapter
+        {
+            format!("{} {current_chapter}:{verse_num}", current_book.usfm_id())
+        } else {
+            generator.error(cursor.node(), "\\v outside of book or chapter");
+            format!(
+                "{} {}:{verse_num}",
+                // Ugly fallbacks, but they're what we have available
+                generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
+                generator.current_chapter.unwrap_or(nz_u8!(1))
+            )
+        },
+    };
+    generator.try_push_usj(cursor, into, "Unexpected \\v under", content);
 }
 
 fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
@@ -187,15 +199,16 @@ fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: 
         .take_if(|x| !x.is_empty());
 
     generator.current_book = Some(book);
-    if let UsjContent::Root(UsjRoot { content, .. }) = into {
-        content.push(UsjContent::Book {
+    generator.try_push_usj(
+        cursor,
+        into,
+        "Unexpected \\id under",
+        UsjContent::Book {
             marker: MustBeStr,
             code: book,
             content: desc.into_iter().map(str::to_string).collect(),
-        });
-    } else {
-        generator.unsupported_child(cursor, into, "Unexpected \\id under");
-    }
+        },
+    );
 }
 
 fn convert_node_chapter(
@@ -219,26 +232,23 @@ fn convert_node_chapter(
             .unwrap_or(None);
 
         generator.current_chapter = Some(chapter_num);
-        if let UsjContent::Root(UsjRoot { content, .. }) = into {
-            content.push(UsjContent::Chapter {
-                marker: MustBeStr,
-                number: chapter_num,
-                alt_number,
-                pub_number: captures.get("pub-num").map(|(_, x)| x.trim().to_string()),
-                sid: if let Some(current_book) = generator.current_book {
-                    format!("{} {chapter_num}", current_book.usfm_id())
-                } else {
-                    generator.error(cursor.node(), "\\v outside of book or chapter");
-                    format!(
-                        // Ugly fallback, but it's what we have available
-                        "{} {chapter_num}",
-                        generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
-                    )
-                },
-            });
-        } else {
-            generator.unsupported_child(cursor, into, "Unexpected \\c under");
-        }
+        let content = UsjContent::Chapter {
+            marker: MustBeStr,
+            number: chapter_num,
+            alt_number,
+            pub_number: captures.get("pub-num").map(|(_, x)| x.trim().to_string()),
+            sid: if let Some(current_book) = generator.current_book {
+                format!("{} {chapter_num}", current_book.usfm_id())
+            } else {
+                generator.error(cursor.node(), "\\v outside of book or chapter");
+                format!(
+                    // Ugly fallback, but it's what we have available
+                    "{} {chapter_num}",
+                    generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
+                )
+            },
+        };
+        generator.try_push_usj(cursor, into, "Unexpected \\c under", content);
 
         for_each_child(cursor, |c| generator.convert_node(c, into));
     });
@@ -298,11 +308,7 @@ fn convert_node_para(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into
             );
         }
     };
-    if let UsjContent::Root(UsjRoot { content, .. }) = into {
-        content.push(para);
-    } else {
-        generator.unsupported_child(cursor, into, "Unexpected \\p under");
-    }
+    generator.try_push_usj(cursor, into, "Unexpected \\p under", para);
 }
 
 fn convert_node_generic(
@@ -310,19 +316,108 @@ fn convert_node_generic(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    let node = cursor.node();
+    cursor.goto_first_child();
+    let mut style = Cow::Borrowed(
+        generator.source[cursor.node().byte_range()]
+            .strip_prefix('\\')
+            .unwrap_or_else(|| node.kind()),
+    );
+
+    if cursor.goto_next_sibling() {
+        if cursor.node().kind().starts_with("numbered") {
+            style += &generator.source[cursor.node().byte_range()];
+        } else {
+            cursor.goto_previous_sibling();
+        }
+    }
+
+    let mut para = UsjContent::Paragraph {
+        marker: style.trim().to_string(),
+        content: vec![],
+    };
+
+    while cursor.goto_next_sibling() {
+        match cursor.node().kind() {
+            "add" | "bk" | "dc" | "ior" | "iqt" | "k" | "litl" | "nd" | "ord" |
+            "pn" | "png" | "qac" | "qs" | "qt" | "rq" | "sig" | "sls" | "tl" | "wj" | // Special-text
+            "em" | "bd" | "bdit" | "it" | "no" | "sc" | "sup" | // character styling
+            "rb" | "pro" | "w" | "wh" | "wa" | "wg" | // special-features
+            "lik" | "liv" | // structred list entries
+            "jmp" | "fr" | "ft" | "fk" | "fq" | "fqa" | "fl" | "fw" | "fp" | "fv" | "fdc" | // footnote-content
+            "xo" | "xop" | "xt" | "xta" | "xk" | "xq" | "xot" | "xnt" | "xdc" | // crossref-content
+            "addNested" | "bkNested" | "dcNested" | "iorNested" | "iqtNested" | "kNested" | "litlNested" | "ndNested" | "ordNested" |
+            "pnNested" | "pngNested" | "qacNested" | "qsNested" | "qtNested" | "rqNested" | "sigNested" | "slsNested" | "tlNested" | "wjNested" | // Special-text
+            "emNested" | "bdNested" | "bditNested" | "itNested" | "noNested" | "scNested" | "supNested" | // character styling
+            "rbNested" | "proNested" | "wNested" | "whNested" | "waNested" | "wgNested" | // special-features
+            "likNested" | "livNested" | // structred list entries
+            "jmpNested" | "frNested" | "ftNested" | "fkNested" | "fqNested" | "fqaNested" | "flNested" | "fwNested" | "fpNested" | "fvNested" | "fdcNested" | // footnote-content
+            "xoNested" | "xopNested" | "xtNested" | "xtaNested" | "xkNested" | "xqNested" | "xotNested" | "xntNested" | "xdcNested" | // crossref-content
+            "text" | "footnote" | "crossref" | "verseText" | "v" | "b" | "milestone" | "zNameSpace" => {
+                generator.convert_node(cursor, &mut para);
+            }
+            _ => {
+                generator.convert_node(cursor, into);
+            }
+        }
+    }
+
+    cursor.goto_parent();
 }
-fn convert_node_ca_va(
-    generator: &mut UsjGenerator,
-    cursor: &mut TreeCursor,
-    into: &mut UsjContent,
-) {
-}
+
 fn convert_node_table(
     generator: &mut UsjGenerator,
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    let mut table = UsjContent::Table { content: vec![] };
+    for_each_child(cursor, |c| generator.convert_node(c, &mut table));
+    generator.try_push_usj(cursor, into, "Unexpected table under", table);
 }
+
+fn convert_node_tr(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
+    let mut row = UsjContent::TableRow {
+        marker: MustBeStr,
+        content: vec![],
+    };
+    if cursor.goto_first_child() {
+        while cursor.goto_next_sibling() {
+            generator.convert_node(cursor, &mut row);
+        }
+    }
+    generator.try_push_usj(cursor, into, "Unexpected \\tr under", row);
+}
+
+fn convert_node_table_cell(
+    generator: &mut UsjGenerator,
+    cursor: &mut TreeCursor,
+    into: &mut UsjContent,
+) {
+    if !cursor.goto_first_child() {
+        return generator.error(cursor.node(), "Missing content in \\tr");
+    }
+
+    let style = generator.source[cursor.node().byte_range()]
+        .trim()
+        .trim_start_matches('\\');
+    let mut cell = UsjContent::TableCell {
+        marker: style.to_string(),
+        content: vec![],
+        align: if style.ends_with('r') {
+            TableCellAlignment::End
+        } else if style.contains("tcc") {
+            TableCellAlignment::Center
+        } else {
+            TableCellAlignment::Start
+        },
+    };
+    while cursor.goto_next_sibling() {
+        generator.convert_node(cursor, &mut cell);
+    }
+
+    cursor.goto_parent();
+}
+
 fn convert_node_milestone(
     generator: &mut UsjGenerator,
     cursor: &mut TreeCursor,
@@ -371,8 +466,8 @@ const DISPATCH_MAP: phf::Map<&str, fn(&mut UsjGenerator, &mut TreeCursor, &mut U
     "chapter" => convert_node_chapter,
     "paragraph" => convert_node_para,
     "cp" | "vp" => convert_node_generic,
-    "ca" | "va" => convert_node_ca_va,
-    "table" | "tr" => convert_node_table,
+    "table" => convert_node_table,
+    "tr" => convert_node_tr,
     "milestone" | "zNameSpace" => convert_node_milestone,
     "esb" | "cat" | "fig" | "ref" => convert_node_special,
     "f" | "fe" | "ef" | "efe" | "x" | "ex" => convert_node_notes,
@@ -391,7 +486,7 @@ const DISPATCH_MAP: phf::Map<&str, fn(&mut UsjGenerator, &mut TreeCursor, &mut U
         "jmpNested" | "frNested" | "ftNested" | "fkNested" | "fqNested" | "fqaNested" | "flNested" | "fwNested" | "fpNested" | "fvNested" | "fdcNested" | // footnote-content
         "xoNested" | "xopNested" | "xtNested" | "xtaNested" | "xkNested" | "xqNested" | "xotNested" | "xntNested" | "xdcNested" | // crossref-content
         "xt_standalone" => convert_node_char,
-    "tc" | "th" | "tcr" | "thr" | "tcc" => convert_node_table,
+    "tc" | "th" | "tcr" | "thr" | "tcc" => convert_node_table_cell,
     "ide" | "h" | "toc" | "toca" | // identification
         "imt" | "is" | "ip" | "ipi" | "im" | "imi" | "ipq" | "imq" |
         "ipr" | "iq" | "ib" | "ili" | "iot" | "io" | "iex" | "imte" | "ie" | // intro

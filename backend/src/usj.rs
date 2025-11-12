@@ -88,16 +88,21 @@ pub enum UsjContent {
         marker: String,
     },
 
-    Table {},
+    Table {
+        content: Vec<UsjContent>,
+    },
 
     #[serde(rename = "table:row")]
     TableRow {
         marker: MustBe!("tr"),
+        content: Vec<UsjContent>,
     },
 
     #[serde(rename = "table:cell")]
     TableCell {
         marker: String,
+        content: Vec<ParaContent>,
+        align: TableCellAlignment,
     },
 
     Sidebar {
@@ -122,6 +127,14 @@ pub enum UsjContent {
 pub enum ParaContent {
     Usj(UsjContent),
     Plain(String),
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TableCellAlignment {
+    Start,
+    Center,
+    End,
 }
 
 pub type AttributesMap = BTreeMap<String, String>;
@@ -171,6 +184,28 @@ impl UsjContent {
             | Self::Reference { attributes, .. } => Some(attributes),
             _ => None,
         }
+    }
+
+    pub fn push_text_content(&mut self, text: String) -> bool {
+        match self {
+            UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text)),
+            UsjContent::Character { content, .. } => content.push(text),
+            UsjContent::Book { content, .. } => content.push(text),
+            UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
+            _ => return false,
+        }
+        true
+    }
+
+    pub fn push_usj_content(&mut self, new_content: UsjContent) -> bool {
+        match self {
+            UsjContent::Paragraph { content, .. } => content.push(ParaContent::Usj(new_content)),
+            UsjContent::Table { content, .. } => content.push(new_content),
+            UsjContent::TableRow { content, .. } => content.push(new_content),
+            UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
+            _ => return false,
+        }
+        true
     }
 
     fn as_para_content(&self) -> Option<&Vec<ParaContent>> {
