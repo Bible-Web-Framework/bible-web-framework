@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::usj::{TableCellAlignment, UsjContent};
+use crate::usj::{AttributesMap, TableCellAlignment, UsjContent};
 use crate::{nz_u8, usfm_queries};
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
@@ -440,24 +440,117 @@ fn convert_node_milestone(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    let node = cursor.node();
+    let style = MILESTONE_QUERY
+        .captures(node, generator.source)
+        .get("ms-name")
+        .map_or_else(
+            || {
+                generator.error(node, "Missing milestone type");
+                ""
+            },
+            |x| x.1.trim().trim_start_matches('\\'),
+        );
+
+    let milestone = UsjContent::Milestone {
+        marker: style.to_string(),
+        content: vec![],
+        attributes: AttributesMap::new(),
+    };
+
+    for_each_child(cursor, |cursor| {
+        if cursor.node().kind().ends_with("Attribute") {
+            generator.convert_node(cursor, into);
+        }
+    });
+
+    generator.try_push_usj(
+        cursor,
+        into,
+        &format_args!("Unexpected \\{style} under"),
+        milestone,
+    );
 }
-fn convert_node_special(
+
+fn convert_node_sidebar(
+    generator: &mut UsjGenerator,
+    cursor: &mut TreeCursor,
+    into: &mut UsjContent,
+) {
+    let mut sidebar = UsjContent::Sidebar {
+        marker: MustBeStr,
+        category: None,
+        content: vec![],
+    };
+    for_each_middle_child(cursor, |c| generator.convert_node(c, &mut sidebar));
+    generator.try_push_usj(cursor, into, "Unexpected \\esb under", sidebar);
+}
+
+fn convert_node_category(
+    generator: &mut UsjGenerator,
+    cursor: &mut TreeCursor,
+    into: &mut UsjContent,
+) {
+    let node = cursor.node();
+    let category = CATEGORY_QUERY
+        .captures(node, generator.source)
+        .get("category")
+        .map_or_else(
+            || {
+                generator.error(node, "Missing category in \\cat");
+                ""
+            },
+            |x| x.1.trim(),
+        );
+
+    if let Some(category_to_set) = into.category_mut() {
+        *category_to_set = Some(category.to_string());
+    } else {
+        generator.unsupported_child(cursor, into, "Unexpected \\cat under");
+    }
+}
+
+fn convert_node_figure(
     generator: &mut UsjGenerator,
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
 }
+
+fn convert_node_reference(
+    generator: &mut UsjGenerator,
+    cursor: &mut TreeCursor,
+    into: &mut UsjContent,
+) {
+}
+
+fn for_each_middle_child(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCursor)) {
+    if cursor.goto_first_child() && cursor.goto_next_sibling() {
+        loop {
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+            cursor.goto_previous_sibling();
+            action(cursor);
+            cursor.goto_next_sibling();
+        }
+        cursor.goto_parent();
+    }
+}
+
 fn convert_node_notes(
     generator: &mut UsjGenerator,
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
 }
+
 fn convert_node_char(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
 }
 
 usfm_queries! {
     static ATTRIB_VAL_QUERY = "((attributeValue) @attrib-val)";
+    static CATEGORY_QUERY = "((category) @category)";
     static CHAPTER_QUERY = r#"
         (c
             (chapterNumber) @cnum
@@ -466,6 +559,14 @@ usfm_queries! {
         )
     "#;
     static ID_QUERY = "(id (bookcode) @book-code (description)? @desc)";
+    static MILESTONE_QUERY = r#"
+        ([
+            (milestoneTag)
+            (milestoneStartTag)
+            (milestoneEndTag)
+            (zSpaceTag)
+        ] @ms-name)
+    "#;
     static VERSE_NUM_CAP_QUERY = r#"
         (v
             (verseNumber) @vnum
@@ -486,7 +587,10 @@ const DISPATCH_MAP: phf::Map<&str, fn(&mut UsjGenerator, &mut TreeCursor, &mut U
     "table" => convert_node_table,
     "tr" => convert_node_tr,
     "milestone" | "zNameSpace" => convert_node_milestone,
-    "esb" | "cat" | "fig" | "ref" => convert_node_special,
+    "esb" => convert_node_sidebar,
+    "cat" => convert_node_category,
+    "fig" => convert_node_figure,
+    "ref" => convert_node_reference,
     "f" | "fe" | "ef" | "efe" | "x" | "ex" => convert_node_notes,
     "add" | "bk" | "dc" | "ior" | "iqt" | "k" | "litl" | "nd" | "ord" |
         "pn" | "png" | "qac" | "qs" | "qt" | "rq" | "sig" | "sls" | "tl" | "wj" | // Special-text

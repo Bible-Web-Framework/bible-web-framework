@@ -6,7 +6,7 @@ use ere::compile_regex;
 use miette::MietteDiagnostic;
 use monostate::MustBe;
 use serde::{Deserialize, Serialize};
-use serde_with::{DisplayFromStr, serde_as};
+use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroU8;
@@ -30,6 +30,7 @@ impl Display for UsjBookInfo {
 }
 
 #[serde_as]
+#[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UsjContent {
@@ -62,9 +63,9 @@ pub enum UsjContent {
         marker: MustBe!("c"),
         #[serde_as(as = "DisplayFromStr")]
         number: NonZeroU8,
-        #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "altnumber")]
         alt_number: Option<NonZeroU8>,
-        #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "pubnumber")]
         pub_number: Option<String>,
         sid: String,
     },
@@ -72,9 +73,9 @@ pub enum UsjContent {
     Verse {
         marker: MustBe!("v"),
         number: VerseRange,
-        #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "altnumber")]
         alt_number: Option<VerseRange>,
-        #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "pubnumber")]
         pub_number: Option<String>,
         sid: String,
     },
@@ -82,12 +83,15 @@ pub enum UsjContent {
     #[serde(rename = "ms")]
     Milestone {
         marker: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        content: Vec<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
 
     Note {
         marker: String,
+        category: Option<String>,
     },
 
     Table {
@@ -109,6 +113,8 @@ pub enum UsjContent {
 
     Sidebar {
         marker: MustBe!("esb"),
+        category: Option<String>,
+        content: Vec<UsjContent>,
     },
 
     Figure {
@@ -187,21 +193,12 @@ impl UsjContent {
         })
     }
 
-    pub fn attributes_mut(&mut self) -> Option<&mut AttributesMap> {
-        match self {
-            Self::Character { attributes, .. }
-            | Self::Milestone { attributes, .. }
-            | Self::Figure { attributes, .. }
-            | Self::Reference { attributes, .. } => Some(attributes),
-            _ => None,
-        }
-    }
-
     pub fn push_text_content(&mut self, text: String) -> bool {
         match self {
             UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text)),
             UsjContent::Character { content, .. } => content.push(text),
             UsjContent::Book { content, .. } if content.is_none() => *content = Some(text),
+            UsjContent::Milestone { content, .. } => content.push(text),
             UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
             _ => return false,
         }
@@ -218,6 +215,23 @@ impl UsjContent {
             _ => return false,
         }
         true
+    }
+
+    pub fn attributes_mut(&mut self) -> Option<&mut AttributesMap> {
+        match self {
+            Self::Character { attributes, .. }
+            | Self::Milestone { attributes, .. }
+            | Self::Figure { attributes, .. }
+            | Self::Reference { attributes, .. } => Some(attributes),
+            _ => None,
+        }
+    }
+
+    pub fn category_mut(&mut self) -> Option<&mut Option<String>> {
+        match self {
+            Self::Note { category, .. } | Self::Sidebar { category, .. } => Some(category),
+            _ => None,
+        }
     }
 
     fn as_para_content(&self) -> Option<&Vec<ParaContent>> {
