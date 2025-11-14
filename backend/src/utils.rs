@@ -76,3 +76,24 @@ pub mod option_as_vec {
         deserializer.deserialize_seq(VecVisitor(PhantomData))
     }
 }
+
+#[macro_export]
+macro_rules! serde_display_and_parse {
+    ($ty:ty) => {
+        impl ::std::fmt::Display for $ty {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                ::serde::Serialize::serialize(self, f)
+            }
+        }
+
+        impl ::std::str::FromStr for $ty {
+            type Err = ::serde::de::value::Error;
+
+            fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+                ::serde::Deserialize::deserialize(::serde::de::IntoDeserializer::into_deserializer(
+                    s,
+                ))
+            }
+        }
+    };
+}

@@ -1,4 +1,5 @@
 use crate::book_data::Book;
+use crate::serde_display_and_parse;
 use crate::usfm_converter::{FatalUsfmError, UsfmParser};
 use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
@@ -91,6 +92,8 @@ pub enum UsjContent {
 
     Note {
         marker: String,
+        content: Vec<ParaContent>,
+        caller: NoteCaller,
         category: Option<String>,
     },
 
@@ -113,18 +116,22 @@ pub enum UsjContent {
 
     Sidebar {
         marker: MustBe!("esb"),
-        category: Option<String>,
         content: Vec<UsjContent>,
+        category: Option<String>,
     },
 
     Figure {
         marker: MustBe!("fig"),
+        #[serde(with = "option_as_vec")]
+        content: Option<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
 
     #[serde(rename = "ref")]
     Reference {
+        #[serde(with = "option_as_vec")]
+        content: Option<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -144,6 +151,18 @@ pub enum TableCellAlignment {
     Center,
     End,
 }
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum NoteCaller {
+    #[serde(rename = "+")]
+    Generated,
+    #[serde(rename = "-")]
+    None,
+    #[serde(untagged)]
+    Other(char),
+}
+
+serde_display_and_parse!(NoteCaller);
 
 pub type AttributesMap = BTreeMap<String, String>;
 
@@ -195,11 +214,19 @@ impl UsjContent {
 
     pub fn push_text_content(&mut self, text: String) -> bool {
         match self {
-            UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text)),
-            UsjContent::Character { content, .. } => content.push(text),
-            UsjContent::Book { content, .. } if content.is_none() => *content = Some(text),
-            UsjContent::Milestone { content, .. } => content.push(text),
-            UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
+            UsjContent::Paragraph { content, .. }
+            | UsjContent::Note { content, .. }
+            | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
+            UsjContent::Character { content, .. } | UsjContent::Milestone { content, .. } => {
+                content.push(text)
+            }
+            UsjContent::Book { content, .. }
+            | UsjContent::Figure { content, .. }
+            | UsjContent::Reference { content, .. }
+                if content.is_none() =>
+            {
+                *content = Some(text)
+            }
             _ => return false,
         }
         true
@@ -207,11 +234,12 @@ impl UsjContent {
 
     pub fn push_usj_content(&mut self, new_content: UsjContent) -> bool {
         match self {
-            UsjContent::Root(UsjRoot { content, .. }) => content.push(new_content),
-            UsjContent::Paragraph { content, .. } => content.push(ParaContent::Usj(new_content)),
-            UsjContent::Table { content, .. } => content.push(new_content),
-            UsjContent::TableRow { content, .. } => content.push(new_content),
-            UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
+            UsjContent::Root(UsjRoot { content, .. })
+            | UsjContent::Table { content, .. }
+            | UsjContent::TableRow { content, .. } => content.push(new_content),
+            UsjContent::Paragraph { content, .. }
+            | UsjContent::Note { content, .. }
+            | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
             _ => return false,
         }
         true

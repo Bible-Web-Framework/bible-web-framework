@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::usj::{AttributesMap, TableCellAlignment, UsjContent};
+use crate::usj::{AttributesMap, NoteCaller, TableCellAlignment, UsjContent};
 use crate::{nz_u8, usfm_queries};
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
@@ -492,7 +492,7 @@ fn convert_node_category(
     into: &mut UsjContent,
 ) {
     let node = cursor.node();
-    let category = CATEGORY_QUERY
+    let new_category = CATEGORY_QUERY
         .captures(node, generator.source)
         .get("category")
         .map_or_else(
@@ -503,8 +503,8 @@ fn convert_node_category(
             |x| x.1.trim(),
         );
 
-    if let Some(category_to_set) = into.category_mut() {
-        *category_to_set = Some(category.to_string());
+    if let Some(category) = into.category_mut() {
+        *category = Some(new_category.to_string());
     } else {
         generator.unsupported_child(cursor, into, "Unexpected \\cat under");
     }
@@ -515,6 +515,13 @@ fn convert_node_figure(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    let mut figure = UsjContent::Figure {
+        marker: MustBeStr,
+        content: None,
+        attributes: AttributesMap::new(),
+    };
+    for_each_middle_child(cursor, |c| generator.convert_node(c, &mut figure));
+    generator.try_push_usj(cursor, into, "Unexpected \\fig under", figure);
 }
 
 fn convert_node_reference(
@@ -522,18 +529,17 @@ fn convert_node_reference(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    let mut reference = UsjContent::Reference {
+        content: None,
+        attributes: AttributesMap::new(),
+    };
+    for_each_middle_child(cursor, |c| generator.convert_node(c, &mut reference));
+    generator.try_push_usj(cursor, into, "Unexpected \\ref under", reference);
 }
 
-fn for_each_middle_child(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCursor)) {
-    if cursor.goto_first_child() && cursor.goto_next_sibling() {
-        loop {
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-            cursor.goto_previous_sibling();
-            action(cursor);
-            cursor.goto_next_sibling();
-        }
+fn for_each_middle_child(cursor: &mut TreeCursor, action: impl FnMut(&mut TreeCursor)) {
+    if cursor.goto_first_child() {
+        for_each_middle(cursor, action);
         cursor.goto_parent();
     }
 }
@@ -543,6 +549,48 @@ fn convert_node_notes(
     cursor: &mut TreeCursor,
     into: &mut UsjContent,
 ) {
+    cursor.goto_first_child();
+    let style = generator.source[cursor.node().byte_range()]
+        .trim()
+        .trim_start_matches('\\');
+
+    cursor.goto_next_sibling();
+    let caller = generator.source[cursor.node().byte_range()]
+        .trim()
+        .parse()
+        .unwrap_or_else(|e| {
+            generator.error(cursor.node(), format!("Invalid caller: {e}"));
+            NoteCaller::None
+        });
+
+    let mut note = UsjContent::Note {
+        marker: style.to_string(),
+        caller,
+        category: None,
+        content: vec![],
+    };
+    for_each_middle(cursor, |c| generator.convert_node(c, &mut note));
+
+    cursor.goto_parent();
+    generator.try_push_usj(
+        cursor,
+        into,
+        &format_args!("Unexpected \\{style} under"),
+        note,
+    );
+}
+
+fn for_each_middle(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCursor)) {
+    if cursor.goto_next_sibling() {
+        loop {
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+            cursor.goto_previous_sibling();
+            action(cursor);
+            cursor.goto_next_sibling();
+        }
+    }
 }
 
 fn convert_node_char(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
