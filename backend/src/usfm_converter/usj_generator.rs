@@ -454,7 +454,7 @@ fn convert_node_milestone(
 
     let milestone = UsjContent::Milestone {
         marker: style.to_string(),
-        content: vec![],
+        content: None,
         attributes: AttributesMap::new(),
     };
 
@@ -582,10 +582,7 @@ fn convert_node_notes(
 
 fn for_each_middle(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCursor)) {
     if cursor.goto_next_sibling() {
-        loop {
-            if !cursor.goto_next_sibling() {
-                break;
-            }
+        while cursor.goto_next_sibling() {
             cursor.goto_previous_sibling();
             action(cursor);
             cursor.goto_next_sibling();
@@ -594,6 +591,34 @@ fn for_each_middle(cursor: &mut TreeCursor, mut action: impl FnMut(&mut TreeCurs
 }
 
 fn convert_node_char(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
+    cursor.goto_first_child();
+
+    let base_style = generator.source[cursor.node().byte_range()].trim();
+
+    let mut character = UsjContent::Character {
+        marker: base_style.trim_start_matches(['\\', '+']).to_string(),
+        content: None,
+        attributes: AttributesMap::new(),
+    };
+
+    while cursor.goto_next_sibling() {
+        if cursor.node().kind().starts_with('\\') {
+            // If a node has \, check if we can advance. We shouldn't process the last node if it has \.
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+            cursor.goto_previous_sibling();
+        }
+        generator.convert_node(cursor, &mut character);
+    }
+
+    cursor.goto_parent();
+    generator.try_push_usj(
+        cursor,
+        into,
+        &format_args!("Unexpected {base_style} under"),
+        character,
+    );
 }
 
 usfm_queries! {

@@ -48,7 +48,8 @@ pub enum UsjContent {
     #[serde(rename = "char")]
     Character {
         marker: String,
-        content: Vec<String>,
+        #[serde(with = "option_as_vec")]
+        content: Option<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -84,8 +85,8 @@ pub enum UsjContent {
     #[serde(rename = "ms")]
     Milestone {
         marker: String,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        content: Vec<String>,
+        #[serde(with = "option_as_vec", skip_serializing_if = "Option::is_none")]
+        content: Option<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -217,10 +218,10 @@ impl UsjContent {
             UsjContent::Paragraph { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
-            UsjContent::Character { content, .. } | UsjContent::Milestone { content, .. } => {
-                content.push(text)
-            }
-            UsjContent::Book { content, .. }
+
+            UsjContent::Character { content, .. }
+            | UsjContent::Book { content, .. }
+            | UsjContent::Milestone { content, .. }
             | UsjContent::Figure { content, .. }
             | UsjContent::Reference { content, .. }
                 if content.is_none() =>
@@ -237,6 +238,7 @@ impl UsjContent {
             UsjContent::Root(UsjRoot { content, .. })
             | UsjContent::Table { content, .. }
             | UsjContent::TableRow { content, .. } => content.push(new_content),
+
             UsjContent::Paragraph { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
