@@ -81,7 +81,10 @@ impl UsjGenerator<'_> {
         self.diagnostic(node, Severity::Error, message);
     }
 
-    fn unsupported_child(&mut self, cursor: &TreeCursor, into: &UsjContent, message: &str) {
+    fn unsupported_child<D>(&mut self, cursor: &TreeCursor, into: &UsjContent, message: &D)
+    where
+        D: Display + ?Sized,
+    {
         self.error(
             cursor.node(),
             format!("{message} {}", into.marker_or_type()),
@@ -94,13 +97,15 @@ impl UsjGenerator<'_> {
         }
     }
 
-    fn try_push_usj(
+    fn try_push_usj<D>(
         &mut self,
         cursor: &TreeCursor,
         into: &mut UsjContent,
-        error_message: &str,
+        error_message: &D,
         content: UsjContent,
-    ) {
+    ) where
+        D: Display + ?Sized,
+    {
         if !into.push_usj_content(content) {
             self.unsupported_child(cursor, into, error_message);
         }
@@ -361,8 +366,14 @@ fn convert_node_generic(
             }
         }
     }
-
     cursor.goto_parent();
+
+    generator.try_push_usj(
+        cursor,
+        into,
+        &format_args!("Unexpected \\{} under", style.trim()),
+        para,
+    );
 }
 
 fn convert_node_table(
@@ -414,9 +425,12 @@ fn convert_node_table_cell(
     while cursor.goto_next_sibling() {
         generator.convert_node(cursor, &mut cell);
     }
-    if !into.push_usj_content(cell) {
-        generator.unsupported_child(cursor, into, &format!("Unexpected \\{style} under"));
-    }
+    generator.try_push_usj(
+        cursor,
+        into,
+        &format_args!("Unexpected \\{style} under"),
+        cell,
+    );
 
     cursor.goto_parent();
 }
