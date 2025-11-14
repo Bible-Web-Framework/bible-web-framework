@@ -176,6 +176,15 @@ impl UsjContent {
         }
     }
 
+    pub fn marker_or_type(&self) -> &str {
+        self.marker().unwrap_or_else(|| match self {
+            Self::Root(_) => "USJ",
+            Self::Table { .. } => "table",
+            Self::Reference { .. } => "ref",
+            _ => unreachable!("All other variants should be handled by marker()"),
+        })
+    }
+
     pub fn attributes_mut(&mut self) -> Option<&mut AttributesMap> {
         match self {
             Self::Character { attributes, .. }
@@ -199,6 +208,7 @@ impl UsjContent {
 
     pub fn push_usj_content(&mut self, new_content: UsjContent) -> bool {
         match self {
+            UsjContent::Root(UsjRoot { content, .. }) => content.push(new_content),
             UsjContent::Paragraph { content, .. } => content.push(ParaContent::Usj(new_content)),
             UsjContent::Table { content, .. } => content.push(new_content),
             UsjContent::TableRow { content, .. } => content.push(new_content),

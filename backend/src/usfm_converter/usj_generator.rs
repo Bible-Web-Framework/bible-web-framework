@@ -84,7 +84,7 @@ impl UsjGenerator<'_> {
     fn unsupported_child(&mut self, cursor: &TreeCursor, into: &UsjContent, message: &str) {
         self.error(
             cursor.node(),
-            format!("{message} {}", into.marker().unwrap_or_default()),
+            format!("{message} {}", into.marker_or_type()),
         );
     }
 
@@ -413,6 +413,9 @@ fn convert_node_table_cell(
     };
     while cursor.goto_next_sibling() {
         generator.convert_node(cursor, &mut cell);
+    }
+    if !into.push_usj_content(cell) {
+        generator.unsupported_child(cursor, into, &format!("Unexpected \\{style} under"));
     }
 
     cursor.goto_parent();
