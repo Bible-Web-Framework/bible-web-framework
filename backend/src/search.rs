@@ -1,5 +1,5 @@
 use crate::config::BibleConfig;
-use crate::reference::{ChapterReference, ParseReferenceError, parse_references};
+use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::UsjContent;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,7 @@ pub enum SearchResponseResult {
     ReferenceContent {
         reference: String,
         #[serde(flatten)]
-        reference_details: ChapterReference,
+        reference_details: BibleReference,
         content: Option<Vec<UsjContent>>,
     },
     InvalidReference {

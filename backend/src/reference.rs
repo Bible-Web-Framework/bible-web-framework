@@ -8,33 +8,61 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
+use std::ops::Deref;
 use std::sync::LazyLock;
 use thiserror::Error;
 use unicase::UniCase;
 
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ChapterReference {
+pub struct BibleReference {
     pub book: Book,
+    pub reference: BookReference,
+}
+
+impl Deref for BibleReference {
+    type Target = BookReference;
+
+    fn deref(&self) -> &Self::Target {
+        &self.reference
+    }
+}
+
+impl Debug for BibleReference {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?} {:?}", self.book, self.reference))
+    }
+}
+
+impl Display for BibleReference {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{} {}", self.book, self.reference.chapter))?;
+        if self.reference.verses.first_u8() != 1
+            || Some(self.reference.verses.last()) != self.book.verse_count(self.reference.chapter)
+        {
+            f.write_fmt(format_args!(":{}", self.reference.verses))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BookReference {
     pub chapter: NonZeroU8,
     pub verses: VerseRange,
 }
 
-impl Debug for ChapterReference {
+impl Debug for BookReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "{:?} {:?}:{:?}",
-            self.book, self.chapter, self.verses,
-        ))
+        f.write_fmt(format_args!("{:?}:{:?}", self.chapter, self.verses,))
     }
 }
 
-impl Display for ChapterReference {
+impl Display for BookReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{} {}", self.book, self.chapter))?;
-        if self.verses.first_u8() != 1
-            || Some(self.verses.last()) != self.book.verse_count(self.chapter)
-        {
-            f.write_fmt(format_args!(":{}", self.verses,))
+        f.write_fmt(format_args!("{}", self.chapter))?;
+        if self.verses.first_u8() != 1 {
+            f.write_fmt(format_args!(":{}", self.verses))
         } else {
             Ok(())
         }
@@ -83,7 +111,7 @@ impl ParseReferenceError {
 pub fn parse_references(
     reference: &str,
     additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
-) -> Vec<Result<ChapterReference, ParseReferenceError>> {
+) -> Vec<Result<BibleReference, ParseReferenceError>> {
     with_normalized_str(reference, |reference| {
         let mut book = None;
         reference
@@ -98,7 +126,7 @@ fn parse_reference_part(
     reference: &str,
     book: &mut Option<Book>,
     additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
-) -> Result<ChapterReference, ParseReferenceError> {
+) -> Result<BibleReference, ParseReferenceError> {
     static BOOK_DATA_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         /*
         Do we even need this regex? We could just check everything up to the first number (presuming that's after the initial)
@@ -162,23 +190,20 @@ fn parse_reference_part(
             }
             Ok(verse)
         };
-        ChapterReference {
+        BibleReference {
             book,
-            chapter,
-            verses: if let Some((verse_start, verse_end)) = verses.split_once('-') {
-                // let verse_range = ;
-                // if verse_range.0 > verse_range.1 {
-                //     return Err(ParseReferenceError::OutOfOrderVerses { verse_range });
-                // }
-                // verse_range
-                VerseRange::new(
-                    parse_verse(verse_start, Some(nz_u8!(1)))?,
-                    parse_verse(verse_end, Some(verse_count))?,
-                )
-                .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })?
-            } else {
-                let verse = parse_verse(verses, None)?;
-                VerseRange::new(verse, verse).unwrap()
+            reference: BookReference {
+                chapter,
+                verses: if let Some((verse_start, verse_end)) = verses.split_once('-') {
+                    VerseRange::new(
+                        parse_verse(verse_start, Some(nz_u8!(1)))?,
+                        parse_verse(verse_end, Some(verse_count))?,
+                    )
+                    .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })?
+                } else {
+                    let verse = parse_verse(verses, None)?;
+                    VerseRange::new(verse, verse).unwrap()
+                },
             },
         }
     } else {
@@ -194,10 +219,12 @@ fn parse_reference_part(
         let verse_count = book
             .verse_count(chapter)
             .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
-        ChapterReference {
+        BibleReference {
             book,
-            chapter,
-            verses: VerseRange::new(nz_u8!(1), verse_count).unwrap(),
+            reference: BookReference {
+                chapter,
+                verses: VerseRange::new(nz_u8!(1), verse_count).unwrap(),
+            },
         }
     })
 }
@@ -205,7 +232,7 @@ fn parse_reference_part(
 #[cfg(test)]
 mod tests {
     use super::ParseReferenceError::*;
-    use super::{ChapterReference, parse_references};
+    use super::{BibleReference, BookReference, parse_references};
     use crate::book_data::Book::*;
     use crate::nz_u8;
     use crate::verse_range::VerseRange;
@@ -215,11 +242,13 @@ mod tests {
 
     macro_rules! reference_result {
         (Ok($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal)) => {
-            Ok(ChapterReference {
+            Ok(BibleReference {
                 book: $book,
-                chapter: nz_u8!($chapter),
-                verses: VerseRange::new(nz_u8!($verse_start), nz_u8!($verse_end))
-                    .expect("Invalid verse range as expected value in test"),
+                reference: BookReference {
+                    chapter: nz_u8!($chapter),
+                    verses: VerseRange::new(nz_u8!($verse_start), nz_u8!($verse_end))
+                        .expect("Invalid verse range as expected value in test"),
+                },
             })
         };
 
