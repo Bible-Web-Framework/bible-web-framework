@@ -25,3 +25,54 @@ macro_rules! nz_u8 {
         }
     };
 }
+
+pub mod option_as_vec {
+    use serde::de::{Error, SeqAccess, Visitor};
+    use serde::ser::SerializeSeq;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::fmt::Formatter;
+    use std::marker::PhantomData;
+
+    pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: Serialize,
+        S: Serializer,
+    {
+        let iter = value.iter();
+        let mut seq = serializer.serialize_seq(Some(iter.len()))?;
+        for element in iter {
+            seq.serialize_element(element)?;
+        }
+        seq.end()
+    }
+
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+    where
+        T: Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        struct VecVisitor<T>(PhantomData<T>);
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for VecVisitor<T> {
+            type Value = Option<T>;
+
+            fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence with zero or one values")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let value = seq.next_element()?;
+                if seq.next_element::<T>()?.is_some() {
+                    return Err(Error::invalid_length(
+                        2 + seq.size_hint().unwrap_or_default(),
+                        &self,
+                    ));
+                }
+                Ok(value)
+            }
+        }
+        deserializer.deserialize_seq(VecVisitor(PhantomData))
+    }
+}

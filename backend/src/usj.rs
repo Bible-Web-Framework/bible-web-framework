@@ -1,5 +1,6 @@
 use crate::book_data::Book;
 use crate::usfm_converter::{FatalUsfmError, UsfmParser};
+use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
 use ere::compile_regex;
 use miette::MietteDiagnostic;
@@ -52,8 +53,9 @@ pub enum UsjContent {
 
     Book {
         marker: MustBe!("id"),
+        #[serde(with = "option_as_vec")]
+        content: Option<String>,
         code: Book,
-        content: Vec<String>,
     },
 
     Chapter {
@@ -199,7 +201,7 @@ impl UsjContent {
         match self {
             UsjContent::Paragraph { content, .. } => content.push(ParaContent::Plain(text)),
             UsjContent::Character { content, .. } => content.push(text),
-            UsjContent::Book { content, .. } => content.push(text),
+            UsjContent::Book { content, .. } if content.is_none() => *content = Some(text),
             UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
             _ => return false,
         }
@@ -247,7 +249,7 @@ impl UsjRoot {
             if let UsjContent::Book { code, content, .. } = &content {
                 Some(UsjBookInfo {
                     book: *code,
-                    description: content.first().cloned(),
+                    description: content.clone(),
                 })
             } else {
                 None

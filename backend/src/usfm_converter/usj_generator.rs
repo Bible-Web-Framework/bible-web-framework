@@ -206,7 +206,7 @@ fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: 
         UsjContent::Book {
             marker: MustBeStr,
             code: book,
-            content: desc.into_iter().map(str::to_string).collect(),
+            content: desc.map(str::to_string),
         },
     );
 }
