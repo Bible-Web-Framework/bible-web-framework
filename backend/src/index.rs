@@ -59,7 +59,7 @@ impl BibleIndex {
         for (word, new_references) in indexer.results {
             let references = self.references_by_word.entry(word).or_default();
             references.total += new_references.len();
-            references.by_book[book].extend(new_references);
+            references.by_book[book] = new_references;
         }
     }
 
@@ -103,9 +103,8 @@ impl BibleIndex {
                         indexer.index_usj(content);
                         (*book, indexer)
                     })
-                    .collect_vec_list()
+                    .collect::<Vec<_>>()
                     .into_iter()
-                    .flatten()
                     .for_each(|(book, indexer)| self.replace_from_indexer(book, indexer));
                 tracing::info!(
                     "Reindexed all books ({} words) in {:?}",
