@@ -7,6 +7,7 @@ use charabia::Tokenize;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
+use std::time::Instant;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -46,7 +47,9 @@ pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) 
         .iter()
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
     {
+        let start = Instant::now();
         let results = search_for_terms(&term, &config.us.files, &index.read().unwrap());
+        tracing::debug!("Search for \"{term}\" took {:?}", start.elapsed());
         SearchResponse {
             response_type: SearchResponseType::SearchResults,
             search_term: term,

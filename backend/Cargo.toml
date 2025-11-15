@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
-# This seems redundant, but it's necessary for Docker to work
 [[bin]]
 name = "bwf-backend"
 path = "src/main.rs"
