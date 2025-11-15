@@ -1,4 +1,5 @@
 use crate::book_data::Book;
+use crate::index::ReindexType;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
@@ -6,6 +7,7 @@ use notify_debouncer_full::notify;
 use notify_debouncer_full::notify::EventKind;
 use notify_debouncer_full::notify::event::{CreateKind, ModifyKind, RemoveKind, RenameMode};
 use rayon::iter::{ParallelBridge, ParallelIterator};
+use smallvec::smallvec;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -165,10 +167,11 @@ impl UsFileMap {
         Ok(())
     }
 
-    pub fn handle_file_change(&mut self, event: notify::Event) -> io::Result<()> {
+    pub fn handle_file_change(&mut self, event: notify::Event) -> io::Result<ReindexType> {
         if event.need_rescan() {
             tracing::debug!("File watcher requested full rescan");
-            return self.reload_all_from_dir();
+            self.reload_all_from_dir()?;
+            return Ok(ReindexType::FullReindex);
         }
         let get_path = |index: usize| event.paths[index].file_name().unwrap().to_owned();
         match event.kind {
@@ -179,6 +182,7 @@ impl UsFileMap {
                     && let Some(book) = self.insert_from_file_or_warn(path.clone())
                 {
                     tracing::info!("Loaded new book {book} from {}", path.display());
+                    return Ok(ReindexType::PartialReindex(smallvec![book.book]));
                 }
             }
             EventKind::Modify(ModifyKind::Data(_)) => {
@@ -189,16 +193,20 @@ impl UsFileMap {
                     .and_then(|(b, _)| self.files.remove(&b))
                     .and_then(|b| b.unwrap_root().book_info());
                 if let Some(new_book) = self.insert_from_file_or_warn(path.clone()) {
-                    if let Some(old_book) = old_book
-                        && new_book != old_book
-                    {
-                        tracing::info!(
-                            "Loaded book {new_book} from {} (was {old_book})",
-                            path.display()
-                        );
-                    } else {
-                        tracing::info!("Loaded book {new_book} from {}", path.display());
-                    }
+                    return Ok(
+                        if let Some(old_book) = old_book
+                            && new_book != old_book
+                        {
+                            tracing::info!(
+                                "Loaded book {new_book} from {} (was {old_book})",
+                                path.display()
+                            );
+                            ReindexType::PartialReindex(smallvec![old_book.book, new_book.book])
+                        } else {
+                            tracing::info!("Loaded book {new_book} from {}", path.display());
+                            ReindexType::PartialReindex(smallvec![new_book.book])
+                        },
+                    );
                 }
             }
             EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {
@@ -222,12 +230,14 @@ impl UsFileMap {
                     if self.has_ignored_files {
                         tracing::info!("Reloading all books due to previously ignored files");
                         self.reload_all_from_dir()?;
+                        return Ok(ReindexType::FullReindex);
                     }
+                    return Ok(ReindexType::Unindex(book));
                 }
             }
             unknown => tracing::debug!("Received unknown file watch event {unknown:?}: {event:?}"),
         }
-        Ok(())
+        Ok(ReindexType::NoReindex)
     }
 }
 

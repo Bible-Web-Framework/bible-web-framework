@@ -1,5 +1,6 @@
 use crate::api::route_not_found;
 use crate::config::BibleConfig;
+use crate::index::{BibleIndex, ReindexType};
 use actix_web::{App, HttpServer, web};
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
@@ -16,6 +17,7 @@ use tracing_subscriber::filter::LevelFilter;
 mod api;
 mod book_data;
 mod config;
+mod index;
 mod reference;
 mod search;
 mod usfm_converter;
@@ -61,10 +63,16 @@ async fn real_main() -> Result<(), ServerError> {
 
     let us_dir = var::<PathBuf>("US_DIRECTORY")?;
     let bible_config = BibleConfig::load_initial(us_dir.clone())?;
+
+    let mut bible_index = BibleIndex::new();
+    bible_index.update_index(ReindexType::FullReindex, &bible_config.us.files);
+
     let bible_config = web::Data::new(RwLock::new(bible_config));
+    let bible_index = web::Data::new(RwLock::new(bible_index));
 
     let usj_watcher = {
         let config = bible_config.clone();
+        let index = bible_index.clone();
         let mut usj_watcher = notify_debouncer_full::new_debouncer(
             Duration::from_secs(2),
             None,
@@ -74,10 +82,18 @@ async fn real_main() -> Result<(), ServerError> {
                     Ok(evs) => {
                         let mut config = config.write().unwrap();
                         for ev in evs {
-                            if let Err(err) = config.us.handle_file_change(ev.event) {
-                                tracing::error!(
-                                    "Failed to update loaded USJs from file watch event: {err}"
-                                );
+                            match config.us.handle_file_change(ev.event) {
+                                Ok(reindex) => {
+                                    if reindex != ReindexType::NoReindex {
+                                        let mut index = index.write().unwrap();
+                                        index.update_index(reindex, &config.us.files);
+                                    }
+                                }
+                                Err(err) => {
+                                    tracing::error!(
+                                        "Failed to update loaded USJs from file watch event: {err}"
+                                    );
+                                }
                             }
                         }
                     }
@@ -101,6 +117,7 @@ async fn real_main() -> Result<(), ServerError> {
     HttpServer::new(move || {
         App::new()
             .app_data(bible_config.clone())
+            .app_data(bible_index.clone())
             .app_data(usj_watcher.clone())
             .default_service(web::to(route_not_found))
             .service(web::scope("/v1").service(api::book).service(api::search))

@@ -454,7 +454,7 @@ fn convert_node_milestone(
 
     let milestone = UsjContent::Milestone {
         marker: style.to_string(),
-        content: None,
+        content: vec![],
         attributes: AttributesMap::new(),
     };
 

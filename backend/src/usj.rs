@@ -85,8 +85,8 @@ pub enum UsjContent {
     #[serde(rename = "ms")]
     Milestone {
         marker: String,
-        #[serde(with = "option_as_vec", skip_serializing_if = "Option::is_none")]
-        content: Option<String>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        content: Vec<ParaContent>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -216,12 +216,12 @@ impl UsjContent {
     pub fn push_text_content(&mut self, text: String) -> bool {
         match self {
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
 
             UsjContent::Character { content, .. }
             | UsjContent::Book { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Figure { content, .. }
             | UsjContent::Reference { content, .. }
                 if content.is_none() =>
@@ -240,6 +240,7 @@ impl UsjContent {
             | UsjContent::TableRow { content, .. } => content.push(new_content),
 
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
             _ => return false,

@@ -19,7 +19,7 @@ fn main() {
         serde_json::from_slice(&verse_counts).unwrap();
 
     let mut book_names = r#"
-        #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+        #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, enum_map::Enum)]
         pub enum Book {
     "#
     .to_string();
