@@ -36,6 +36,7 @@ monostate = "1.0.2"
 smallvec = "1.15.1"
 charabia = "0.9.8"
 enum-map = "2.7.3"
+either = "1.15.0"
 
 [build-dependencies]
 phf_codegen = "0.13.1"

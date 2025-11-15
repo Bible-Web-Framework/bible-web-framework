@@ -14,6 +14,8 @@ use std::num::NonZeroU8;
 use std::ops::Range;
 use std::time::Instant;
 
+pub type SearchResultMap = EnumMap<Book, Vec<(BookReference, TextLocation)>>;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReindexType {
     NoReindex,
@@ -31,7 +33,7 @@ pub struct BibleIndex {
 #[derive(Clone, Default)]
 struct BookReferenceMap {
     total: usize,
-    by_book: EnumMap<Book, Vec<BookReferenceAndTextRange>>,
+    by_book: SearchResultMap,
 }
 
 impl BibleIndex {
@@ -39,6 +41,13 @@ impl BibleIndex {
         Self {
             references_by_word: HashMap::new(),
             words_by_book: EnumMap::default(),
+        }
+    }
+
+    pub fn find<'a, 'b: 'a>(&'a self, lemma: &'b str) -> Option<&'a SearchResultMap> {
+        match self.references_by_word.get(&Cow::Borrowed(lemma)) {
+            Some(x) => Some(&x.by_book),
+            None => None,
         }
     }
 
@@ -117,7 +126,7 @@ impl BibleIndex {
 }
 
 pub struct BookIndexer {
-    results: HashMap<Cow<'static, str>, Vec<BookReferenceAndTextRange>>,
+    results: HashMap<Cow<'static, str>, Vec<(BookReference, TextLocation)>>,
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
     current_path: SmallVec<[usize; 4]>,
@@ -145,6 +154,7 @@ impl BookIndexer {
             | UsjContent::TableRow { content, .. } => {
                 self.for_with_path(content, Self::index_usj);
             }
+
             UsjContent::Paragraph { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::TableCell { content, .. } => {
@@ -153,6 +163,7 @@ impl BookIndexer {
                     ParaContent::Plain(text) => this.index_text(text),
                 });
             }
+
             UsjContent::Character { content, .. } => {
                 if let Some(content) = content {
                     self.index_text(content);
@@ -160,6 +171,7 @@ impl BookIndexer {
             }
             UsjContent::Chapter { number, .. } => self.current_chapter = Some(*number),
             UsjContent::Verse { number, .. } => self.current_verses = Some(*number),
+
             UsjContent::Book { .. }
             | UsjContent::Note { .. }
             | UsjContent::Sidebar { .. }
@@ -193,18 +205,29 @@ impl BookIndexer {
             self.results
                 .entry(Cow::Owned(token.lemma.into_owned()))
                 .or_default()
-                .push(BookReferenceAndTextRange {
+                .push((
                     reference,
-                    text_path: self.current_path.clone(),
-                    text_range: token.byte_start..token.byte_end,
-                });
+                    TextLocation {
+                        usj_path: self.current_path.clone(),
+                        char_range: token.char_start..token.char_end,
+                    },
+                ));
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct BookReferenceAndTextRange {
-    pub reference: BookReference,
-    pub text_path: SmallVec<[usize; 4]>,
-    pub text_range: Range<usize>,
+pub struct TextLocation {
+    pub usj_path: SmallVec<[usize; 4]>,
+    pub char_range: Range<usize>,
+}
+
+impl TextLocation {
+    pub fn resolve_text_section<'a>(&self, content: &'a UsjContent) -> Option<&'a str> {
+        let mut current = content;
+        for index in self.usj_path.iter().take(self.usj_path.len() - 1) {
+            current = current.get_content(*index)?.left()?;
+        }
+        current.get_content(*self.usj_path.last()?)?.right()
+    }
 }

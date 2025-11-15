@@ -3,6 +3,7 @@ use crate::serde_display_and_parse;
 use crate::usfm_converter::{FatalUsfmError, UsfmParser};
 use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
+use either::Either;
 use ere::compile_regex;
 use miette::MietteDiagnostic;
 use monostate::MustBe;
@@ -228,6 +229,7 @@ impl UsjContent {
             {
                 *content = Some(text)
             }
+
             _ => return false,
         }
         true
@@ -243,9 +245,40 @@ impl UsjContent {
             | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
+
             _ => return false,
         }
         true
+    }
+
+    pub fn get_content(&self, index: usize) -> Option<Either<&UsjContent, &str>> {
+        Some(match self {
+            UsjContent::Root(UsjRoot { content, .. })
+            | UsjContent::Table { content, .. }
+            | UsjContent::TableRow { content, .. }
+            | UsjContent::Sidebar { content, .. } => Either::Left(content.get(index)?),
+
+            UsjContent::Paragraph { content, .. }
+            | UsjContent::Milestone { content, .. }
+            | UsjContent::Note { content, .. }
+            | UsjContent::TableCell { content, .. } => match content.get(index)? {
+                ParaContent::Usj(usj) => Either::Left(usj),
+                ParaContent::Plain(text) => Either::Right(text),
+            },
+
+            UsjContent::Character { content, .. }
+            | UsjContent::Book { content, .. }
+            | UsjContent::Figure { content, .. }
+            | UsjContent::Reference { content, .. } => {
+                if index == 0 {
+                    Either::Right(content.as_ref()?)
+                } else {
+                    return None;
+                }
+            }
+
+            _ => return None,
+        })
     }
 
     pub fn attributes_mut(&mut self) -> Option<&mut AttributesMap> {
@@ -385,15 +418,24 @@ impl UsjRoot {
         if index.1 > 0 {
             Some((index.0, index.1 - 1))
         } else if index.0 > 0 {
-            let prev_index = index.0 - 1;
-            if let Some(para_content) = self
-                .content
-                .get(prev_index)
-                .and_then(UsjContent::as_para_content)
-            {
-                Some((prev_index, para_content.len() - 1))
-            } else {
-                Some((prev_index, 0))
+            let mut prev_index = index.0 - 1;
+            loop {
+                if let Some(para_content) = self
+                    .content
+                    .get(prev_index)
+                    .and_then(UsjContent::as_para_content)
+                {
+                    if para_content.is_empty() {
+                        if prev_index == 0 {
+                            return None;
+                        }
+                        prev_index -= 1;
+                        continue;
+                    }
+                    break Some((prev_index, para_content.len() - 1));
+                } else {
+                    break Some((prev_index, 0));
+                }
             }
         } else {
             None

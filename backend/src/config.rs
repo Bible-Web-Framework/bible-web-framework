@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::index::ReindexType;
+use crate::index::{BibleIndex, ReindexType};
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
@@ -259,3 +259,4 @@ impl BibleConfig {
 }
 
 pub type BibleConfigLock = RwLock<BibleConfig>;
+pub type BibleIndexLock = RwLock<BibleIndex>;

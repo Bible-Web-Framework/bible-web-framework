@@ -13,9 +13,10 @@ use std::sync::LazyLock;
 use thiserror::Error;
 use unicase::UniCase;
 
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BibleReference {
     pub book: Book,
+    #[serde(flatten)]
     pub reference: BookReference,
 }
 
@@ -46,7 +47,7 @@ impl Display for BibleReference {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BookReference {
     pub chapter: NonZeroU8,
     pub verses: VerseRange,

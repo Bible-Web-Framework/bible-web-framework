@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 use std::str::FromStr;
 use thiserror::Error;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct VerseRange {
     first: NonZeroU8,
     last: NonZeroU8,

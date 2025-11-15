@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::config::BibleConfigLock;
+use crate::config::{BibleConfigLock, BibleIndexLock};
 use crate::search::search_bible;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError, get, web};
@@ -77,10 +77,11 @@ struct SearchQueryParams {
 pub async fn search(
     query: web::Query<SearchQueryParams>,
     config: web::Data<BibleConfigLock>,
+    index: web::Data<BibleIndexLock>,
 ) -> ApiResult<HttpResponse> {
     let params = query.into_inner();
     let Some(term) = params.term else {
         return Err(ApiError::MissingTermParam);
     };
-    Ok(HttpResponse::Ok().json(search_bible(term, &config.read().unwrap())))
+    Ok(HttpResponse::Ok().json(search_bible(term, &config.read().unwrap(), &index)))
 }
