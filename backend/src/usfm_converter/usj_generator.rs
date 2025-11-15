@@ -196,6 +196,8 @@ fn convert_node_verse(
 fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
     let captures = ID_QUERY.captures(cursor.node(), generator.source);
     let Ok(Some(book)) = generator.parse_from_query(&captures, "book-code", "book code") else {
+        // Just pick some arbitrary fallback
+        generator.current_book = Some(Book::Genesis);
         return;
     };
     let desc = captures
