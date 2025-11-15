@@ -264,7 +264,10 @@ fn convert_node_chapter(
 fn convert_node_para(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: &mut UsjContent) {
     let node = cursor.node();
     if node.child(0).is_some_and(|x| x.kind().ends_with("Block")) {
-        return for_each_child(cursor, |c| convert_node_para(generator, c, into));
+        cursor.goto_first_child();
+        for_each_child(cursor, |c| convert_node_para(generator, c, into));
+        cursor.goto_parent();
+        return;
     }
     let para = match node.kind() {
         "paragraph" => {
