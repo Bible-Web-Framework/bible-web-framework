@@ -12,6 +12,10 @@ use unicase::UniCase;
 // TODO: Support all books listed in https://docs.usfm.bible/usfm/3.1/doc/books.html
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
+/// A map from NFKC-normalized case-folded strings with no spaces. `None` is treated as an empty
+/// map.
+pub type AdditionalAliases<'a> = Option<&'a HashMap<UniCase<Cow<'a, str>>, Book>>;
+
 impl Book {
     pub const fn chapter_count(&self) -> Option<NonZeroU8> {
         NonZeroU8::new(BOOK_VERSE_COUNTS[*self as usize].len() as u8)
@@ -30,11 +34,7 @@ impl Book {
         include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 
-    /// Requires that `additional_aliases` be a map from NFKC-normalized case-folded strings with no spaces
-    pub fn parse(
-        book: &str,
-        additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Self>>,
-    ) -> Option<Self> {
+    pub fn parse(book: &str, additional_aliases: AdditionalAliases) -> Option<Self> {
         with_normalized_str(book, |book| {
             let book = UniCase::new(book);
             BOOK_ALIASES

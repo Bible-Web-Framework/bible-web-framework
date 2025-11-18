@@ -1,17 +1,15 @@
+use crate::book_data::AdditionalAliases;
 use crate::book_data::Book;
 use crate::nz_u8;
 use crate::utils::with_normalized_str;
 use crate::verse_range::VerseRange;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
 use std::ops::Deref;
 use std::sync::LazyLock;
 use thiserror::Error;
-use unicase::UniCase;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BibleReference {
@@ -109,10 +107,12 @@ impl ParseReferenceError {
     }
 }
 
+pub type ReferenceResult = Result<BibleReference, ParseReferenceError>;
+
 pub fn parse_references(
     reference: &str,
-    additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
-) -> Vec<Result<BibleReference, ParseReferenceError>> {
+    additional_aliases: AdditionalAliases,
+) -> Vec<ReferenceResult> {
     with_normalized_str(reference, |reference| {
         let mut book = None;
         reference
@@ -126,8 +126,8 @@ pub fn parse_references(
 fn parse_reference_part(
     reference: &str,
     book: &mut Option<Book>,
-    additional_aliases: Option<&HashMap<UniCase<Cow<str>>, Book>>,
-) -> Result<BibleReference, ParseReferenceError> {
+    additional_aliases: AdditionalAliases,
+) -> ReferenceResult {
     static BOOK_DATA_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         /*
         Do we even need this regex? We could just check everything up to the first number (presuming that's after the initial)
@@ -145,7 +145,13 @@ fn parse_reference_part(
         *book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
             ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
-                valid_otherwise: !remainder.is_empty(),
+                valid_otherwise: parse_book_reference(
+                    Book::Genesis,
+                    reference,
+                    remainder,
+                    additional_aliases,
+                )
+                .is_ok(),
             }
         })?);
         remainder
@@ -160,74 +166,84 @@ fn parse_reference_part(
     } else {
         reference
     };
-    let book = book.unwrap();
-    Ok(if let Some((chapter, verses)) = remainder.split_once(':') {
-        let chapter =
-            chapter
-                .parse::<NonZeroU8>()
-                .map_err(|_| ParseReferenceError::InvalidChapter {
-                    chapter: chapter.to_string(),
-                })?;
-        let verse_count = book
-            .verse_count(chapter)
-            .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
-        let parse_verse = |verse: &str, default_verse: Option<NonZeroU8>| {
-            if let Some(default_verse) = default_verse
-                && verse.is_empty()
-            {
-                return Ok(default_verse);
-            }
-            let verse = verse
-                .parse()
-                .map_err(|_| ParseReferenceError::InvalidVerse {
-                    verse: verse.to_string(),
-                })?;
-            if verse > verse_count {
-                return Err(ParseReferenceError::OutOfBoundsVerse {
-                    book,
+    parse_book_reference(book.unwrap(), reference, remainder, additional_aliases)
+}
+
+fn parse_book_reference(
+    book: Book,
+    full_reference: &str,
+    reference_remainder: &str,
+    additional_aliases: AdditionalAliases,
+) -> ReferenceResult {
+    Ok(
+        if let Some((chapter, verses)) = reference_remainder.split_once(':') {
+            let chapter =
+                chapter
+                    .parse::<NonZeroU8>()
+                    .map_err(|_| ParseReferenceError::InvalidChapter {
+                        chapter: chapter.to_string(),
+                    })?;
+            let verse_count = book
+                .verse_count(chapter)
+                .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
+            let parse_verse = |verse: &str, default_verse: Option<NonZeroU8>| {
+                if let Some(default_verse) = default_verse
+                    && verse.is_empty()
+                {
+                    return Ok(default_verse);
+                }
+                let verse = verse
+                    .parse()
+                    .map_err(|_| ParseReferenceError::InvalidVerse {
+                        verse: verse.to_string(),
+                    })?;
+                if verse > verse_count {
+                    return Err(ParseReferenceError::OutOfBoundsVerse {
+                        book,
+                        chapter,
+                        verse,
+                    });
+                }
+                Ok(verse)
+            };
+            BibleReference {
+                book,
+                reference: BookReference {
                     chapter,
-                    verse,
-                });
+                    verses: if let Some((verse_start, verse_end)) = verses.split_once('-') {
+                        VerseRange::new(
+                            parse_verse(verse_start, Some(nz_u8!(1)))?,
+                            parse_verse(verse_end, Some(verse_count))?,
+                        )
+                        .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })?
+                    } else {
+                        let verse = parse_verse(verses, None)?;
+                        VerseRange::new(verse, verse).unwrap()
+                    },
+                },
             }
-            Ok(verse)
-        };
-        BibleReference {
-            book,
-            reference: BookReference {
-                chapter,
-                verses: if let Some((verse_start, verse_end)) = verses.split_once('-') {
-                    VerseRange::new(
-                        parse_verse(verse_start, Some(nz_u8!(1)))?,
-                        parse_verse(verse_end, Some(verse_count))?,
-                    )
-                    .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })?
-                } else {
-                    let verse = parse_verse(verses, None)?;
-                    VerseRange::new(verse, verse).unwrap()
+        } else {
+            let chapter = reference_remainder.parse::<NonZeroU8>().map_err(|_| {
+                Book::parse(full_reference, additional_aliases).map_or_else(
+                    || ParseReferenceError::UnknownBook {
+                        book: reference_remainder.to_string(),
+                        valid_otherwise: false,
+                    },
+                    |_| ParseReferenceError::MissingChapter,
+                )
+            })?;
+            let verse_count = book
+                .verse_count(chapter)
+                .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
+            BibleReference {
+                book,
+                reference: BookReference {
+                    chapter,
+                    verses: VerseRange::new(nz_u8!(1), verse_count).unwrap(),
                 },
-            },
-        }
-    } else {
-        let chapter = remainder.parse::<NonZeroU8>().map_err(|_| {
-            Book::parse(reference, additional_aliases).map_or_else(
-                || ParseReferenceError::UnknownBook {
-                    book: remainder.to_string(),
-                    valid_otherwise: false,
-                },
-                |_| ParseReferenceError::MissingChapter,
-            )
-        })?;
-        let verse_count = book
-            .verse_count(chapter)
-            .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
-        BibleReference {
-            book,
-            reference: BookReference {
-                chapter,
-                verses: VerseRange::new(nz_u8!(1), verse_count).unwrap(),
-            },
-        }
-    })
+            }
+        },
+    )
 }
 
 #[cfg(test)]
