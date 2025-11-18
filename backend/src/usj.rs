@@ -346,14 +346,19 @@ impl UsjRoot {
             (chapter_start, self.find_chapter_label())
         } else {
             let after_chapter_start = self.next_para_index(chapter_start)?;
-            (
-                self.find_verse_start_para(verse_range.first(), after_chapter_start)?
-                    .0,
-                None,
-            )
+            let (verse_start, start_range) =
+                self.find_verse_start_para(verse_range.first(), after_chapter_start)?;
+            if start_range.first_u8() == 1 {
+                (chapter_start, self.find_chapter_label())
+            } else {
+                (verse_start, None)
+            }
         };
         let end = self
-            .find_verse_start_para(verse_range.last().saturating_add(1), start)
+            .find_verse_start_para(
+                verse_range.last().saturating_add(1),
+                self.next_para_index(start)?,
+            )
             .and_then(|(index, range)| {
                 Some(if range.first_u8() == verse_range.last_u8() + 1 {
                     index
