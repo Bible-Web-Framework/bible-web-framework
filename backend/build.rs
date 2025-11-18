@@ -1,22 +1,23 @@
 use hashlink::LinkedHashMap;
-use std::collections::HashMap;
+use serde::Deserialize;
 use std::fmt::Write;
 use std::num::NonZeroU8;
 use std::path::Path;
 use std::{env, fs};
 use unicase::UniCase;
 
+#[derive(Debug, Deserialize)]
+struct BookInfo<'a> {
+    usfm_id: &'a str,
+    aliases: Vec<&'a str>,
+    verse_counts: Vec<NonZeroU8>,
+}
+
 fn main() {
-    println!("cargo::rerun-if-changed=book_aliases.json");
-    println!("cargo::rerun-if-changed=book_verse_counts.json");
+    println!("cargo::rerun-if-changed=src/books.json");
 
-    let book_aliases = fs::read("book_aliases.json").unwrap();
-    let book_aliases: LinkedHashMap<&str, Vec<&str>> =
-        serde_json::from_slice(&book_aliases).unwrap();
-
-    let verse_counts = fs::read("book_verse_counts.json").unwrap();
-    let verse_counts: HashMap<&str, LinkedHashMap<u8, NonZeroU8>> =
-        serde_json::from_slice(&verse_counts).unwrap();
+    let books = fs::read("src/books.json").unwrap();
+    let books: LinkedHashMap<&str, BookInfo> = serde_json::from_slice(&books).unwrap();
 
     let mut book_names = r#"
         #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, enum_map::Enum)]
@@ -24,39 +25,34 @@ fn main() {
     "#
     .to_string();
 
-    let mut verse_counts_result = "Some(match self {".to_string();
+    let mut verse_counts_result = "&[".to_string();
     let mut usfm_ids_result = "match self {".to_string();
     let mut book_aliases_result = phf_codegen::Map::new();
-    for (book_name, aliases) in book_aliases {
+    for (book_name, book) in books {
         let _ = writeln!(book_names, "{book_name},");
 
-        let _ = writeln!(
-            verse_counts_result,
-            "Book::{book_name} => match chapter.get() {{"
-        );
-        for (chapter, length) in &verse_counts[book_name] {
-            let _ = writeln!(verse_counts_result, "{chapter} => crate::nz_u8!({length}),");
+        let _ = writeln!(verse_counts_result, "&[");
+        for length in book.verse_counts {
+            let _ = writeln!(verse_counts_result, "{length},");
         }
-        let _ = writeln!(verse_counts_result, "_ => return None,");
-        let _ = writeln!(verse_counts_result, "}},");
+        let _ = writeln!(verse_counts_result, "],");
 
-        let _ = writeln!(
-            usfm_ids_result,
-            "Book::{book_name} => {:?},",
-            aliases
-                .first()
-                .take_if(|x| x.len() == 3)
-                .map_or_else(|| book_name.to_ascii_uppercase(), ToString::to_string)
-        );
+        let _ = writeln!(usfm_ids_result, "Book::{book_name} => {:?},", book.usfm_id);
 
         let book_str = format!("Book::{book_name}");
-        for alias in aliases {
+        for alias in book.aliases {
             book_aliases_result.entry(UniCase::new(alias), book_str.clone());
         }
-        book_aliases_result.entry(UniCase::new(book_name), book_str);
+
+        let usfm_id = UniCase::new(book.usfm_id);
+        let book_name = UniCase::new(book_name);
+        if usfm_id != book_name {
+            book_aliases_result.entry(usfm_id, book_str.clone());
+        }
+        book_aliases_result.entry(book_name, book_str);
     }
     book_names.push('}');
-    verse_counts_result.push_str("})");
+    verse_counts_result.push(']');
     usfm_ids_result.push('}');
 
     fs::write(

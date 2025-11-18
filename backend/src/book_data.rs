@@ -13,9 +13,17 @@ use unicase::UniCase;
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
 impl Book {
-    #[allow(unused_variables)]
+    pub const fn chapter_count(&self) -> Option<NonZeroU8> {
+        NonZeroU8::new(BOOK_VERSE_COUNTS[*self as usize].len() as u8)
+    }
+
     pub const fn verse_count(&self, chapter: NonZeroU8) -> Option<NonZeroU8> {
-        include!(concat!(env!("OUT_DIR"), "/verse_counts.rs"))
+        let counts = BOOK_VERSE_COUNTS[*self as usize];
+        if (chapter.get() as usize - 1) < counts.len() {
+            NonZeroU8::new(counts[chapter.get() as usize - 1])
+        } else {
+            None
+        }
     }
 
     pub const fn usfm_id(&self) -> &'static str {
@@ -59,6 +67,8 @@ fn to_unicase_cow(unicase: UniCase<&str>) -> UniCase<Cow<'_, str>> {
 
 pub const BOOK_ALIASES: phf::Map<UniCase<&str>, Book> =
     include!(concat!(env!("OUT_DIR"), "/book_aliases.rs"));
+
+pub const BOOK_VERSE_COUNTS: &[&[u8]] = include!(concat!(env!("OUT_DIR"), "/verse_counts.rs"));
 
 impl Serialize for Book {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -123,6 +133,8 @@ impl Display for Book {
 #[cfg(test)]
 mod tests {
     use crate::book_data::Book;
+    use crate::nz_u8;
+    use std::num::NonZeroU8;
 
     fn assert_parse(name: &str, book: Book) {
         assert_eq!(Book::parse(name, None), Some(book));
@@ -137,5 +149,12 @@ mod tests {
         assert_parse("Genesis", Book::Genesis);
         assert_parse("1 John", Book::FirstJohn);
         assert_parse_fail("Beginning");
+    }
+
+    #[test]
+    fn test_counts() {
+        assert_eq!(Book::Genesis.chapter_count(), NonZeroU8::new(50));
+        assert_eq!(Book::Genesis.verse_count(nz_u8!(1)), NonZeroU8::new(31));
+        assert_eq!(Book::Genesis.verse_count(nz_u8!(2)), NonZeroU8::new(25));
     }
 }

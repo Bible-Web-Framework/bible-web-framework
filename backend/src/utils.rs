@@ -20,7 +20,7 @@ pub fn with_normalized_str<T>(s: &str, operation: impl FnOnce(&str) -> T) -> T {
 macro_rules! nz_u8 {
     ($e:expr) => {
         const {
-            ::core::assert!($e != 0);
+            ::std::assert!($e != 0);
             unsafe { ::std::num::NonZeroU8::new_unchecked($e) }
         }
     };
