@@ -3,12 +3,10 @@ use crate::book_data::Book;
 use crate::nz_u8;
 use crate::utils::with_normalized_str;
 use crate::verse_range::VerseRange;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
 use std::ops::Deref;
-use std::sync::LazyLock;
 use thiserror::Error;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -128,20 +126,13 @@ fn parse_reference_part(
     book: &mut Option<Book>,
     additional_aliases: AdditionalAliases,
 ) -> ReferenceResult {
-    static BOOK_DATA_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-        /*
-        Do we even need this regex? We could just check everything up to the first number (presuming that's after the initial)
-        and then check it against the possible book names/abbreviations. If it's not in there, assume it's a search term (e.g., "Jesus").
-        But we also need to know if somebody searches for simply "John", which is a book name and a person's name and differentiate.
+    let book_data = {
+        let without_prefix_nums = reference.trim_start_matches(char::is_numeric);
+        let num_index = without_prefix_nums.find(char::is_numeric);
+        num_index.map(|x| without_prefix_nums.split_at(x))
+    };
 
-        Can find chapter number using regex "\p{N}" starting from index 1.
-        */
-        Regex::new(r"(^[\p{N}I]{0,3}\s*[\p{L}\s]+)(\p{N}*:?.*)").unwrap()
-    });
-
-    let remainder = if let Some(book_data) = BOOK_DATA_REGEX.captures(reference) {
-        let book_str = book_data.get(1).unwrap().as_str();
-        let remainder = book_data.get(2).unwrap().as_str();
+    let remainder = if let Some((book_str, remainder)) = book_data {
         *book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
             ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
@@ -166,6 +157,7 @@ fn parse_reference_part(
     } else {
         reference
     };
+
     parse_book_reference(book.unwrap(), reference, remainder, additional_aliases)
 }
 

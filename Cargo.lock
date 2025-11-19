@@ -325,7 +325,6 @@ dependencies = [
  "phf_codegen",
  "phf_shared",
  "rayon",
- "regex",
  "serde",
  "serde_json",
  "serde_with",
