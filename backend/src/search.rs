@@ -28,9 +28,7 @@ pub enum SearchResponseType {
 #[serde(untagged)]
 pub enum SearchResponseResult {
     ReferenceContent {
-        reference: String,
-        #[serde(flatten)]
-        reference_details: BibleReference,
+        reference: BibleReference,
         content: Option<Vec<UsjContent>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         highlights: Option<HashMap<String, Vec<Range<usize>>>>,
@@ -63,8 +61,7 @@ pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) 
                 .into_iter()
                 .map(|x| match x {
                     Ok(reference) => SearchResponseResult::ReferenceContent {
-                        reference: reference.to_string(),
-                        reference_details: reference,
+                        reference,
                         content: config.us.files.get(&reference.book).and_then(|usj| {
                             usj.unwrap_root()
                                 .find_reference(reference.chapter, reference.verses)
@@ -132,8 +129,7 @@ fn search_for_terms(
                 }
             }
             SearchResponseResult::ReferenceContent {
-                reference: reference.to_string(),
-                reference_details: reference,
+                reference,
                 content: usj.and_then(|usj| {
                     usj.unwrap_root()
                         .find_reference(reference.chapter, reference.verses)
