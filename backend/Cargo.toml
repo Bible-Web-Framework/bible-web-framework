@@ -43,6 +43,7 @@ serde_json = "1.0.145"
 serde = { version = "1.0.228", features = ["derive"] }
 hashlink = { version = "0.11.0", features = ["serde_impl"] }
 unicase = "2.8.1"
+permutate = "0.3.2"
 
 [lints]
 workspace = true

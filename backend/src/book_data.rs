@@ -37,10 +37,9 @@ impl Book {
     pub fn parse(book: &str, additional_aliases: AdditionalAliases) -> Option<Self> {
         with_normalized_str(book, |book| {
             let book = UniCase::new(book);
-            BOOK_ALIASES
-                .get(&book)
-                .copied()
-                .or_else(|| additional_aliases.and_then(|x| x.get(&to_unicase_cow(book)).copied()))
+            additional_aliases
+                .and_then(|x| x.get(&to_unicase_cow(book)).copied())
+                .or_else(|| BOOK_ALIASES.get(&book).copied())
         })
     }
 }

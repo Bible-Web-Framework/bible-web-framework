@@ -1,5 +1,8 @@
 use hashlink::LinkedHashMap;
+use permutate::Permutator;
 use serde::Deserialize;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::num::NonZeroU8;
 use std::path::Path;
@@ -7,17 +10,86 @@ use std::{env, fs};
 use unicase::UniCase;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BooksFile<'a> {
+    common_aliases: HashMap<&'a str, Vec<&'a str>>,
+    #[serde(borrow)]
+    books: LinkedHashMap<&'a str, BookInfo<'a>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct BookInfo<'a> {
+    _comment: Option<&'a [u8]>,
     usfm_id: &'a str,
-    aliases: Vec<&'a str>,
+    #[serde(default)]
+    aliases: Vec<BookAlias<'a>>,
+    #[serde(default)]
+    exclude_aliases: HashSet<&'a str>,
     verse_counts: Vec<NonZeroU8>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum BookAlias<'a> {
+    Simple(&'a str),
+    Permutations(Vec<BookVecOrAlias<'a>>),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum BookVecOrAlias<'a> {
+    Alias(&'a str),
+    Vec(Vec<&'a str>),
+}
+
+impl<'a> BookAlias<'a> {
+    fn permute(
+        &self,
+        aliases: &'a HashMap<&str, Vec<&str>>,
+        mut handler: impl FnMut(Cow<'a, str>),
+    ) {
+        match self {
+            Self::Simple(alias) => handler(Cow::Borrowed(alias)),
+            Self::Permutations(groups) if groups.len() > 1 => {
+                let groups = groups
+                    .iter()
+                    .map(|x| match x {
+                        BookVecOrAlias::Alias(alias) => aliases[alias].as_slice(),
+                        BookVecOrAlias::Vec(vec) => vec.as_slice(),
+                    })
+                    .collect::<Vec<_>>();
+                let mut permutator = Permutator::new(&groups);
+                let mut current_groups = vec![""; groups.len()];
+                while permutator.next_with_buffer(&mut current_groups) {
+                    let mut new_alias = String::new();
+                    for alias in &current_groups {
+                        new_alias.push_str(alias);
+                    }
+                    handler(Cow::Owned(new_alias));
+                }
+            }
+            Self::Permutations(group) => match &group[0] {
+                BookVecOrAlias::Alias(alias_group) => {
+                    for alias in &aliases[alias_group] {
+                        handler(Cow::Borrowed(alias));
+                    }
+                }
+                BookVecOrAlias::Vec(aliases) => {
+                    for alias in aliases {
+                        handler(Cow::Owned(alias.to_string()));
+                    }
+                }
+            },
+        }
+    }
 }
 
 fn main() {
     println!("cargo::rerun-if-changed=src/books.json");
 
     let books = fs::read("src/books.json").unwrap();
-    let books: LinkedHashMap<&str, BookInfo> = serde_json::from_slice(&books).unwrap();
+    let books: BooksFile = serde_json::from_slice(&books).unwrap();
 
     let mut book_names = r#"
         #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, enum_map::Enum)]
@@ -28,7 +100,7 @@ fn main() {
     let mut verse_counts_result = "&[".to_string();
     let mut usfm_ids_result = "match self {".to_string();
     let mut book_aliases_result = phf_codegen::Map::new();
-    for (book_name, book) in books {
+    for (book_name, book) in books.books {
         let _ = writeln!(book_names, "{book_name},");
 
         let _ = writeln!(verse_counts_result, "&[");
@@ -40,12 +112,27 @@ fn main() {
         let _ = writeln!(usfm_ids_result, "Book::{book_name} => {:?},", book.usfm_id);
 
         let book_str = format!("Book::{book_name}");
+
+        let usfm_id = UniCase::new(Cow::Borrowed(book.usfm_id));
+        let book_name = UniCase::new(Cow::Borrowed(book_name));
+
+        let mut exclude_aliases = book.exclude_aliases;
         for alias in book.aliases {
-            book_aliases_result.entry(UniCase::new(alias), book_str.clone());
+            alias.permute(&books.common_aliases, |alias| {
+                if !exclude_aliases.remove(alias.as_ref()) {
+                    let alias = UniCase::new(alias);
+                    if alias != usfm_id && alias != book_name {
+                        book_aliases_result.entry(alias, book_str.clone());
+                    }
+                }
+            });
         }
 
-        let usfm_id = UniCase::new(book.usfm_id);
-        let book_name = UniCase::new(book_name);
+        assert!(
+            exclude_aliases.is_empty(),
+            "{book_name}.exclude_aliases failed to exclude the following aliases: {exclude_aliases:?}"
+        );
+
         if usfm_id != book_name {
             book_aliases_result.entry(usfm_id, book_str.clone());
         }

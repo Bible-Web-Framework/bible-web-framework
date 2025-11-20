@@ -2,6 +2,7 @@ use crate::book_data::Book;
 use crate::index::{BibleIndex, ReindexType};
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
+use enum_map::Enum;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
 use notify_debouncer_full::notify;
 use notify_debouncer_full::notify::EventKind;
@@ -29,11 +30,10 @@ pub struct UsFileMap {
 
 impl UsFileMap {
     pub fn new(root_dir: PathBuf) -> io::Result<Self> {
-        const BOOK_COUNT: usize = 66;
         Ok(UsFileMap {
             root_dir: canonicalize(root_dir)?,
-            files: HashMap::with_capacity(BOOK_COUNT),
-            sources: BiMap::with_capacity(BOOK_COUNT),
+            files: HashMap::with_capacity(Book::LENGTH),
+            sources: BiMap::with_capacity(Book::LENGTH),
             has_ignored_files: false,
         })
     }
