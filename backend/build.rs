@@ -14,7 +14,14 @@ use unicase::UniCase;
 struct BooksFile<'a> {
     common_aliases: HashMap<&'a str, Vec<&'a str>>,
     #[serde(borrow)]
-    books: LinkedHashMap<&'a str, BookInfo<'a>>,
+    books: LinkedHashMap<&'a str, PossiblySimpleBookInfo<'a>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum PossiblySimpleBookInfo<'a> {
+    Simple(&'a str),
+    Standard(BookInfo<'a>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,19 +50,39 @@ enum BookVecOrAlias<'a> {
     Vec(Vec<&'a str>),
 }
 
+impl<'a> PossiblySimpleBookInfo<'a> {
+    fn into_book_info(self) -> BookInfo<'a> {
+        match self {
+            Self::Simple(usfm_id) => BookInfo {
+                _comment: None,
+                usfm_id,
+                aliases: Default::default(),
+                exclude_aliases: Default::default(),
+                verse_counts: vec![],
+            },
+            Self::Standard(info) => info,
+        }
+    }
+}
+
 impl<'a> BookAlias<'a> {
     fn permute(
         &self,
         aliases: &'a HashMap<&str, Vec<&str>>,
         mut handler: impl FnMut(Cow<'a, str>),
     ) {
+        let get_alias = |alias| {
+            aliases
+                .get(alias)
+                .unwrap_or_else(|| panic!("Unknown alias '{alias}'"))
+        };
         match self {
             Self::Simple(alias) => handler(Cow::Borrowed(alias)),
             Self::Permutations(groups) if groups.len() > 1 => {
                 let groups = groups
                     .iter()
                     .map(|x| match x {
-                        BookVecOrAlias::Alias(alias) => aliases[alias].as_slice(),
+                        BookVecOrAlias::Alias(alias) => get_alias(alias).as_slice(),
                         BookVecOrAlias::Vec(vec) => vec.as_slice(),
                     })
                     .collect::<Vec<_>>();
@@ -71,7 +98,7 @@ impl<'a> BookAlias<'a> {
             }
             Self::Permutations(group) => match &group[0] {
                 BookVecOrAlias::Alias(alias_group) => {
-                    for alias in &aliases[alias_group] {
+                    for alias in get_alias(alias_group) {
                         handler(Cow::Borrowed(alias));
                     }
                 }
@@ -101,6 +128,7 @@ fn main() {
     let mut usfm_ids_result = "match self {".to_string();
     let mut book_aliases_result = phf_codegen::Map::new();
     for (book_name, book) in books.books {
+        let book = book.into_book_info();
         let _ = writeln!(book_names, "{book_name},");
 
         let _ = writeln!(verse_counts_result, "&[");
