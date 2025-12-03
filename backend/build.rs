@@ -116,14 +116,18 @@ fn main() {
     println!("cargo::rerun-if-changed=src/books.json");
 
     let books = fs::read("src/books.json").unwrap();
-    let books: BooksFile = serde_json::from_slice(&books).unwrap();
+    let mut books: BooksFile = serde_json::from_slice(&books).unwrap();
+    
+    for (alias_name, aliases) in &mut books.common_aliases {
+        aliases.insert(0, alias_name);
+    }
 
     let mut book_names = r#"
         #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, enum_map::Enum)]
         pub enum Book {
     "#
     .to_string();
-
+    
     let mut verse_counts_result = "&[".to_string();
     let mut usfm_ids_result = "match self {".to_string();
     let mut book_aliases_result = phf_codegen::Map::new();

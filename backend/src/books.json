@@ -1,20 +1,25 @@
 {
     "common_aliases": {
-        "First": ["First", "1", "1st", "I"],
-        "Second": ["Second", "2", "2nd", "II"],
-        "Third": ["Third", "3", "3rd", "III"],
-        "Fourth": ["Fourth", "4", "4th", "IV"],
-        "Fifth": ["Fifth", "5", "5th", "V"],
-        "Sixth": ["Sixth", "6", "6th", "VI"],
-        "Moses": ["Mo", "Moses"],
-        "Samuel": ["Samuel", "Sam", "Sa", "Sm", "S"],
-        "Kings": ["Kings", "Kgs", "Ki", "K"],
-        "Kingdoms": ["Kingdoms", "Kd"],
-        "Chronicles": ["Chronicles", "Chron", "Chr", "Ch", "Paralipomenon", "Par", "Pa"],
-        "Ezra": ["Ezra"],
-        "Baruch": ["Baruch", "Bar", "Ba"],
-        "Maccabees": ["Maccabees", "Ma", "Mekabis", "Meqabyan", "Mq"],
-        "Esdras": ["Esdras", "Es"]
+        "First": ["1", "1st", "I"],
+        "Second": ["2", "2nd", "II"],
+        "Third": ["3", "3rd", "III"],
+        "Fourth": ["4", "4th", "IV"],
+        "Fifth": ["5", "5th", "V"],
+        "Sixth": ["6", "6th", "VI"],
+        "Moses": ["Mo"],
+        "Samuel": ["Sam", "Sa", "Sm", "S"],
+        "Kings": ["Kgs", "Ki", "K"],
+        "Kingdoms": ["Kd"],
+        "Chronicles": ["Chron", "Chr", "Ch", "Paralipomenon", "Par", "Pa"],
+        "Ezra": [],
+        "John": ["Jhn", "Joh", "Jn", "Jo"],
+        "Corinthians": ["Cor", "Co"],
+        "Thessalonians": ["Thess", "Thes", "Th"],
+        "Timothy": ["Tim", "Ti"],
+        "Peter": ["Pet", "Pe", "Pt"],
+        "Baruch": ["Bar", "Ba"],
+        "Maccabees": ["Ma", "Mekabis", "Meqabyan", "Mq"],
+        "Esdras": ["Es"]
     },
     "books": {
         "Genesis": {
@@ -1409,8 +1414,7 @@
         "John": {
             "usfm_id": "JHN",
             "aliases": [
-                "Jn",
-                "Jo"
+                ["John"]
             ],
             "verse_counts": [
                 51,
@@ -1500,12 +1504,7 @@
         "FirstCorinthians": {
             "usfm_id": "1CO",
             "aliases": [
-                "1Cor",
-                "ICo",
-                "ICor",
-                "ICorinthians",
-                "1Corinthians",
-                "1stCorinthians"
+                ["First", "Corinthians"]
             ],
             "verse_counts": [
                 31,
@@ -1529,12 +1528,7 @@
         "SecondCorinthians": {
             "usfm_id": "2CO",
             "aliases": [
-                "2Cor",
-                "IICo",
-                "IICor",
-                "IICorinthians",
-                "2Corinthians",
-                "2ndCorinthians"
+                ["Second", "Corinthians"]
             ],
             "verse_counts": [
                 24,
@@ -1604,14 +1598,7 @@
         "FirstThessalonians": {
             "usfm_id": "1TH",
             "aliases": [
-                "1Thess",
-                "ITh",
-                "IThes",
-                "1Thes",
-                "IThess",
-                "IThessalonians",
-                "1Thessalonians",
-                "1stThessalonians"
+                ["First", "Thessalonians"]
             ],
             "verse_counts": [
                 10,
@@ -1624,14 +1611,7 @@
         "SecondThessalonians": {
             "usfm_id": "2TH",
             "aliases": [
-                "2Thess",
-                "IITh",
-                "IIThes",
-                "2Thes",
-                "IIThess",
-                "IIThessalonians",
-                "2Thessalonians",
-                "2ndThessalonians"
+                ["Second", "Thessalonians"]
             ],
             "verse_counts": [
                 12,
@@ -1642,12 +1622,7 @@
         "FirstTimothy": {
             "usfm_id": "1TI",
             "aliases": [
-                "1Tim",
-                "ITi",
-                "ITim",
-                "ITimothy",
-                "1Timothy",
-                "1stTimothy"
+                ["First", "Timothy"]
             ],
             "verse_counts": [
                 20,
@@ -1661,12 +1636,7 @@
         "SecondTimothy": {
             "usfm_id": "2TI",
             "aliases": [
-                "2Tim",
-                "IITi",
-                "IITim",
-                "IITimothy",
-                "2Timothy",
-                "2ndTimothy"
+                ["Second", "Timothy"]
             ],
             "verse_counts": [
                 18,
@@ -1727,14 +1697,7 @@
         "FirstPeter": {
             "usfm_id": "1PE",
             "aliases": [
-                "1Pet",
-                "IPe",
-                "IPet",
-                "IPt",
-                "1Pt",
-                "IPeter",
-                "1Peter",
-                "1stPeter"
+                ["First", "Peter"]
             ],
             "verse_counts": [
                 25,
@@ -1747,14 +1710,7 @@
         "SecondPeter": {
             "usfm_id": "2PE",
             "aliases": [
-                "2Pet",
-                "IIPe",
-                "IIPet",
-                "IIPt",
-                "2Pt",
-                "IIPeter",
-                "2Peter",
-                "2ndPeter"
+                ["Second", "Peter"]
             ],
             "verse_counts": [
                 21,
@@ -1765,16 +1721,7 @@
         "FirstJohn": {
             "usfm_id": "1JN",
             "aliases": [
-                "1John",
-                "IJn",
-                "IJo",
-                "1Jo",
-                "IJoh",
-                "1Joh",
-                "IJhn",
-                "1Jhn",
-                "IJohn",
-                "1stJohn"
+                ["First", "John"]
             ],
             "verse_counts": [
                 10,
@@ -1787,16 +1734,7 @@
         "SecondJohn": {
             "usfm_id": "2JN",
             "aliases": [
-                "2John",
-                "IIJn",
-                "IIJo",
-                "2Jo",
-                "IIJoh",
-                "2Joh",
-                "IIJhn",
-                "2Jhn",
-                "IIJohn",
-                "2ndJohn"
+                ["Second", "John"]
             ],
             "verse_counts": [
                 13
@@ -1805,16 +1743,7 @@
         "ThirdJohn": {
             "usfm_id": "3JN",
             "aliases": [
-                "3John",
-                "IIIJn",
-                "IIIJo",
-                "3Jo",
-                "IIIJoh",
-                "3Joh",
-                "IIIJhn",
-                "3Jhn",
-                "IIIJohn",
-                "3rdJohn"
+                ["Third", "John"]
             ],
             "verse_counts": [
                 15
