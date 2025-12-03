@@ -9,7 +9,6 @@ use std::str::FromStr;
 use thiserror::Error;
 use unicase::UniCase;
 
-// TODO: Support all books listed in https://docs.usfm.bible/usfm/3.1/doc/books.html
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
 /// A map from NFKC-normalized case-folded strings with no spaces. `None` is treated as an empty

@@ -32,7 +32,7 @@ pub enum ServerError {
     #[error("Invalid value '{1}' for environment variable {0}: {2}")]
     EnvParse(String, String, #[source] Box<dyn Error + Send + 'static>),
     #[error("Invalid logging configuration: {0}")]
-    TracingEnv(#[from] tracing_subscriber::filter::FromEnvError),
+    TracingEnv(#[from] tracing_subscriber::filter::ParseError),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("File watcher error: {0}")]
@@ -56,7 +56,7 @@ async fn real_main() -> Result<(), ServerError> {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
-                .from_env()?,
+                .parse(var_str("RUST_LOG").unwrap_or_default())?,
         )
         .init();
     tracing::debug!("Debug logging is enabled");
@@ -112,7 +112,7 @@ async fn real_main() -> Result<(), ServerError> {
         web::Data::new(usj_watcher)
     };
 
-    let bind_host: String = var("BIND_HOST")?;
+    let bind_host = var_str("BIND_HOST")?;
     let bind_port = var("BIND_PORT")?;
     HttpServer::new(move || {
         App::new()
@@ -128,12 +128,17 @@ async fn real_main() -> Result<(), ServerError> {
     Ok(())
 }
 
+fn var_str(var_name: impl AsRef<OsStr>) -> Result<String, ServerError> {
+    let value = dotenvy::var(&var_name)
+        .map_err(|x| ServerError::Env(var_name.as_ref().display().to_string(), x))?;
+    Ok(value)
+}
+
 fn var<T: FromStr>(var_name: impl AsRef<OsStr>) -> Result<T, ServerError>
 where
     T::Err: Error + Send + 'static,
 {
-    let base_value = dotenvy::var(&var_name)
-        .map_err(|x| ServerError::Env(var_name.as_ref().display().to_string(), x))?;
+    let base_value = var_str(&var_name)?;
     let parsed_value = base_value.parse().map_err(|x| {
         ServerError::EnvParse(
             var_name.as_ref().display().to_string(),
