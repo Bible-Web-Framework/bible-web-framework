@@ -56,8 +56,8 @@ impl<'a> PossiblySimpleBookInfo<'a> {
             Self::Simple(usfm_id) => BookInfo {
                 _comment: None,
                 usfm_id,
-                aliases: Default::default(),
-                exclude_aliases: Default::default(),
+                aliases: vec![],
+                exclude_aliases: HashSet::default(),
                 verse_counts: vec![],
             },
             Self::Standard(info) => info,
@@ -117,7 +117,7 @@ fn main() {
 
     let books = fs::read("src/books.json").unwrap();
     let mut books: BooksFile = serde_json::from_slice(&books).unwrap();
-    
+
     for (alias_name, aliases) in &mut books.common_aliases {
         aliases.insert(0, alias_name);
     }
@@ -127,7 +127,7 @@ fn main() {
         pub enum Book {
     "#
     .to_string();
-    
+
     let mut verse_counts_result = "&[".to_string();
     let mut usfm_ids_result = "match self {".to_string();
     let mut book_aliases_result = phf_codegen::Map::new();
