@@ -16,7 +16,7 @@ use string_interner::backend::{Backend, StringBackend};
 use string_interner::symbol::SymbolU16;
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
-type InternerBackend = StringBackend<SymbolU16>; // BufferBackend with SymbolU16 causes duplicates for some reason
+type InternerBackend = StringBackend<SymbolU16>;
 type Interner = StringInterner<InternerBackend>;
 type InternerSymbol = <InternerBackend as Backend>::Symbol;
 
@@ -31,7 +31,7 @@ pub enum ReindexType {
 #[derive(Clone)]
 pub struct BibleIndex {
     interner: Interner,
-    references_by_word: HashMap<InternerSymbol, BookReferenceMap>,
+    references_and_names_by_word: HashMap<InternerSymbol, (BookReferenceMap, Option<String>)>,
     words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
 }
 
@@ -45,18 +45,20 @@ impl BibleIndex {
     pub fn new() -> Self {
         Self {
             interner: Interner::new(),
-            references_by_word: HashMap::new(),
+            references_and_names_by_word: HashMap::new(),
             words_by_book: HashMap::default(),
         }
     }
 
-    pub fn find<'a, 'b: 'a>(&'a self, lemma: &'b str) -> Option<&'a SearchResultMap> {
+    pub fn find<'a, 'b: 'a>(&'a self, lemma: &'b str) -> Option<(&'a SearchResultMap, &'a str)> {
         match self
             .interner
             .get(lemma)
-            .and_then(|s| self.references_by_word.get(&s))
+            .and_then(|s| self.references_and_names_by_word.get(&s))
         {
-            Some(x) => Some(&x.by_book),
+            Some((references, name)) => {
+                Some((&references.by_book, name.as_deref().unwrap_or(lemma)))
+            }
             None => None,
         }
     }
@@ -79,8 +81,10 @@ impl BibleIndex {
             )
             .unwrap_or_default();
         for word in old_words {
-            if let Entry::Occupied(mut old_map_entry) = self.references_by_word.entry(word) {
-                let old_map = old_map_entry.get_mut();
+            if let Entry::Occupied(mut old_map_entry) =
+                self.references_and_names_by_word.entry(word)
+            {
+                let (old_map, _) = old_map_entry.get_mut();
                 old_map.total -= old_map
                     .by_book
                     .remove(&book)
@@ -91,8 +95,11 @@ impl BibleIndex {
                 }
             }
         }
-        for (word, new_references) in words {
-            let references = self.references_by_word.entry(word).or_default();
+        for (word, (new_name, new_references)) in words {
+            let (references, name) = self.references_and_names_by_word.entry(word).or_default();
+            if name.is_none() {
+                *name = new_name;
+            }
             references.total += new_references.len();
             references
                 .by_book
@@ -132,7 +139,7 @@ impl BibleIndex {
                 tracing::info!("Reindexing all books");
                 let start = Instant::now();
                 self.interner = Interner::new();
-                self.references_by_word.clear();
+                self.references_and_names_by_word.clear();
                 self.words_by_book.clear();
                 book_content
                     .par_iter()
@@ -145,11 +152,11 @@ impl BibleIndex {
                     .into_iter()
                     .for_each(|(book, indexer)| self.replace_from_indexer(book, indexer));
                 self.interner.shrink_to_fit();
-                self.references_by_word.shrink_to_fit();
+                self.references_and_names_by_word.shrink_to_fit();
                 self.words_by_book.shrink_to_fit();
                 tracing::info!(
                     "Reindexed all books ({} words) in {:?}",
-                    self.references_by_word.len(),
+                    self.references_and_names_by_word.len(),
                     start.elapsed()
                 );
             }
@@ -158,7 +165,7 @@ impl BibleIndex {
 }
 
 pub struct BookIndexer {
-    results: HashMap<String, Vec<(BookReference, TextLocation)>>,
+    results: HashMap<String, (Option<String>, Vec<(BookReference, TextLocation)>)>,
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
     current_path: SmallVec<[usize; 4]>,
@@ -234,16 +241,19 @@ impl BookIndexer {
             if !token.is_word() {
                 continue;
             }
-            self.results
-                .entry(token.lemma.into_owned())
-                .or_default()
-                .push((
-                    reference,
-                    TextLocation {
-                        usj_path: self.current_path.clone(),
-                        char_range: token.char_start..token.char_end,
-                    },
-                ));
+            let name =
+                Some(&text[token.byte_start..token.byte_end]).take_if(|x| *x != token.lemma());
+            let (name_result, result) = self.results.entry(token.lemma.into_owned()).or_default();
+            if let Some(name) = name {
+                name_result.get_or_insert_with(|| name.to_string());
+            }
+            result.push((
+                reference,
+                TextLocation {
+                    usj_path: self.current_path.clone(),
+                    char_range: token.char_start..token.char_end,
+                },
+            ));
         }
     }
 }

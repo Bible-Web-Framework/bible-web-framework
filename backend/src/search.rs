@@ -89,7 +89,7 @@ fn search_for_terms(
     let mut counted_terms = 0u32;
     let mut counted_references = HashSet::new();
     for term in terms.tokenize() {
-        let Some(single_result) = index.find(term.lemma()) else {
+        let Some((single_result, _)) = index.find(term.lemma()) else {
             continue;
         };
         counted_terms += 1;
