@@ -97,7 +97,7 @@ fn search_for_terms(
             counted_references.clear();
             for (reference, text_location) in references {
                 let reference = BibleReference {
-                    book,
+                    book: *book,
                     reference: *reference,
                 };
                 result

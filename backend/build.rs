@@ -123,7 +123,7 @@ fn main() {
     }
 
     let mut book_names = r#"
-        #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, enum_map::Enum)]
+        #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
         pub enum Book {
     "#
     .to_string();

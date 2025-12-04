@@ -3,18 +3,22 @@ use crate::reference::BookReference;
 use crate::usj::{ParaContent, UsjContent, UsjRoot};
 use crate::verse_range::VerseRange;
 use charabia::Tokenize;
-use enum_map::EnumMap;
+use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::SmallVec;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::mem;
 use std::num::NonZeroU8;
 use std::ops::Range;
 use std::time::Instant;
+use string_interner::StringInterner;
+use string_interner::backend::{Backend, StringBackend};
+use string_interner::symbol::SymbolU16;
 
-pub type SearchResultMap = EnumMap<Book, Vec<(BookReference, TextLocation)>>;
+pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
+type InternerBackend = StringBackend<SymbolU16>; // BufferBackend with SymbolU16 causes duplicates for some reason
+type Interner = StringInterner<InternerBackend>;
+type InternerSymbol = <InternerBackend as Backend>::Symbol;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReindexType {
@@ -26,8 +30,9 @@ pub enum ReindexType {
 
 #[derive(Clone)]
 pub struct BibleIndex {
-    references_by_word: HashMap<Cow<'static, str>, BookReferenceMap>,
-    words_by_book: EnumMap<Book, Vec<Cow<'static, str>>>,
+    interner: Interner,
+    references_by_word: HashMap<InternerSymbol, BookReferenceMap>,
+    words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
 }
 
 #[derive(Clone, Default)]
@@ -39,36 +44,59 @@ struct BookReferenceMap {
 impl BibleIndex {
     pub fn new() -> Self {
         Self {
+            interner: Interner::new(),
             references_by_word: HashMap::new(),
-            words_by_book: EnumMap::default(),
+            words_by_book: HashMap::default(),
         }
     }
 
     pub fn find<'a, 'b: 'a>(&'a self, lemma: &'b str) -> Option<&'a SearchResultMap> {
-        match self.references_by_word.get(&Cow::Borrowed(lemma)) {
+        match self
+            .interner
+            .get(lemma)
+            .and_then(|s| self.references_by_word.get(&s))
+        {
             Some(x) => Some(&x.by_book),
             None => None,
         }
     }
 
     pub fn replace_from_indexer(&mut self, book: Book, indexer: BookIndexer) {
-        let old_words = mem::replace(
-            &mut self.words_by_book[book],
-            indexer.results.keys().cloned().collect(),
-        );
+        let words = indexer
+            .results
+            .into_iter()
+            .map(|(key, values)| (self.interner.get_or_intern(key), values))
+            .collect_vec();
+        let old_words = self
+            .words_by_book
+            .insert(
+                book,
+                words
+                    .iter()
+                    .map(|(s, _)| *s)
+                    .collect_vec()
+                    .into_boxed_slice(),
+            )
+            .unwrap_or_default();
         for word in old_words {
             if let Entry::Occupied(mut old_map_entry) = self.references_by_word.entry(word) {
                 let old_map = old_map_entry.get_mut();
-                old_map.total -= mem::take(&mut old_map.by_book[book]).len();
+                old_map.total -= old_map
+                    .by_book
+                    .remove(&book)
+                    .map(|x| x.len())
+                    .unwrap_or_default();
                 if old_map.total == 0 {
                     old_map_entry.remove();
                 }
             }
         }
-        for (word, new_references) in indexer.results {
+        for (word, new_references) in words {
             let references = self.references_by_word.entry(word).or_default();
             references.total += new_references.len();
-            references.by_book[book] = new_references;
+            references
+                .by_book
+                .insert(book, new_references.into_boxed_slice());
         }
     }
 
@@ -103,6 +131,7 @@ impl BibleIndex {
             ReindexType::FullReindex => {
                 tracing::info!("Reindexing all books");
                 let start = Instant::now();
+                self.interner = Interner::new();
                 self.references_by_word.clear();
                 self.words_by_book.clear();
                 book_content
@@ -115,6 +144,9 @@ impl BibleIndex {
                     .collect::<Vec<_>>()
                     .into_iter()
                     .for_each(|(book, indexer)| self.replace_from_indexer(book, indexer));
+                self.interner.shrink_to_fit();
+                self.references_by_word.shrink_to_fit();
+                self.words_by_book.shrink_to_fit();
                 tracing::info!(
                     "Reindexed all books ({} words) in {:?}",
                     self.references_by_word.len(),
@@ -126,7 +158,7 @@ impl BibleIndex {
 }
 
 pub struct BookIndexer {
-    results: HashMap<Cow<'static, str>, Vec<(BookReference, TextLocation)>>,
+    results: HashMap<String, Vec<(BookReference, TextLocation)>>,
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
     current_path: SmallVec<[usize; 4]>,
@@ -203,7 +235,7 @@ impl BookIndexer {
                 continue;
             }
             self.results
-                .entry(Cow::Owned(token.lemma.into_owned()))
+                .entry(token.lemma.into_owned())
                 .or_default()
                 .push((
                     reference,
