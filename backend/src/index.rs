@@ -63,6 +63,18 @@ impl BibleIndex {
         }
     }
 
+    pub fn iter_names_and_counts(&self) -> impl Iterator<Item = (&str, usize)> {
+        self.references_and_names_by_word
+            .iter()
+            .map(|(symbol, (references, name))| {
+                (
+                    name.as_deref()
+                        .unwrap_or_else(|| self.interner.resolve(*symbol).unwrap()),
+                    references.total,
+                )
+            })
+    }
+
     pub fn replace_from_indexer(&mut self, book: Book, indexer: BookIndexer) {
         let words = indexer
             .results
@@ -164,8 +176,10 @@ impl BibleIndex {
     }
 }
 
+type ReferenceLocationVec = Vec<(BookReference, TextLocation)>;
+
 pub struct BookIndexer {
-    results: HashMap<String, (Option<String>, Vec<(BookReference, TextLocation)>)>,
+    results: HashMap<String, (Option<String>, ReferenceLocationVec)>,
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
     current_path: SmallVec<[usize; 4]>,

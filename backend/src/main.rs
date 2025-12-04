@@ -1,6 +1,7 @@
 use crate::api::route_not_found;
 use crate::config::BibleConfig;
 use crate::index::{BibleIndex, ReindexType};
+use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer, web};
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
@@ -11,6 +12,7 @@ use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::RwLock;
 use std::time::Duration;
+use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -119,8 +121,14 @@ async fn real_main() -> Result<(), ServerError> {
             .app_data(bible_config.clone())
             .app_data(bible_index.clone())
             .app_data(usj_watcher.clone())
+            .wrap(Logger::default().log_level(Level::Debug))
             .default_service(web::to(route_not_found))
-            .service(web::scope("/v1").service(api::book).service(api::search))
+            .service(
+                web::scope("/v1")
+                    .service(api::book)
+                    .service(api::search)
+                    .service(api::index_route),
+            )
     })
     .bind((bind_host, bind_port))?
     .run()

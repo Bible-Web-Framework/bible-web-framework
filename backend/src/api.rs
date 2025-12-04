@@ -3,9 +3,11 @@ use crate::config::{BibleConfigLock, BibleIndexLock};
 use crate::search::search_bible;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError, get, web};
-use serde::Deserialize;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
+use unicase::UniCase;
 
 #[derive(Debug, Error)]
 pub enum ApiError {
@@ -84,4 +86,15 @@ pub async fn search(
         return Err(ApiError::MissingTermParam);
     };
     Ok(HttpResponse::Ok().json(search_bible(term, &config.read().unwrap(), &index)))
+}
+
+#[get("/index")]
+pub async fn index_route(index: web::Data<BibleIndexLock>) -> ApiResult<HttpResponse> {
+    #[derive(Serialize)]
+    struct Serialization<'a>(#[serde(with = "tuple_vec_map")] Vec<(&'a str, usize)>);
+
+    let index = index.read().unwrap();
+    let mut result = index.iter_names_and_counts().collect_vec();
+    result.sort_by_cached_key(|(name, _)| UniCase::new(*name));
+    Ok(HttpResponse::Ok().json(Serialization(result)))
 }
