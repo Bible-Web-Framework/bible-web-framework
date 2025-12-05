@@ -317,6 +317,7 @@ dependencies = [
  "ere",
  "hashlink",
  "itertools 0.14.0",
+ "lehmer",
  "miette",
  "monostate",
  "notify-debouncer-full",
@@ -1638,6 +1639,12 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "lehmer"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c29164f65bbe114cfeb654fda98e29d9852aac8dc41edbbf74140ba089c3d98a"
 
 [[package]]
 name = "libc"

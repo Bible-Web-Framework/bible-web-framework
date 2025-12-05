@@ -36,6 +36,7 @@ charabia = "0.9.8"
 either = "1.15.0"
 string-interner = "0.19.0"
 serde-tuple-vec-map = "1.0.1"
+lehmer = "3.0.0"
 
 [build-dependencies]
 phf_codegen = "0.13.1"

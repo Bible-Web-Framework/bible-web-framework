@@ -128,7 +128,9 @@ fn parse_reference_part(
 ) -> ReferenceResult {
     let book_data = {
         let without_prefix_nums = reference.trim_start_matches(char::is_numeric);
-        let num_index = without_prefix_nums.find(char::is_numeric);
+        let num_index = without_prefix_nums
+            .find(|c: char| c.is_numeric() || c == ':' || c == '-')
+            .take_if(|i| *i > 0);
         num_index.map(|x| without_prefix_nums.split_at(x))
     };
 
