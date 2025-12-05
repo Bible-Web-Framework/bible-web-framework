@@ -28,8 +28,9 @@ pub fn base58_encode(mut value: Carrier) -> String {
     if value == 0 {
         return "1".to_string();
     }
-    let mut result = [0u8; 22];
-    let mut out_index = 22;
+    const MAX_LENGTH: usize = Carrier::MAX.ilog(58) as usize + 1;
+    let mut result = [0u8; MAX_LENGTH];
+    let mut out_index = MAX_LENGTH;
     while value > 0 {
         out_index -= 1;
         result[out_index] = BASE58_ALPHABET[(value % 58) as usize];
@@ -60,7 +61,7 @@ fn mul_add(
     base: Carrier,
     value: Carrier,
 ) -> Result<Carrier, ReferenceEncodingError> {
-    debug_assert!(value < base, "Value cannot exceed base");
+    debug_assert!(value < base, "Value {value} is invalid for base {base}");
     accum
         .checked_mul(base)
         .ok_or(ReferenceEncodingError::TooBig)?
@@ -451,56 +452,27 @@ fn div_mod_with_offset(accum: Carrier, base: Carrier, offset: Carrier) -> (Carri
 
 #[cfg(test)]
 mod tests {
+
     use crate::reference_encoding::{ReferenceEncodingError, decode_references, encode_references};
     use crate::reference_value;
 
-    // #[test]
-    // pub fn test_encode() -> Result<(), ReferenceEncodingError> {
-    //     // println!("{}", encode_references(&[reference_value!(Genesis 1:1-1)])?);
-    //     // println!("{}", encode_references(&[reference_value!(John 3:16-16)])?);
-    //
-    //     // println!("{}", encode_references(&[reference_value!(John 1:1-14)])?);
-    //     // println!(
-    //     //     "{}",
-    //     //     encode_references(&[reference_value!(Revelation 22:12-12)])?
-    //     // );
-    //     // println!(
-    //     //     "{}",
-    //     //     encode_references(&[
-    //     //         reference_value!(John 1:1-14),
-    //     //         reference_value!(Revelation 22:12-12)
-    //     //     ])?
-    //     // );
-    //
-    //     let ref_sets = [
-    //         "Mark4:41;Matthew3:1-2;Matthew3:5-6;Mark1:7-8;Mark1:9-11",
-    //         "Luke3:23;Mark1:14-45;Mark2:1-17;Mark3:1-15",
-    //         "Luke4:16-21;Luke8:1-3;Mark4:1-20;Mark4:30-41;Mark5:21-43",
-    //         "Matthew9:27-34;Mark6:2-11;Mark6:30-56;Luke7:11-17;Matthew16:13-20;Mark9:2-37",
-    //         "Mark10:1;Mark10:13-34;Luke9:57-62;Matthew10:37-38;Luke10:25-42;Luke11:1-4;Luke13:10-17;Luke13:22;Luke13:31;Luke14:25-27",
-    //         "Luke15;Luke18:9-14;Mark10:46-52;Mark11:1-10;Luke19:39-44",
-    //         "Mark11:15-19;Mark11:27-33;Luke20:45-;21:-19;Luke21:37-;22:-20;Luke22:39-48;Luke22:54",
-    //         "Mark14:55-65;Luke22:66-;23:-25;Mark15:16-20;Mark15:22-33;Luke23:39-56",
-    //         "Luke24:1-11;John20:19-20;John20:24-29;Matthew28:16-20;Acts1:8-11;John3:16-17;Romans10:9-10",
-    //     ];
-    //     for refs in ref_sets {
-    //         println!("{refs}");
-    //         let parsed = parse_references(refs, None)
-    //             .into_iter()
-    //             .map(Result::unwrap)
-    //             .collect_vec();
-    //         println!("    {:?}", encode_references(&parsed));
-    //     }
-    //
-    //     Ok(())
-    // }
+    macro_rules! roundtrip_test {
+        ($($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal),+ $(,)?) => {{
+            let references = &[$(reference_value!($book $chapter:$verse_start-$verse_end)),+];
+            let encoded = encode_references(references)?;
+            println!("{references:?} is encoded as {encoded}");
+            let decoded = decode_references(&encoded)?;
+            assert_eq!(references, &decoded[..], "Encoding was {encoded}");
+        }};
+    }
 
     #[test]
     fn test_roundtrip() -> Result<(), ReferenceEncodingError> {
-        let references = &[reference_value!(Acts 1:2-4), reference_value!(Acts 1:6-6)];
-        let encoded = encode_references(references)?;
-        let decoded = decode_references(&encoded)?;
-        assert_eq!(references, &decoded[..]);
+        roundtrip_test!(Acts 1:2-4, Acts 1:6-6);
+        roundtrip_test!(Genesis 1:1-1, Genesis 1:3-4);
+        roundtrip_test!(Matthew 1:1-1, Matthew 1:3-4);
+        roundtrip_test!(Luke 1:22-48, Matthew 28:18-20);
+        roundtrip_test!(Psalms 119:1-100);
         Ok(())
     }
 }
