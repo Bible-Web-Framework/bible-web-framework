@@ -16,6 +16,7 @@ use string_interner::backend::{Backend, StringBackend};
 use string_interner::symbol::SymbolU16;
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
+
 type InternerBackend = StringBackend<SymbolU16>;
 type Interner = StringInterner<InternerBackend>;
 type InternerSymbol = <InternerBackend as Backend>::Symbol;

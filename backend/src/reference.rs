@@ -239,26 +239,36 @@ fn parse_book_reference(
 }
 
 #[cfg(test)]
+#[macro_export]
+macro_rules! reference_value {
+    ($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal) => {
+        $crate::reference::BibleReference {
+            book: $crate::book_data::Book::$book,
+            reference: $crate::reference::BookReference {
+                chapter: $crate::nz_u8!($chapter),
+                verses: $crate::verse_range::VerseRange::new(
+                    $crate::nz_u8!($verse_start),
+                    $crate::nz_u8!($verse_end),
+                )
+                .expect("Invalid verse range as expected value in test"),
+            },
+        }
+    };
+}
+
+#[cfg(test)]
 mod tests {
     use super::ParseReferenceError::*;
-    use super::{BibleReference, BookReference, parse_references};
+    use super::parse_references;
     use crate::book_data::Book::*;
     use crate::nz_u8;
-    use crate::verse_range::VerseRange;
     use std::borrow::Cow;
     use std::collections::HashMap;
     use unicase::UniCase;
 
     macro_rules! reference_result {
         (Ok($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal)) => {
-            Ok(BibleReference {
-                book: $book,
-                reference: BookReference {
-                    chapter: nz_u8!($chapter),
-                    verses: VerseRange::new(nz_u8!($verse_start), nz_u8!($verse_end))
-                        .expect("Invalid verse range as expected value in test"),
-                },
-            })
+            Ok(reference_value!($book $chapter:$verse_start-$verse_end))
         };
 
         (Err($error:expr)) => {

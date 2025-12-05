@@ -21,6 +21,7 @@ mod book_data;
 mod config;
 mod index;
 mod reference;
+mod reference_encoding;
 mod search;
 mod usfm_converter;
 mod usj;
