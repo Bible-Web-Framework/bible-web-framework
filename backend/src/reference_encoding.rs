@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::reference::BibleReference;
+use crate::reference::{BibleReference, BookReference};
 use crate::verse_range::VerseRange;
 use itertools::Itertools;
 use lehmer::Lehmer;
@@ -22,7 +22,7 @@ pub enum ReferenceEncodingError {
 }
 
 const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-type Carrier = u128;
+type Carrier = u64;
 
 pub fn base58_encode(mut value: Carrier) -> String {
     if value == 0 {
@@ -55,22 +55,27 @@ pub fn base58_decode(x: &str) -> Result<Carrier, ReferenceEncodingError> {
 }
 
 #[inline]
-fn mul_add(a: Carrier, b: Carrier, x: Carrier) -> Result<Carrier, ReferenceEncodingError> {
-    debug_assert!(x < b, "Value X cannot exceed Base");
-    a.checked_mul(b)
+fn mul_add(
+    accum: Carrier,
+    base: Carrier,
+    value: Carrier,
+) -> Result<Carrier, ReferenceEncodingError> {
+    debug_assert!(value < base, "Value cannot exceed base");
+    accum
+        .checked_mul(base)
         .ok_or(ReferenceEncodingError::TooBig)?
-        .checked_add(x)
+        .checked_add(value)
         .ok_or(ReferenceEncodingError::TooBig)
 }
 
 #[inline]
 fn mul_add_with_offset(
-    a: Carrier,
-    b: Carrier,
-    x: Carrier,
-    o: Carrier,
+    accum: Carrier,
+    base: Carrier,
+    value: Carrier,
+    offset: Carrier,
 ) -> Result<Carrier, ReferenceEncodingError> {
-    mul_add(a, b - o, x - o)
+    mul_add(accum, base - offset, value - offset)
 }
 
 macro_rules! make_book_types {
@@ -342,55 +347,160 @@ fn encode_references_to_num(
         )?;
     }
 
-    result = mul_add(result, 6, book_type_id as Carrier)?;
+    result = mul_add(result, BOOK_TYPES.len() as Carrier, book_type_id as Carrier)?;
 
     Ok(result)
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::reference::parse_references;
-    use crate::reference_encoding::{ReferenceEncodingError, encode_references};
-    use itertools::Itertools;
+pub fn decode_references(references: &str) -> Result<Vec<BibleReference>, ReferenceEncodingError> {
+    decode_references_from_num(base58_decode(references)?)
+}
 
-    #[test]
-    pub fn test_encode() -> Result<(), ReferenceEncodingError> {
-        // println!("{}", encode_references(&[reference_value!(Genesis 1:1-1)])?);
-        // println!("{}", encode_references(&[reference_value!(John 3:16-16)])?);
+fn decode_references_from_num(
+    mut refs: Carrier,
+) -> Result<Vec<BibleReference>, ReferenceEncodingError> {
+    let mut result: Vec<BibleReference> = vec![];
 
-        // println!("{}", encode_references(&[reference_value!(John 1:1-14)])?);
-        // println!(
-        //     "{}",
-        //     encode_references(&[reference_value!(Revelation 22:12-12)])?
-        // );
-        // println!(
-        //     "{}",
-        //     encode_references(&[
-        //         reference_value!(John 1:1-14),
-        //         reference_value!(Revelation 22:12-12)
-        //     ])?
-        // );
+    let book_type_id;
+    (refs, book_type_id) = div_mod(refs, BOOK_TYPES.len() as Carrier);
+    let book_type = BOOK_TYPES[book_type_id as usize];
 
-        let ref_sets = [
-            "Mark4:41;Matthew3:1-2;Matthew3:5-6;Mark1:7-8;Mark1:9-11",
-            "Luke3:23;Mark1:14-45;Mark2:1-17;Mark3:1-15",
-            "Luke4:16-21;Luke8:1-3;Mark4:1-20;Mark4:30-41;Mark5:21-43",
-            "Matthew9:27-34;Mark6:2-11;Mark6:30-56;Luke7:11-17;Matthew16:13-20;Mark9:2-37",
-            "Mark10:1;Mark10:13-34;Luke9:57-62;Matthew10:37-38;Luke10:25-42;Luke11:1-4;Luke13:10-17;Luke13:22;Luke13:31;Luke14:25-27",
-            "Luke15;Luke18:9-14;Mark10:46-52;Mark11:1-10;Luke19:39-44",
-            "Mark11:15-19;Mark11:27-33;Luke20:45-;21:-19;Luke21:37-;22:-20;Luke22:39-48;Luke22:54",
-            "Mark14:55-65;Luke22:66-;23:-25;Mark15:16-20;Mark15:22-33;Luke23:39-56",
-            "Luke24:1-11;John20:19-20;John20:24-29;Matthew28:16-20;Acts1:8-11;John3:16-17;Romans10:9-10",
-        ];
-        for refs in ref_sets {
-            println!("{refs}");
-            let parsed = parse_references(refs, None)
-                .into_iter()
-                .map(Result::unwrap)
-                .collect_vec();
-            println!("    {:?}", encode_references(&parsed));
+    let book_base = book_type.len() as Carrier + 1;
+
+    let mut lehmer_product = 1;
+    let mut book_offset = 0;
+    let mut chapter_offset = 1;
+    let mut verse_offset = 1;
+    while refs >= lehmer_product {
+        let book_id;
+        (refs, book_id) = div_mod_with_offset(refs, book_base, book_offset);
+        let book = book_type[(book_id - 1) as usize];
+
+        if book_id - 1 != book_offset {
+            book_offset = book_id - 1;
+            chapter_offset = 1;
+            verse_offset = 1;
         }
 
+        let chapter_count = book
+            .chapter_count()
+            .ok_or(ReferenceEncodingError::InvalidBook(book))?;
+        let chapter_num;
+        (refs, chapter_num) =
+            div_mod_with_offset(refs, chapter_count.get() as Carrier + 1, chapter_offset);
+        let chapter_num = NonZeroU8::new(chapter_num as u8).unwrap();
+
+        if chapter_num.get() as Carrier != chapter_offset {
+            chapter_offset = chapter_num.get() as Carrier;
+            verse_offset = 1;
+        }
+
+        let verse_count = book
+            .verse_count(chapter_num)
+            .ok_or(ReferenceEncodingError::InvalidChapter(book, chapter_num))?;
+        let verse_num;
+        (refs, verse_num) =
+            div_mod_with_offset(refs, verse_count.get() as Carrier + 1, verse_offset);
+        let first_verse_num = NonZeroU8::new(verse_num as u8).unwrap();
+
+        let last_verse_num;
+        (refs, last_verse_num) = div_mod_with_offset(
+            refs,
+            verse_count.get() as Carrier + 1,
+            first_verse_num.get() as Carrier,
+        );
+        let last_verse_num = NonZeroU8::new(last_verse_num as u8).unwrap();
+
+        result.push(BibleReference {
+            book,
+            reference: BookReference {
+                chapter: chapter_num,
+                verses: VerseRange::new(first_verse_num, last_verse_num).unwrap(),
+            },
+        });
+
+        verse_offset = last_verse_num.get() as Carrier + 2;
+        lehmer_product *= result.len() as Carrier;
+    }
+
+    let mut permutation = Lehmer::from_decimal(refs as usize, result.len()).to_permutation();
+    // https://github.com/tiby312/reorder
+    for i in 0..result.len() {
+        let mut target = permutation[i] as usize;
+        while i != target {
+            permutation.swap(i, target);
+            result.swap(i, target);
+            target = permutation[i] as usize;
+        }
+    }
+
+    Ok(result)
+}
+
+/// Returns `(accum, value)`
+#[inline]
+fn div_mod(accum: Carrier, base: Carrier) -> (Carrier, Carrier) {
+    (accum / base, accum % base)
+}
+
+/// Returns `(accum, value)`
+#[inline]
+fn div_mod_with_offset(accum: Carrier, base: Carrier, offset: Carrier) -> (Carrier, Carrier) {
+    (accum / (base - offset), accum % (base - offset) + offset)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::reference_encoding::{ReferenceEncodingError, decode_references, encode_references};
+    use crate::reference_value;
+
+    // #[test]
+    // pub fn test_encode() -> Result<(), ReferenceEncodingError> {
+    //     // println!("{}", encode_references(&[reference_value!(Genesis 1:1-1)])?);
+    //     // println!("{}", encode_references(&[reference_value!(John 3:16-16)])?);
+    //
+    //     // println!("{}", encode_references(&[reference_value!(John 1:1-14)])?);
+    //     // println!(
+    //     //     "{}",
+    //     //     encode_references(&[reference_value!(Revelation 22:12-12)])?
+    //     // );
+    //     // println!(
+    //     //     "{}",
+    //     //     encode_references(&[
+    //     //         reference_value!(John 1:1-14),
+    //     //         reference_value!(Revelation 22:12-12)
+    //     //     ])?
+    //     // );
+    //
+    //     let ref_sets = [
+    //         "Mark4:41;Matthew3:1-2;Matthew3:5-6;Mark1:7-8;Mark1:9-11",
+    //         "Luke3:23;Mark1:14-45;Mark2:1-17;Mark3:1-15",
+    //         "Luke4:16-21;Luke8:1-3;Mark4:1-20;Mark4:30-41;Mark5:21-43",
+    //         "Matthew9:27-34;Mark6:2-11;Mark6:30-56;Luke7:11-17;Matthew16:13-20;Mark9:2-37",
+    //         "Mark10:1;Mark10:13-34;Luke9:57-62;Matthew10:37-38;Luke10:25-42;Luke11:1-4;Luke13:10-17;Luke13:22;Luke13:31;Luke14:25-27",
+    //         "Luke15;Luke18:9-14;Mark10:46-52;Mark11:1-10;Luke19:39-44",
+    //         "Mark11:15-19;Mark11:27-33;Luke20:45-;21:-19;Luke21:37-;22:-20;Luke22:39-48;Luke22:54",
+    //         "Mark14:55-65;Luke22:66-;23:-25;Mark15:16-20;Mark15:22-33;Luke23:39-56",
+    //         "Luke24:1-11;John20:19-20;John20:24-29;Matthew28:16-20;Acts1:8-11;John3:16-17;Romans10:9-10",
+    //     ];
+    //     for refs in ref_sets {
+    //         println!("{refs}");
+    //         let parsed = parse_references(refs, None)
+    //             .into_iter()
+    //             .map(Result::unwrap)
+    //             .collect_vec();
+    //         println!("    {:?}", encode_references(&parsed));
+    //     }
+    //
+    //     Ok(())
+    // }
+
+    #[test]
+    fn test_roundtrip() -> Result<(), ReferenceEncodingError> {
+        let references = &[reference_value!(Acts 1:2-4), reference_value!(Acts 1:6-6)];
+        let encoded = encode_references(references)?;
+        let decoded = decode_references(&encoded)?;
+        assert_eq!(references, &decoded[..]);
         Ok(())
     }
 }
