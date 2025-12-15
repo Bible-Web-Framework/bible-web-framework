@@ -452,7 +452,6 @@ fn div_mod_with_offset(accum: Carrier, base: Carrier, offset: Carrier) -> (Carri
 
 #[cfg(test)]
 mod tests {
-
     use crate::reference_encoding::{ReferenceEncodingError, decode_references, encode_references};
     use crate::reference_value;
 
