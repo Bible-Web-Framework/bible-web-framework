@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT bible_references FROM short_urls WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "bible_references",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "dbc05bfe2641c24d267f0f1025058d19ad13ff4ba1da5b5007f6562951746db8"
+}

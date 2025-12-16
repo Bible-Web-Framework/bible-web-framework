@@ -1,11 +1,11 @@
-use actix_web::{get, web, HttpResponse};
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use unicase::UniCase;
 use crate::api::{ApiError, ApiResult};
 use crate::book_data::Book;
 use crate::config::{BibleConfigLock, BibleIndexLock};
-use crate::search::search_bible;
+use crate::search::{SearchResponse, search_bible};
+use actix_web::{HttpResponse, get, web};
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use unicase::UniCase;
 
 #[get("/book/{book}")]
 pub async fn book(
@@ -24,8 +24,8 @@ pub async fn book(
 }
 
 #[derive(Debug, Deserialize)]
-struct SearchQueryParams {
-    term: Option<String>,
+pub struct SearchQueryParams {
+    term: String,
 }
 
 #[get("/search")]
@@ -33,12 +33,12 @@ pub async fn search(
     query: web::Query<SearchQueryParams>,
     config: web::Data<BibleConfigLock>,
     index: web::Data<BibleIndexLock>,
-) -> ApiResult<HttpResponse> {
-    let params = query.into_inner();
-    let Some(term) = params.term else {
-        return Err(ApiError::MissingTermParam);
-    };
-    Ok(HttpResponse::Ok().json(search_bible(term, &config.read().unwrap(), &index)))
+) -> ApiResult<web::Json<SearchResponse>> {
+    Ok(web::Json(search_bible(
+        query.into_inner().term,
+        &config.read().unwrap(),
+        &index,
+    )))
 }
 
 #[get("/index")]

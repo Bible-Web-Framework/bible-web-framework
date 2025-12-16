@@ -1,10 +1,12 @@
-use crate::api::route_not_found;
+use crate::api::{ApiError, route_not_found};
 use crate::config::BibleConfig;
 use crate::index::{BibleIndex, ReindexType};
 use actix_web::middleware::Logger;
+use actix_web::web::QueryConfig;
 use actix_web::{App, HttpServer, web};
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
+use sqlx::migrate::MigrateDatabase;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -40,6 +42,10 @@ pub enum ServerError {
     Io(#[from] std::io::Error),
     #[error("File watcher error: {0}")]
     Notify(#[from] notify_debouncer_full::notify::Error),
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error("Database migration error: {0}")]
+    Migration(#[from] sqlx::migrate::MigrateError),
 }
 
 #[actix_web::main]
@@ -115,6 +121,17 @@ async fn real_main() -> Result<(), ServerError> {
         web::Data::new(usj_watcher)
     };
 
+    let database = {
+        let db_url = var_str("DATABASE_URL")?;
+        if !sqlx::Sqlite::database_exists(&db_url).await? {
+            tracing::info!("Database {db_url} doesn't exist, creating new database");
+            sqlx::Sqlite::create_database(&db_url).await?;
+        }
+        let database = sqlx::SqlitePool::connect(&db_url).await?;
+        sqlx::migrate!().run(&database).await?;
+        web::Data::new(database)
+    };
+
     let bind_host = var_str("BIND_HOST")?;
     let bind_port = var("BIND_PORT")?;
     HttpServer::new(move || {
@@ -122,13 +139,17 @@ async fn real_main() -> Result<(), ServerError> {
             .app_data(bible_config.clone())
             .app_data(bible_index.clone())
             .app_data(usj_watcher.clone())
+            .app_data(database.clone())
             .wrap(Logger::default().log_level(Level::Debug))
             .default_service(web::to(route_not_found))
             .service(
                 web::scope("/v1")
+                    .app_data(QueryConfig::default().error_handler(|e, _| ApiError::from(e).into()))
                     .service(api::search::book)
                     .service(api::search::search)
-                    .service(api::search::index_route),
+                    .service(api::search::index_route)
+                    .service(api::short_url::short_create)
+                    .service(api::short_url::short_resolve),
             )
     })
     .bind((bind_host, bind_port))?

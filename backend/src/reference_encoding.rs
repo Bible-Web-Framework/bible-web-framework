@@ -207,11 +207,7 @@ make_book_types!(
     ],
 );
 
-pub fn encode_references(references: &[BibleReference]) -> Result<String, ReferenceEncodingError> {
-    Ok(base58_encode(encode_references_to_num(references)?))
-}
-
-fn encode_references_to_num(
+pub fn encode_references_to_num(
     references: &[BibleReference],
 ) -> Result<Carrier, ReferenceEncodingError> {
     let has_ot = references.iter().any(|x| OLD_TESTAMENT.contains(&x.book));
@@ -353,11 +349,7 @@ fn encode_references_to_num(
     Ok(result)
 }
 
-pub fn decode_references(references: &str) -> Result<Vec<BibleReference>, ReferenceEncodingError> {
-    decode_references_from_num(base58_decode(references)?)
-}
-
-fn decode_references_from_num(
+pub fn decode_references_from_num(
     mut refs: Carrier,
 ) -> Result<Vec<BibleReference>, ReferenceEncodingError> {
     let mut result: Vec<BibleReference> = vec![];
@@ -452,8 +444,20 @@ fn div_mod_with_offset(accum: Carrier, base: Carrier, offset: Carrier) -> (Carri
 
 #[cfg(test)]
 mod tests {
-    use crate::reference_encoding::{ReferenceEncodingError, decode_references, encode_references};
+    use crate::reference::BibleReference;
+    use crate::reference_encoding::{
+        ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
+        encode_references_to_num,
+    };
     use crate::reference_value;
+
+    fn encode_references(references: &[BibleReference]) -> Result<String, ReferenceEncodingError> {
+        Ok(base58_encode(encode_references_to_num(references)?))
+    }
+
+    fn decode_references(references: &str) -> Result<Vec<BibleReference>, ReferenceEncodingError> {
+        decode_references_from_num(base58_decode(references)?)
+    }
 
     macro_rules! roundtrip_test {
         ($($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal),+ $(,)?) => {{

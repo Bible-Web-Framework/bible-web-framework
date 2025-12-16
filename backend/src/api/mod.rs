@@ -1,10 +1,15 @@
 pub mod search;
+pub mod short_url;
 
+use crate::api::short_url::ShortUrlValue;
+use crate::book_data::Book;
+use crate::reference::{BibleReference, ParseReferenceError};
+use crate::reference_encoding::ReferenceEncodingError;
+use actix_web::error::QueryPayloadError;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use serde_json::json;
 use thiserror::Error;
-use crate::book_data::Book;
 
 #[derive(Debug, Error)]
 pub enum ApiError {
@@ -12,14 +17,24 @@ pub enum ApiError {
     InvalidBook(String),
     #[error("No USJ found for {0:?}")]
     MissingUsj(Book),
+    #[error("Invalid reference: {0}")]
+    InvalidReference(#[from] ParseReferenceError),
+    #[error("Reference not found: {0}")]
+    MissingReference(BibleReference),
+    #[error("Invalid reference: {0}")]
+    InvalidReferenceEncoding(#[from] ReferenceEncodingError),
+    #[error("Short URL not found: {0}")]
+    MissingShortReference(ShortUrlValue),
 
-    #[error("Missing 'term' query param")]
-    MissingTermParam,
-
+    #[error(transparent)]
+    InvalidQueryParams(#[from] QueryPayloadError),
     #[error("Route not found: {0}")]
     RouteNotFound(String),
-    #[error(transparent)]
-    Other(#[from] Box<dyn std::error::Error + 'static>),
+
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error("Json error: {0}")]
+    Jsonb(#[from] serde_sqlite_jsonb::Error),
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -29,11 +44,16 @@ impl ResponseError for ApiError {
         match self {
             ApiError::InvalidBook(_) => StatusCode::BAD_REQUEST,
             ApiError::MissingUsj(_) => StatusCode::NOT_FOUND,
+            ApiError::InvalidReference(_) => StatusCode::BAD_REQUEST,
+            ApiError::MissingReference(_) => StatusCode::NOT_FOUND,
+            ApiError::InvalidReferenceEncoding(_) => StatusCode::NOT_FOUND,
+            ApiError::MissingShortReference(_) => StatusCode::NOT_FOUND,
 
-            ApiError::MissingTermParam => StatusCode::BAD_REQUEST,
-
+            ApiError::InvalidQueryParams(e) => e.status_code(),
             ApiError::RouteNotFound(_) => StatusCode::NOT_FOUND,
-            ApiError::Other(e) => e.status_code(),
+
+            ApiError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Jsonb(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 

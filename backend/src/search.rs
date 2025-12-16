@@ -1,5 +1,5 @@
 use crate::book_data::Book;
-use crate::config::{BibleConfig, BibleIndexLock};
+use crate::config::{BibleConfig, BibleIndexLock, UsFileMap};
 use crate::index::BibleIndex;
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::UsjContent;
@@ -62,10 +62,7 @@ pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) 
                 .map(|x| match x {
                     Ok(reference) => SearchResponseResult::ReferenceContent {
                         reference,
-                        content: config.us.files.get(&reference.book).and_then(|usj| {
-                            usj.unwrap_root()
-                                .find_reference(reference.chapter, reference.verses)
-                        }),
+                        content: lookup_reference(reference, &config.us),
                         highlights: None,
                     },
                     Err(error) => SearchResponseResult::InvalidReference {
@@ -76,6 +73,13 @@ pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) 
                 .collect(),
         }
     }
+}
+
+pub fn lookup_reference(reference: BibleReference, us: &UsFileMap) -> Option<Vec<UsjContent>> {
+    us.files.get(&reference.book).and_then(|usj| {
+        usj.unwrap_root()
+            .find_reference(reference.chapter, reference.verses)
+    })
 }
 
 fn search_for_terms(
