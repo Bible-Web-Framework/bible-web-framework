@@ -126,9 +126,9 @@ async fn real_main() -> Result<(), ServerError> {
             .default_service(web::to(route_not_found))
             .service(
                 web::scope("/v1")
-                    .service(api::book)
-                    .service(api::search)
-                    .service(api::index_route),
+                    .service(api::search::book)
+                    .service(api::search::search)
+                    .service(api::search::index_route),
             )
     })
     .bind((bind_host, bind_port))?
