@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
 use std::ops::Deref;
+use subslice_offset::SubsliceOffset;
 use thiserror::Error;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -131,7 +132,9 @@ fn parse_reference_part(
         let num_index = without_prefix_nums
             .find(|c: char| c.is_numeric() || c == ':' || c == '-')
             .take_if(|i| *i > 0);
-        num_index.map(|x| without_prefix_nums.split_at(x))
+        num_index.map(|x| {
+            reference.split_at(reference.subslice_offset(without_prefix_nums).unwrap() + x)
+        })
     };
 
     let remainder = if let Some((book_str, remainder)) = book_data {
