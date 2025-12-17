@@ -13,24 +13,29 @@ pub enum ReferenceEncodingError {
     InvalidChar(char),
     #[error("Reference too big to encode/decode")]
     TooBig,
-    #[error("Can't encode no references")]
+    #[error("Can't encode 0 references")]
     NoReferences,
     #[error("Invalid book to encode {0}")]
     InvalidBook(Book),
     #[error("Invalid chapter to encode {0} {1}")]
     InvalidChapter(Book, NonZeroU8),
+    #[error("No verses remaining in chapter {0} {1}")]
+    NoVersesRemaining(Book, NonZeroU8),
+    #[error("Final reference signal was indicated, but more references remain")]
+    NonExhaustedReference,
 }
 
 const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
 type Carrier = u64;
+const MAX_BASE58_LENGTH: usize = Carrier::MAX.ilog(58) as usize + 1;
 
 pub fn base58_encode(mut value: Carrier) -> String {
     if value == 0 {
         return "1".to_string();
     }
-    const MAX_LENGTH: usize = Carrier::MAX.ilog(58) as usize + 1;
-    let mut result = [0u8; MAX_LENGTH];
-    let mut out_index = MAX_LENGTH;
+    let mut result = [0u8; MAX_BASE58_LENGTH];
+    let mut out_index = MAX_BASE58_LENGTH;
     while value > 0 {
         out_index -= 1;
         result[out_index] = BASE58_ALPHABET[(value % 58) as usize];
@@ -367,6 +372,9 @@ pub fn decode_references_from_num(
     while refs >= lehmer_product {
         let book_id;
         (refs, book_id) = div_mod_with_offset(refs, book_base, book_offset);
+        if book_id == 0 {
+            return Err(ReferenceEncodingError::NonExhaustedReference);
+        }
         let book = book_type[(book_id - 1) as usize];
 
         if book_id - 1 != book_offset {
@@ -391,6 +399,9 @@ pub fn decode_references_from_num(
         let verse_count = book
             .verse_count(chapter_num)
             .ok_or(ReferenceEncodingError::InvalidChapter(book, chapter_num))?;
+        if verse_offset > verse_count.get() as Carrier {
+            return Err(ReferenceEncodingError::NoVersesRemaining(book, chapter_num));
+        }
         let verse_num;
         (refs, verse_num) =
             div_mod_with_offset(refs, verse_count.get() as Carrier + 1, verse_offset);
@@ -446,10 +457,12 @@ fn div_mod_with_offset(accum: Carrier, base: Carrier, offset: Carrier) -> (Carri
 mod tests {
     use crate::reference::BibleReference;
     use crate::reference_encoding::{
-        ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
-        encode_references_to_num,
+        MAX_BASE58_LENGTH, ReferenceEncodingError, base58_decode, base58_encode,
+        decode_references_from_num, encode_references_to_num,
     };
     use crate::reference_value;
+    use itertools::Itertools;
+    use unicase::UniCase;
 
     fn encode_references(references: &[BibleReference]) -> Result<String, ReferenceEncodingError> {
         Ok(base58_encode(encode_references_to_num(references)?))
@@ -476,6 +489,65 @@ mod tests {
         roundtrip_test!(Matthew 1:1-1, Matthew 1:3-4);
         roundtrip_test!(Luke 1:22-48, Matthew 28:18-20);
         roundtrip_test!(Psalms 119:1-100);
+        roundtrip_test!(Genesis 1:1-1);
+        roundtrip_test!(Genesis 1:31-31);
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_swears() -> Result<(), ReferenceEncodingError> {
+        let mut count = 0usize;
+        let mut failed_count = 0usize;
+        let mut error_count = 0usize;
+        for swear in (censor::Standard + censor::Zealous + censor::Sex)
+            .list()
+            .sorted_unstable()
+        {
+            if swear.len() > MAX_BASE58_LENGTH {
+                continue;
+            }
+            let swear_unicase = UniCase::new(swear);
+            for variation in swear
+                .bytes()
+                .interleave(swear.bytes().map(|x| x.to_ascii_uppercase()))
+                .combinations(swear.len())
+                .map(|s| String::from_utf8(s).unwrap())
+                .filter(|x| UniCase::new(x) == swear_unicase)
+                .unique()
+            {
+                let Ok(decoded_num) = base58_decode(&variation) else {
+                    continue;
+                };
+                count += 1;
+                let decoded = match decode_references_from_num(decoded_num) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        println!("Swear {variation} caused decode error: {e}");
+                        error_count += 1;
+                        continue;
+                    }
+                };
+                let re_encoded = match encode_references(&decoded) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        println!(
+                            "Swear {variation} caused re-encode error: {e} (decoded to {decoded:?})"
+                        );
+                        error_count += 1;
+                        continue;
+                    }
+                };
+                if variation == re_encoded {
+                    println!("Swear {variation} failed check ({decoded:?})");
+                    failed_count += 1;
+                }
+            }
+        }
+        println!(
+            "Checked {count} swears. {failed_count} failed. {error_count} caused errors. {} passed.",
+            count - failed_count - error_count
+        );
+        assert_eq!(failed_count, 0, "Some swears failed the check");
         Ok(())
     }
 }

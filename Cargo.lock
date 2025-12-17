@@ -356,6 +356,7 @@ dependencies = [
  "actix-extensible-rate-limit",
  "actix-web",
  "bimap",
+ "censor",
  "charabia",
  "dotenvy",
  "either",
@@ -507,6 +508,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d910bedd62c24733263d0bed247460853c9d22e8956bd4cd964302095e04e90"
 dependencies = [
  "smallvec",
+]
+
+[[package]]
+name = "censor"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d41e3b9fdbb9b3edc10dc66a06dc255822f699c432e19403fb966e6d60e0dec4"
+dependencies = [
+ "once_cell",
 ]
 
 [[package]]
