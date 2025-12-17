@@ -40,6 +40,7 @@ lehmer = "3.0.0"
 actix-extensible-rate-limit = "0.4.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 serde_sqlite_jsonb = "0.2.1"
+actix-cors = "0.7.1"
 
 [build-dependencies]
 phf_codegen = "0.13.1"
