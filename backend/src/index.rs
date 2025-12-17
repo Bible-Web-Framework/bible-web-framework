@@ -220,7 +220,9 @@ impl BookIndexer {
 
             UsjContent::Character { content, .. } => {
                 if let Some(content) = content {
+                    self.current_path.push(0);
                     self.index_text(content);
+                    self.current_path.remove(self.current_path.len() - 1);
                 }
             }
             UsjContent::Chapter { number, .. } => self.current_chapter = Some(*number),
