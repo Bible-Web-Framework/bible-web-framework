@@ -4,7 +4,6 @@ use crate::verse_range::VerseRange;
 use itertools::Itertools;
 use lehmer::Lehmer;
 use rustrict::{Censor, Type};
-use std::cmp::{max, min};
 use std::num::NonZeroU8;
 use thiserror::Error;
 
@@ -265,39 +264,6 @@ pub fn encode_references_to_num(
         .collect_vec();
     references_ordered.sort_unstable();
 
-    {
-        let mut did_simplify = false;
-        let mut index = 0;
-        while index < references_ordered.len() - 1 {
-            let (next_reference, _) = references_ordered[index + 1];
-            let (reference, _) = &mut references_ordered[index];
-            if next_reference.book == reference.book
-                && next_reference.chapter == reference.chapter
-                && next_reference.verses.first_u8() - 1 <= reference.verses.last_u8()
-            {
-                reference.reference.verses = VerseRange::new(
-                    min(reference.verses.first(), next_reference.verses.first()),
-                    max(reference.verses.last(), next_reference.verses.last()),
-                )
-                .unwrap();
-                references_ordered.remove(index + 1);
-                did_simplify = true;
-            } else {
-                index += 1;
-            }
-        }
-
-        if did_simplify {
-            // Recompute the indices after simplification
-            references_ordered.sort_unstable_by_key(|&(_, idx)| idx);
-            references_ordered
-                .iter_mut()
-                .enumerate()
-                .for_each(|(i, (_, index))| *index = i);
-            references_ordered.sort_unstable();
-        }
-    }
-
     let mut result = 0;
 
     // Stuff down below is read back in reverse order
@@ -325,7 +291,7 @@ pub fn encode_references_to_num(
             if reference.book == previous_reference.book {
                 chapter_offset = previous_reference.chapter.get() as Carrier;
                 if reference.chapter == previous_reference.chapter {
-                    verse_offset = previous_reference.verses.last_u8() as Carrier + 2;
+                    verse_offset = previous_reference.verses.last_u8() as Carrier + 1;
                 }
             }
         }
@@ -443,7 +409,7 @@ pub fn decode_references_from_num(
             },
         });
 
-        verse_offset = last_verse_num.get() as Carrier + 2;
+        verse_offset = last_verse_num.get() as Carrier + 1;
         lehmer_product *= result.len() as Carrier;
     }
 
@@ -511,6 +477,8 @@ mod tests {
         roundtrip_test!(Psalms 119:1-100);
         roundtrip_test!(Genesis 1:1-1);
         roundtrip_test!(Genesis 1:31-31);
+        roundtrip_test!(Luke 1:22-48, Matthew 28:18-20, Luke 1:16-21);
+        roundtrip_test!(Acts 1:2-4, Acts 1:5-10);
         Ok(())
     }
 
