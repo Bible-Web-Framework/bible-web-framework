@@ -508,19 +508,13 @@ mod tests {
                     continue;
                 };
                 count += 1;
-                let decoded = match decode_references_from_num(decoded_num) {
-                    Ok(r) => r,
-                    Err(_) => {
-                        error_count += 1;
-                        continue;
-                    }
+                let Ok(decoded) = decode_references_from_num(decoded_num) else {
+                    error_count += 1;
+                    continue;
                 };
-                let re_encoded = match encode_references(&decoded) {
-                    Ok(e) => e,
-                    Err(_) => {
-                        error_count += 1;
-                        continue;
-                    }
+                let Ok(re_encoded) = encode_references(&decoded) else {
+                    error_count += 1;
+                    continue;
                 };
                 if variation == re_encoded {
                     println!("Swear {variation} failed check: {decoded:?}");
