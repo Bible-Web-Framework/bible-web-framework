@@ -3,6 +3,7 @@ use crate::reference::{BibleReference, BookReference};
 use crate::verse_range::VerseRange;
 use itertools::Itertools;
 use lehmer::Lehmer;
+use rustrict::{Censor, Type};
 use std::cmp::{max, min};
 use std::num::NonZeroU8;
 use thiserror::Error;
@@ -30,19 +31,38 @@ const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmno
 type Carrier = u64;
 const MAX_BASE58_LENGTH: usize = Carrier::MAX.ilog(58) as usize + 1;
 
-pub fn base58_encode(mut value: Carrier) -> String {
+pub fn base58_encode(value: Carrier) -> String {
     if value == 0 {
         return "1".to_string();
     }
     let mut result = [0u8; MAX_BASE58_LENGTH];
+    let result = base58_encode_internal(value, &mut result);
+    // SAFETY: Every character above out_index is filled in, or else we'll have panicked by now
+    unsafe { str::from_utf8_unchecked(result) }.to_string()
+}
+
+pub fn is_base58_swear(value: Carrier) -> bool {
+    if value < 58 {
+        return false;
+    }
+    let mut text = [0u8; MAX_BASE58_LENGTH];
+    let text = base58_encode_internal(value, &mut text);
+    Censor::new(
+        text.iter()
+            .map(|x| unsafe { char::from_u32_unchecked(*x as u32) }),
+    )
+    .analyze()
+    .is(Type::ANY & !Type::SPAM)
+}
+
+fn base58_encode_internal(mut value: Carrier, output: &mut [u8; MAX_BASE58_LENGTH]) -> &[u8] {
     let mut out_index = MAX_BASE58_LENGTH;
     while value > 0 {
         out_index -= 1;
-        result[out_index] = BASE58_ALPHABET[(value % 58) as usize];
+        output[out_index] = BASE58_ALPHABET[(value % 58) as usize];
         value /= 58;
     }
-    // SAFETY: Every character above out_index is filled in, or else we'll have panicked by now
-    unsafe { str::from_utf8_unchecked(&result[out_index..]) }.to_string()
+    &output[out_index..]
 }
 
 pub fn base58_decode(x: &str) -> Result<Carrier, ReferenceEncodingError> {
@@ -495,7 +515,8 @@ mod tests {
     }
 
     #[test]
-    fn test_no_swears() -> Result<(), ReferenceEncodingError> {
+    #[ignore]
+    fn check_swears() -> Result<(), ReferenceEncodingError> {
         let mut count = 0usize;
         let mut failed_count = 0usize;
         let mut error_count = 0usize;
@@ -521,33 +542,28 @@ mod tests {
                 count += 1;
                 let decoded = match decode_references_from_num(decoded_num) {
                     Ok(r) => r,
-                    Err(e) => {
-                        println!("Swear {variation} caused decode error: {e}");
+                    Err(_) => {
                         error_count += 1;
                         continue;
                     }
                 };
                 let re_encoded = match encode_references(&decoded) {
                     Ok(e) => e,
-                    Err(e) => {
-                        println!(
-                            "Swear {variation} caused re-encode error: {e} (decoded to {decoded:?})"
-                        );
+                    Err(_) => {
                         error_count += 1;
                         continue;
                     }
                 };
                 if variation == re_encoded {
-                    println!("Swear {variation} failed check ({decoded:?})");
+                    println!("Swear {variation} failed check: {decoded:?}");
                     failed_count += 1;
                 }
             }
         }
         println!(
-            "Checked {count} swears. {failed_count} failed. {error_count} caused errors. {} passed.",
+            "Checked {count} swears. {failed_count} are real. {error_count} caused errors. {} are no issue.",
             count - failed_count - error_count
         );
-        assert_eq!(failed_count, 0, "Some swears failed the check");
         Ok(())
     }
 }

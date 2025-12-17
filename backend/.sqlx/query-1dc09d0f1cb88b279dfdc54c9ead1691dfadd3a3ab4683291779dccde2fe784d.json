@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT count(*) AS count FROM short_urls",
+  "query": "SELECT MAX(id) as max_id FROM short_urls",
   "describe": {
     "columns": [
       {
-        "name": "count",
+        "name": "max_id",
         "ordinal": 0,
         "type_info": "Integer"
       }
@@ -13,8 +13,8 @@
       "Right": 0
     },
     "nullable": [
-      false
+      true
     ]
   },
-  "hash": "911306e1b1a530c59967f19300ee03ecac099b476ced150f9694a9a56d6a3f0b"
+  "hash": "1dc09d0f1cb88b279dfdc54c9ead1691dfadd3a3ab4683291779dccde2fe784d"
 }

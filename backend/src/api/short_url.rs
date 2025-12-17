@@ -3,7 +3,7 @@ use crate::config::BibleConfigLock;
 use crate::reference::{BibleReference, parse_references};
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
-    encode_references_to_num,
+    encode_references_to_num, is_base58_swear,
 };
 use actix_web::{get, web};
 use itertools::Itertools;
@@ -48,8 +48,6 @@ pub struct CreateShortQueryParams {
     r#ref: String,
 }
 
-// +1 and -1 are used in these functions because sqlite starts automatic IDs with 1, not 0.
-
 #[get("/short/create")]
 pub async fn short_create(
     query: web::Query<CreateShortQueryParams>,
@@ -85,17 +83,19 @@ pub async fn short_create(
     {
         return Ok(web::Json(ShortUrl {
             r#type: ShortUrlType::Id,
-            value: ShortUrlValue(id.id as u64 - 1),
+            value: ShortUrlValue(id.id as u64),
         }));
     };
 
     match encode_references_to_num(&references) {
         Ok(num) => {
-            let id_guess = sqlx::query!("SELECT count(*) AS count FROM short_urls")
+            let id_guess = sqlx::query!("SELECT MAX(id) as max_id FROM short_urls")
                 .fetch_one(&mut *transaction)
                 .await?
-                .count as u64;
-            if num < id_guess {
+                .max_id
+                .unwrap_or(0) as u64
+                + 1;
+            if num < id_guess && !is_base58_swear(num) {
                 return Ok(web::Json(ShortUrl {
                     r#type: ShortUrlType::Encoded,
                     value: ShortUrlValue(num),
@@ -106,17 +106,36 @@ pub async fn short_create(
         Err(e) => return Err(ApiError::InvalidReferenceEncoding(e)),
     };
 
-    let id = sqlx::query!(
+    let mut id = sqlx::query!(
         "INSERT INTO short_urls (bible_references) VALUES ($1) RETURNING id",
         references_jsonb
     )
     .fetch_one(&mut *transaction)
-    .await?;
+    .await?
+    .id as u64;
+
+    const SWEAR_INCREMENT: u64 = 4000; // Slightly above 58^2. Should scramble the last 3 characters.
+    while is_base58_swear(id) {
+        let new_id = id + SWEAR_INCREMENT;
+
+        let id_i64 = id as i64;
+        let new_id_i64 = new_id as i64;
+        sqlx::query!(
+            "UPDATE short_urls SET id = $2 WHERE id = $1",
+            id_i64,
+            new_id_i64
+        )
+        .execute(&mut *transaction)
+        .await?;
+
+        id = new_id;
+    }
+
     transaction.commit().await?;
 
     Ok(web::Json(ShortUrl {
         r#type: ShortUrlType::Id,
-        value: ShortUrlValue(id.id as u64 - 1),
+        value: ShortUrlValue(id),
     }))
 }
 
@@ -128,7 +147,7 @@ pub async fn short_resolve(
     let short_url = query.into_inner();
     let references = match short_url.r#type {
         ShortUrlType::Id => {
-            let value = (short_url.value.0 + 1) as i64;
+            let value = short_url.value.0 as i64;
             serde_sqlite_jsonb::from_slice(
                 &sqlx::query!(
                     "SELECT bible_references FROM short_urls WHERE id = $1",
