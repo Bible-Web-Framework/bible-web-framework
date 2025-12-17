@@ -1,8 +1,8 @@
 use crate::book_data::Book;
-use crate::config::{BibleConfig, BibleIndexLock, UsFileMap};
+use crate::config::{BibleConfig, BibleIndexLock};
 use crate::index::BibleIndex;
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
-use crate::usj::UsjContent;
+use crate::usj::{UsjContent, UsjRoot};
 use charabia::Tokenize;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -29,6 +29,7 @@ pub enum SearchResponseType {
 pub enum SearchResponseResult {
     ReferenceContent {
         reference: BibleReference,
+        translated_book_name: Option<String>,
         content: Option<Vec<UsjContent>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         highlights: Option<HashMap<String, Vec<Range<usize>>>>,
@@ -60,11 +61,21 @@ pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) 
             references: references
                 .into_iter()
                 .map(|x| match x {
-                    Ok(reference) => SearchResponseResult::ReferenceContent {
-                        reference,
-                        content: lookup_reference(reference, &config.us),
-                        highlights: None,
-                    },
+                    Ok(reference) => {
+                        let usj = config
+                            .us
+                            .files
+                            .get(&reference.book)
+                            .map(UsjContent::unwrap_root);
+                        SearchResponseResult::ReferenceContent {
+                            reference,
+                            translated_book_name: get_translated_book_name(usj),
+                            content: usj.and_then(|usj| {
+                                usj.find_reference(reference.chapter, reference.verses)
+                            }),
+                            highlights: None,
+                        }
+                    }
                     Err(error) => SearchResponseResult::InvalidReference {
                         invalid_reference: error.to_string(),
                         details: error,
@@ -75,11 +86,9 @@ pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) 
     }
 }
 
-pub fn lookup_reference(reference: BibleReference, us: &UsFileMap) -> Option<Vec<UsjContent>> {
-    us.files.get(&reference.book).and_then(|usj| {
-        usj.unwrap_root()
-            .find_reference(reference.chapter, reference.verses)
-    })
+fn get_translated_book_name(usj: Option<&UsjRoot>) -> Option<String> {
+    usj.and_then(|x| x.translated_book_name())
+        .map(str::to_string)
 }
 
 fn search_for_terms(
@@ -132,12 +141,12 @@ fn search_for_terms(
                     }
                 }
             }
+            let usj = usj.map(UsjContent::unwrap_root);
             SearchResponseResult::ReferenceContent {
                 reference,
-                content: usj.and_then(|usj| {
-                    usj.unwrap_root()
-                        .find_reference(reference.chapter, reference.verses)
-                }),
+                translated_book_name: get_translated_book_name(usj),
+                content: usj
+                    .and_then(|usj| usj.find_reference(reference.chapter, reference.verses)),
                 highlights: Some(highlights),
             }
         })

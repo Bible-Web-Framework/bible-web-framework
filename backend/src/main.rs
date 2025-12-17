@@ -1,8 +1,9 @@
 use crate::api::{ApiError, route_not_found};
 use crate::config::BibleConfig;
 use crate::index::{BibleIndex, ReindexType};
+use actix_cors::Cors;
 use actix_web::web::QueryConfig;
-use actix_web::{App, HttpServer, web, middleware};
+use actix_web::{App, HttpServer, middleware, web};
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
@@ -13,7 +14,6 @@ use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::RwLock;
 use std::time::Duration;
-use actix_cors::Cors;
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;

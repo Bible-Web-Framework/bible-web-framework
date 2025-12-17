@@ -5,7 +5,6 @@ use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
     encode_references_to_num,
 };
-use crate::search::lookup_reference;
 use actix_web::{get, web};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -64,7 +63,7 @@ pub async fn short_create(
             .into_iter()
             .map(|reference| match reference {
                 Ok(r) => {
-                    if lookup_reference(r, &config.us).is_none() {
+                    if !config.us.files.contains_key(&r.book) {
                         return Err(ApiError::MissingReference(r));
                     }
                     Ok(r)

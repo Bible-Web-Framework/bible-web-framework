@@ -335,6 +335,22 @@ impl UsjRoot {
         })
     }
 
+    pub fn translated_book_name(&self) -> Option<&str> {
+        self.content
+            .iter()
+            .take_while(|x| !matches!(x, UsjContent::Chapter { .. }))
+            .find_map(|x| {
+                if let UsjContent::Paragraph { marker, content } = x
+                    && marker == "h"
+                    && let [ParaContent::Plain(text)] = &content[..]
+                {
+                    Some(text.trim())
+                } else {
+                    None
+                }
+            })
+    }
+
     pub fn find_reference(
         &self,
         chapter: NonZeroU8,
