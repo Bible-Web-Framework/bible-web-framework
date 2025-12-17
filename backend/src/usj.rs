@@ -341,7 +341,7 @@ impl UsjRoot {
             .take_while(|x| !matches!(x, UsjContent::Chapter { .. }))
             .find_map(|x| {
                 if let UsjContent::Paragraph { marker, content } = x
-                    && marker == "h"
+                    && (marker == "h" || marker == "h1")
                     && let [ParaContent::Plain(text)] = &content[..]
                 {
                     Some(text.trim())
