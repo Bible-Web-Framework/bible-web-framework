@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { SearchResponse } from '~/bwfApi'
+
 const route = useRoute()
 const query = ref((route.query.q || '').toString())
 const activeQuery = ref(query.value)
@@ -6,7 +8,9 @@ const {
   data: searchResults,
   pending,
   error,
-} = await useFetch(() => `http://127.0.0.1:8080/v1/search?term=${activeQuery.value}`)
+} = await useFetch<SearchResponse>(
+  () => `http://127.0.0.1:8080/v1/search?term=${activeQuery.value}`,
+)
 
 function search() {
   activeQuery.value = query.value
@@ -20,41 +24,29 @@ function search() {
 <template>
   <div>
     <h1>Search Page</h1>
-    <input v-model="query" placeholder="Enter search term" >
+    <input v-model="query" placeholder="Enter search term" @keyup.enter="search" />
     <button @click="search">Search</button>
 
     <div v-if="pending">Loading...</div>
     <div v-else-if="error">Error: {{ error.message }}</div>
     <div v-else>
       <h2>Search Results:</h2>
-      <table v-if="searchResults.response_type == 'search_results'">
-        <tr v-for="result in searchResults.references" :key="JSON.stringify(result.reference)">
-          <td>
-            {{ result.translated_book_name }} {{ result.reference.chapter }}:{{
-              result.reference.verses
-            }}
-          </td>
-          <td v-for="content1 in result.content">
-            &lt;!&ndash; {{ content1.content }} &ndash;&gt;
-            <span v-if="content1.marker == 'p' && content1.content[0].marker.contains('v', 'wj')">{{
-              content1.content[1]
-            }}</span>
-          </td>
+      <table v-if="searchResults!.response_type === 'search_results'">
+        <tr v-for="(reference, referenceIndex) in searchResults!.references" :key="referenceIndex">
+          <td v-if="'invalid_reference' in reference">{{ reference.details }}</td>
+          <template v-else>
+            <td>
+              {{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{
+                reference.reference.verses
+              }}
+            </td>
+            <td v-for="(content, contentIndex) in reference.content" :key="contentIndex">
+              {{ content }}
+            </td>
+          </template>
         </tr>
       </table>
-      <table v-if="searchResults.response_type == 'scripture_passages'">
-        <tr v-for="result in searchResults.references" :key="JSON.stringify(result.reference)">
-          <td>
-            {{ result.reference.book }} {{ result.reference.chapter }}:{{ result.reference.verses }}
-          </td>
-          <td>{{ result.content[1] }}</td>
-        </tr>
-      </table>
-      <ul>
-        <li v-for="result in searchResults.references" :key="JSON.stringify(result.reference)">
-          {{ result.reference.book }} {{ result.reference.chapter }}:{{ result.reference.verses }}
-        </li>
-      </ul>
+      <template v-else> TODO: Actually have full verses </template>
     </div>
   </div>
 </template>
