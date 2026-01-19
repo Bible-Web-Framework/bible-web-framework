@@ -1,2 +1,1 @@
-export type SearchResponse = {
-};
+export type SearchResponse = {}
