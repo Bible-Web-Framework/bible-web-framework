@@ -225,7 +225,10 @@ impl BookIndexer {
                     self.current_path.remove(self.current_path.len() - 1);
                 }
             }
-            UsjContent::Chapter { number, .. } => self.current_chapter = Some(*number),
+            UsjContent::Chapter { number, .. } => {
+                self.current_chapter = Some(*number);
+                self.current_verses = None;
+            }
             UsjContent::Verse { number, .. } => self.current_verses = Some(*number),
 
             UsjContent::Book { .. }
