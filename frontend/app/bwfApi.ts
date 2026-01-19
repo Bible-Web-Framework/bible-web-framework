@@ -13,7 +13,7 @@ export type SearchResponseResult =
       reference: BibleReference
       translated_book_name: string | null
       content: UsjContent[] | null
-      highlights?: { [text: string]: GenericRange<number>[] }
+      highlights?: HighlightsMap
     }
   | {
       invalid_reference: string
@@ -25,6 +25,8 @@ export type BibleReference = {
   chapter: number
   verses: VerseRange
 }
+
+export type HighlightsMap = { [text: string]: GenericRange<number>[] }
 
 export type GenericRange<T> = {
   start: T

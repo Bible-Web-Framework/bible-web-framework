@@ -40,13 +40,26 @@ function search() {
                 reference.reference.verses
               }}
             </td>
-            <td v-for="(content, contentIndex) in reference.content" :key="contentIndex">
-              {{ content }}
+            <td v-if="reference.content">
+              <UsjContentsRenderer
+                :contents="reference.content"
+                :highlights="reference.highlights"
+              />
             </td>
           </template>
         </tr>
       </table>
-      <template v-else> TODO: Actually have full verses </template>
+      <template v-else>
+        <template
+          v-for="(reference, referenceIndex) in searchResults!.references"
+          :key="referenceIndex"
+        >
+          <hr v-if="referenceIndex > 0" />
+          <template v-if="'content' in reference">
+            <UsjContentsRenderer v-if="reference.content" :contents="reference.content" />
+          </template>
+        </template>
+      </template>
     </div>
   </div>
 </template>
