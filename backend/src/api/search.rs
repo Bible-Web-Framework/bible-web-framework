@@ -44,10 +44,17 @@ pub async fn search(
 #[get("/index")]
 pub async fn index_route(index: web::Data<BibleIndexLock>) -> ApiResult<HttpResponse> {
     #[derive(Serialize)]
-    struct Serialization<'a>(#[serde(with = "tuple_vec_map")] Vec<(&'a str, usize)>);
+    struct Response<'a> {
+        words: WordsResponse<'a>,
+    }
+
+    #[derive(Serialize)]
+    struct WordsResponse<'a>(#[serde(with = "tuple_vec_map")] Vec<(&'a str, usize)>);
 
     let index = index.read().unwrap();
     let mut result = index.iter_names_and_counts().collect_vec();
     result.sort_by_cached_key(|(name, _)| UniCase::new(*name));
-    Ok(HttpResponse::Ok().json(Serialization(result)))
+    Ok(HttpResponse::Ok().json(Response {
+        words: WordsResponse(result),
+    }))
 }
