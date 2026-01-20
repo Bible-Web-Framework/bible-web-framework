@@ -22,7 +22,7 @@ phf = { version = "0.13.1", features = ["unicase", "macros"] }
 unicode-normalization = "0.1.25"
 rayon = "1.11.0"
 unicase = "2.8.1"
-ere = "0.2.3"
+ere = "0.2.4"
 bimap = "0.6.3"
 notify-debouncer-full = "0.6.0"
 tree-sitter = "0.25.10"

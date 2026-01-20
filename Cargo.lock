@@ -1012,9 +1012,9 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "ere"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fecc20a1ead19c6785449bb035fe3fd4cf117c4ad17416c489f5b795554a6311"
+checksum = "ced253a70c1159bac921dc672edbb5530c35fbca23a7f1b9f03641f39e4172f1"
 dependencies = [
  "ere-core",
  "ere-macros",
@@ -1022,9 +1022,9 @@ dependencies = [
 
 [[package]]
 name = "ere-core"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ddf8824d9c9e0b577892b6bc53afd57c716236c027853b1866728220374669d"
+checksum = "6639aa08d01ec59ec0509e9b79b4e17b953131b053d1a9a6b449150e58c9706d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1035,9 +1035,9 @@ dependencies = [
 
 [[package]]
 name = "ere-macros"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "725f4422b060f9b4672f5f5b1bfa6edcef4c40ac061fb5374383ca8ea32e9b15"
+checksum = "c9a41368e568caa1ee19d8dfa943d7f2f3ddabc0d9c0965cc37d76e0146c6b89"
 dependencies = [
  "ere-core",
  "quote",
