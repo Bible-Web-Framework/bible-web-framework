@@ -33,7 +33,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; highlights?: High
 
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
-    <div v-if="typeof content === 'string'"><RenderWithHighlight :text="content" /></div>
+    <template v-if="typeof content === 'string'"
+      ><RenderWithHighlight :text="content + ' '"
+    /></template>
     <template v-else-if="content.type === 'para'">
       <p v-if="content.marker === 'p'">
         <UsjContentsRenderer

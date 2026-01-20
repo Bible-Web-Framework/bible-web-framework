@@ -13,12 +13,10 @@ const {
   () => `${config.public.apiRootUrl}/v1/search?term=${activeQuery.value}`,
 )
 
+const router = useRouter()
 function search() {
   activeQuery.value = query.value
-
-  const url = new URL(window.location.href)
-  url.searchParams.set('q', query.value)
-  history.pushState(null, '', url)
+  router.replace({ query: { q: query.value } })
 }
 </script>
 
