@@ -14,9 +14,6 @@ importers:
       turbo:
         specifier: ^2.5.4
         version: 2.5.5
-      vue:
-        specifier: ^3.5.27
-        version: 3.5.27(typescript@5.9.3)
 
   backend: {}
 
