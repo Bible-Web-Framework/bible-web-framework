@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 dotenvy = "0.15.7"
 thiserror = "2.0.17"
-tracing = "0.1.41"
+tracing = "0.1.44"
 tracing-subscriber = { version = "=0.3.19", features = ["env-filter"] } # TODO: Remove version lock when https://github.com/tokio-rs/tracing/issues/3369 is fixed
 tokio = "1.48.0"
 actix-web = "4.12.1"
