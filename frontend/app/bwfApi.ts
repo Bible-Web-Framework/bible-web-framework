@@ -5,6 +5,7 @@ export type BookResponse = UsjRoot
 export type SearchResponse = {
   response_type: 'search_results' | 'scripture_passages'
   search_term: string
+  total_results: number
   references: SearchResponseResult[]
 }
 

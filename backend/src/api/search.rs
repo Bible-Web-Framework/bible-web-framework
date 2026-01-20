@@ -3,9 +3,11 @@ use crate::book_data::Book;
 use crate::config::{BibleConfigLock, BibleIndexLock};
 use crate::search::{SearchResponse, search_bible};
 use actix_web::{HttpResponse, get, web};
+use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use unicase::UniCase;
+use validator::Validate;
 
 #[get("/book/{book}")]
 pub async fn book(
@@ -23,19 +25,25 @@ pub async fn book(
     Ok(HttpResponse::Ok().json(usj))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SearchQueryParams {
     term: String,
+    start: Option<usize>,
+    #[validate(range(max = 250))]
+    count: Option<usize>,
 }
 
 #[get("/search")]
 pub async fn search(
-    query: web::Query<SearchQueryParams>,
+    query: Query<SearchQueryParams>,
     config: web::Data<BibleConfigLock>,
     index: web::Data<BibleIndexLock>,
 ) -> ApiResult<web::Json<SearchResponse>> {
+    let query = query.into_inner();
     Ok(web::Json(search_bible(
-        query.into_inner().term,
+        query.term,
+        query.start.unwrap_or(0),
+        query.count.unwrap_or(50),
         &config.read().unwrap(),
         &index,
     )))

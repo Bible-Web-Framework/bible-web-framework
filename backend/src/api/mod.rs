@@ -5,7 +5,6 @@ use crate::api::short_url::ShortUrlValue;
 use crate::book_data::Book;
 use crate::reference::{BibleReference, ParseReferenceError};
 use crate::reference_encoding::ReferenceEncodingError;
-use actix_web::error::QueryPayloadError;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use serde_json::json;
@@ -27,7 +26,7 @@ pub enum ApiError {
     MissingShortReference(ShortUrlValue),
 
     #[error(transparent)]
-    InvalidQueryParams(#[from] QueryPayloadError),
+    InvalidQueryParams(#[from] actix_web_validator::Error),
     #[error("Route not found: {0}")]
     RouteNotFound(String),
 
@@ -49,7 +48,7 @@ impl ResponseError for ApiError {
             ApiError::InvalidReferenceEncoding(_) => StatusCode::NOT_FOUND,
             ApiError::MissingShortReference(_) => StatusCode::NOT_FOUND,
 
-            ApiError::InvalidQueryParams(e) => e.status_code(),
+            ApiError::InvalidQueryParams(_) => StatusCode::BAD_REQUEST,
             ApiError::RouteNotFound(_) => StatusCode::NOT_FOUND,
 
             ApiError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,

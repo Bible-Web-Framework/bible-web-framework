@@ -257,6 +257,7 @@ impl BookIndexer {
         }) else {
             return;
         };
+        // TODO: Add stop words to this so we don't get "the" with 20,000 hits
         for token in text.tokenize() {
             if !token.is_word() {
                 continue;

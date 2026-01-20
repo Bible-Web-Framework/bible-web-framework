@@ -14,6 +14,7 @@ use std::time::Instant;
 pub struct SearchResponse {
     pub response_type: SearchResponseType,
     pub search_term: String,
+    pub total_results: usize,
     pub references: Vec<SearchResponseResult>,
 }
 
@@ -40,24 +41,41 @@ pub enum SearchResponseResult {
     },
 }
 
-pub fn search_bible(term: String, config: &BibleConfig, index: &BibleIndexLock) -> SearchResponse {
+pub fn search_bible(
+    term: String,
+    search_start: usize,
+    search_max_count: usize,
+    config: &BibleConfig,
+    index: &BibleIndexLock,
+) -> SearchResponse {
     let references = parse_references(&term, Some(&config.additional_aliases));
     if references
         .iter()
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
     {
-        let start = Instant::now();
-        let results = search_for_terms(&term, &config.us.files, &index.read().unwrap());
-        tracing::debug!("Search for \"{term}\" took {:?}", start.elapsed());
+        let start_time = Instant::now();
+        let (total_results, results) = search_for_terms(
+            &term,
+            search_start,
+            search_max_count,
+            &config.us.files,
+            &index.read().unwrap(),
+        );
+        tracing::debug!(
+            "Search for \"{term}\" (max {search_max_count} results) took {:?}",
+            start_time.elapsed()
+        );
         SearchResponse {
             response_type: SearchResponseType::SearchResults,
             search_term: term,
+            total_results,
             references: results,
         }
     } else {
         SearchResponse {
             response_type: SearchResponseType::ScripturePassages,
             search_term: term,
+            total_results: references.len(),
             references: references
                 .into_iter()
                 .map(|x| match x {
@@ -93,9 +111,11 @@ fn get_translated_book_name(usj: Option<&UsjRoot>) -> Option<String> {
 
 fn search_for_terms(
     terms: &str,
+    start: usize,
+    max_count: usize,
     usjs: &HashMap<Book, UsjContent>,
     index: &BibleIndex,
-) -> Vec<SearchResponseResult> {
+) -> (usize, Vec<SearchResponseResult>) {
     let mut result: BTreeMap<_, Vec<_>> = BTreeMap::new();
     let mut reference_counts: HashMap<_, u32> = HashMap::new();
 
@@ -125,30 +145,35 @@ fn search_for_terms(
         }
     }
 
-    result
-        .into_iter()
-        .filter(|(reference, _)| reference_counts[reference] == counted_terms)
-        .map(|(reference, locations)| {
-            let mut highlights: HashMap<_, Vec<_>> = HashMap::new();
-            let usj = usjs.get(&reference.book);
-            if let Some(usj) = usj {
-                for location in locations {
-                    if let Some(text) = location.resolve_text_section(usj) {
-                        highlights
-                            .entry(text.to_string())
-                            .or_default()
-                            .push(location.char_range);
+    result.retain(|reference, _| reference_counts[reference] == counted_terms);
+    (
+        result.len(),
+        result
+            .into_iter()
+            .skip(start)
+            .take(max_count)
+            .map(|(reference, locations)| {
+                let mut highlights: HashMap<_, Vec<_>> = HashMap::new();
+                let usj = usjs.get(&reference.book);
+                if let Some(usj) = usj {
+                    for location in locations {
+                        if let Some(text) = location.resolve_text_section(usj) {
+                            highlights
+                                .entry(text.to_string())
+                                .or_default()
+                                .push(location.char_range);
+                        }
                     }
                 }
-            }
-            let usj = usj.map(UsjContent::unwrap_root);
-            SearchResponseResult::ReferenceContent {
-                reference,
-                translated_book_name: get_translated_book_name(usj),
-                content: usj
-                    .and_then(|usj| usj.find_reference(reference.chapter, reference.verses)),
-                highlights: Some(highlights),
-            }
-        })
-        .collect()
+                let usj = usj.map(UsjContent::unwrap_root);
+                SearchResponseResult::ReferenceContent {
+                    reference,
+                    translated_book_name: get_translated_book_name(usj),
+                    content: usj
+                        .and_then(|usj| usj.find_reference(reference.chapter, reference.verses)),
+                    highlights: Some(highlights),
+                }
+            })
+            .collect(),
+    )
 }

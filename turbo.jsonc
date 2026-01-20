@@ -30,6 +30,13 @@
         "NEXTEST_*"
       ]
     },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "env": ["CARGO_*", "RUST_*", "RUSTFLAGS", "FORCE_COLOR", "NEXTEST_*"],
+      "passThroughEnv": ["DISPLAY", "WEBKIT_DISABLE_DMABUF_RENDERER"]
+    },
     "lint": {
       "env": [
         "DATABASE_URL",
@@ -41,25 +48,7 @@
         "NEXTEST_*"
       ]
     },
-    "dev": {
-      "cache": false,
-      "persistent": true,
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "env": ["CARGO_*", "RUST_*", "RUSTFLAGS", "FORCE_COLOR", "NEXTEST_*"],
-      "passThroughEnv": ["DISPLAY", "WEBKIT_DISABLE_DMABUF_RENDERER"]
-    },
-    "test": {
-      "env": [
-        "SQLX_OFFLINE",
-        "DATABASE_URL",
-        "CARGO_*",
-        "RUST_*",
-        "RUSTFLAGS",
-        "FORCE_COLOR",
-        "NEXTEST_*"
-      ]
-    },
-    "fix": {
+    "lint:fix": {
       "cache": false
     }
   }

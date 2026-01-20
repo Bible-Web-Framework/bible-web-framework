@@ -6,14 +6,16 @@ use crate::reference_encoding::{
     encode_references_to_num, is_base58_swear,
 };
 use actix_web::{get, web};
+use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use sqlx::SqlitePool;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use validator::Validate;
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct ShortUrl {
     pub r#type: ShortUrlType,
     pub value: ShortUrlValue,
@@ -43,14 +45,14 @@ impl FromStr for ShortUrlValue {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateShortQueryParams {
     r#ref: String,
 }
 
 #[get("/short/create")]
 pub async fn short_create(
-    query: web::Query<CreateShortQueryParams>,
+    query: Query<CreateShortQueryParams>,
     config: web::Data<BibleConfigLock>,
     database: web::Data<SqlitePool>,
 ) -> ApiResult<web::Json<ShortUrl>> {
@@ -141,7 +143,7 @@ pub async fn short_create(
 
 #[get("/short/resolve")]
 pub async fn short_resolve(
-    query: web::Query<ShortUrl>,
+    query: Query<ShortUrl>,
     database: web::Data<SqlitePool>,
 ) -> ApiResult<web::Json<Vec<BibleReference>>> {
     let short_url = query.into_inner();
