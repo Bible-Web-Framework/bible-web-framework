@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { SearchResponse } from '~/bwfApi'
 
+const config = useRuntimeConfig()
 const route = useRoute()
 const query = ref((route.query.q || '').toString())
 const activeQuery = ref(query.value)
@@ -9,7 +10,7 @@ const {
   pending,
   error,
 } = await useFetch<SearchResponse>(
-  () => `http://127.0.0.1:8080/v1/search?term=${activeQuery.value}`,
+  () => `${config.public.apiRootUrl}/v1/search?term=${activeQuery.value}`,
 )
 
 function search() {
