@@ -21,7 +21,7 @@ serde_with = "3.16.1"
 phf = { version = "0.13.1", features = ["unicase", "macros"] }
 unicode-normalization = "0.1.25"
 rayon = "1.11.0"
-unicase = "2.8.1"
+unicase = "2.9.0"
 ere = "0.2.4"
 bimap = "0.6.3"
 notify-debouncer-full = "0.6.0"
@@ -52,7 +52,7 @@ phf_shared = { version = "0.13.1", features = ["unicase"] }
 serde_json = "1.0.145"
 serde = { version = "1.0.228", features = ["derive"] }
 hashlink = { version = "0.11.0", features = ["serde_impl"] }
-unicase = "2.8.1"
+unicase = "2.9.0"
 permutate = "0.3.2"
 
 [lints]
