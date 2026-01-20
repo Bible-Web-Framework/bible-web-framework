@@ -2,8 +2,8 @@
     "name": "@bible-web-framework/backend",
     "scripts": {
         "build": "cargo build --release",
-        "lint": "cargo fmt --check && cargo clippy --all-targets",
-        "fix": "cargo clippy --all-targets --fix --allow-dirty && cargo fmt",
+        "lint": "cargo clippy --all-targets && cargo fmt --check",
+        "lint:fix": "cargo clippy --all-targets --fix --allow-dirty && cargo fmt",
         "dev": "cargo run"
     }
 }
