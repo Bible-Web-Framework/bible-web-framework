@@ -8,12 +8,13 @@ const props = defineProps<{
   highlights?: HighlightsMap
 }>()
 
-const RenderWithHighlight: FunctionalComponent<{ text: string; highlights?: HighlightsMap }> = ({
+const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }> = ({
   text,
+  suffix,
 }) => {
   const highlights = props.highlights?.[text]
   if (!highlights) {
-    return text
+    return text + (suffix ?? '')
   }
   const result = []
   let lastEnd = 0
@@ -25,7 +26,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; highlights?: High
     lastEnd = highlight.end
   }
   if (lastEnd < text.length) {
-    result.push(text.substring(lastEnd))
+    result.push(text.substring(lastEnd) + (suffix ?? ''))
+  } else if (suffix) {
+    result.push(suffix)
   }
   return result
 }
@@ -34,7 +37,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; highlights?: High
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
     <template v-if="typeof content === 'string'"
-      ><RenderWithHighlight :text="content + ' '"
+      ><RenderWithHighlight :text="content" suffix=" "
     /></template>
     <template v-else-if="content.type === 'para'">
       <p v-if="content.marker === 'p'">
