@@ -13,8 +13,11 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
   suffix,
 }) => {
   const highlights = props.highlights?.[text]
+  if (suffix) {
+    text += suffix
+  }
   if (!highlights) {
-    return text + (suffix ?? '')
+    return text
   }
   const result = []
   let lastEnd = 0
@@ -26,9 +29,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     lastEnd = highlight.end
   }
   if (lastEnd < text.length) {
-    result.push(text.substring(lastEnd) + (suffix ?? ''))
-  } else if (suffix) {
-    result.push(suffix)
+    result.push(text.substring(lastEnd))
   }
   return result
 }
