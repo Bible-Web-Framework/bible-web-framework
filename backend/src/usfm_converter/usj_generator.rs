@@ -87,7 +87,7 @@ impl UsjGenerator<'_> {
     {
         self.error(
             cursor.node(),
-            format!("{message} {}", into.marker_or_type()),
+            format!("{message} \\{}", into.marker_or_type()),
         );
     }
 
