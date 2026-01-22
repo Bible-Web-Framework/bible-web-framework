@@ -56,22 +56,24 @@ watch(resultsPerPage, (newCount, oldCount) => {
     <input v-model="newQuery" placeholder="Enter search term" @keyup.enter="search" />
     <button @click="search">Search</button>
 
-    <template v-if="pageCount > 1">
-      Page:
-      <select v-model="page">
-        <option v-for="number in pageCount" :key="number" :value="number">
-          {{ number }}
-        </option>
+    <template v-if="searchResults?.response_type === 'search_results'">
+      <template v-if="pageCount > 1">
+        Page:
+        <select v-model="page">
+          <option v-for="number in pageCount" :key="number" :value="number">
+            {{ number }}
+          </option>
+        </select>
+      </template>
+      Results per page:
+      <select v-model="resultsPerPage">
+        <option :value="50">50</option>
+        <option :value="100">100</option>
+        <option :value="150">150</option>
+        <option :value="200">200</option>
+        <option :value="250">250</option>
       </select>
     </template>
-    Results per page:
-    <select v-model="resultsPerPage">
-      <option :value="50">50</option>
-      <option :value="100">100</option>
-      <option :value="150">150</option>
-      <option :value="200">200</option>
-      <option :value="250">250</option>
-    </select>
 
     <div v-if="searchResults">
       <template v-if="searchResults.response_type === 'scripture_passages'">

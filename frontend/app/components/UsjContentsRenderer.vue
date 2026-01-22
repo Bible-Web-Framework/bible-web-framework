@@ -25,7 +25,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     if (highlight.start > lastEnd) {
       result.push(text.substring(lastEnd, highlight.start))
     }
-    result.push(h('b', {}, [text.substring(highlight.start, highlight.end)]))
+    result.push(
+      h('span', { class: 'search-highlight' }, [text.substring(highlight.start, highlight.end)]),
+    )
     lastEnd = highlight.end
   }
   if (lastEnd < text.length) {
@@ -37,17 +39,25 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
 
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
-    <template v-if="typeof content === 'string'"
-      ><RenderWithHighlight :text="content" suffix=" "
-    /></template>
+    <RenderWithHighlight v-if="typeof content === 'string'" :text="content" suffix=" " />
+    <span v-else-if="content.type === 'chapter'" class="chapter-number">{{ content.number }}</span>
+    <span v-else-if="content.type === 'verse'" class="verse-number">{{ content.number }}</span>
     <template v-else-if="content.type === 'para'">
-      <p v-if="content.marker === 'p'">
+      <!-- TODO: Implement \ip when an example is found -->
+      <!-- TODO: Implement Titles and Sections -->
+      <!-- #region Body Paragraphs -->
+      <p v-if="content.marker === 'p' || (content.marker === 'm' && content.content)">
         <UsjContentsRenderer
           v-if="content.content"
           :contents="content.content"
           :highlights="highlights"
         />
       </p>
+      <!-- #endregion -->
     </template>
   </template>
 </template>
+
+<style>
+@import url('~/assets/usj.css');
+</style>

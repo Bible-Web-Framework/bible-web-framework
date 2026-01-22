@@ -1,0 +1,19 @@
+.search-highlight {
+  font-weight: bold;
+}
+
+.chapter-number {
+  font-size: 200%;
+  margin-right: 0.2em;
+
+  + p {
+    display: inline;
+  }
+}
+
+.verse-number {
+  vertical-align: 35%;
+  font-size: 75%;
+  margin-right: 0.2em;
+  font-weight: bold;
+}
