@@ -7,6 +7,7 @@ use actix_web_validator::QueryConfig;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
+use std::env;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -32,12 +33,14 @@ mod verse_range;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
+    #[error("Error loading .env: {0}")]
+    DotenvError(#[source] dotenvy::Error),
     #[error("Environment error for variable {0}: {1}")]
-    Env(String, #[source] dotenvy::Error),
+    Env(String, #[source] env::VarError),
     #[error("Invalid value '{1}' for environment variable {0}: {2}")]
     EnvParse(String, String, #[source] Box<dyn Error + Send + 'static>),
     #[error("Invalid logging configuration: {0}")]
-    TracingEnv(#[from] tracing_subscriber::filter::ParseError),
+    TracingEnv(#[from] tracing_subscriber::filter::FromEnvError),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("File watcher error: {0}")]
@@ -61,11 +64,17 @@ async fn main() -> ExitCode {
 }
 
 async fn real_main() -> Result<(), ServerError> {
+    if let Err(e) = dotenvy::dotenv()
+        && !e.not_found()
+    {
+        return Err(ServerError::DotenvError(e));
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
-                .parse(var_str("RUST_LOG").unwrap_or_default())?,
+                .from_env()?,
         )
         .init();
     tracing::debug!("Debug logging is enabled");
@@ -161,7 +170,7 @@ async fn real_main() -> Result<(), ServerError> {
 }
 
 fn var_str(var_name: impl AsRef<OsStr>) -> Result<String, ServerError> {
-    let value = dotenvy::var(&var_name)
+    let value = env::var(&var_name)
         .map_err(|x| ServerError::Env(var_name.as_ref().display().to_string(), x))?;
     Ok(value)
 }
