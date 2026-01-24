@@ -50,6 +50,17 @@
     },
     "lint:fix": {
       "cache": false
+    },
+    "test": {
+      "env": [
+        "SQLX_OFFLINE",
+        "DATABASE_URL",
+        "CARGO_*",
+        "RUST_*",
+        "RUSTFLAGS",
+        "FORCE_COLOR",
+        "NEXTEST_*"
+      ]
     }
   }
 }

@@ -4,6 +4,7 @@
         "build": "cargo build --release",
         "dev": "cargo run",
         "lint": "cargo clippy --all-targets && cargo fmt --check",
-        "lint:fix": "cargo clippy --all-targets --fix --allow-dirty && cargo fmt"
+        "lint:fix": "cargo clippy --all-targets --fix --allow-dirty && cargo fmt",
+        "test": "cargo nextest run --all-targets --no-fail-fast"
     }
 }

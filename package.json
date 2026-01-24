@@ -4,7 +4,8 @@
     "scripts": {
         "build": "turbo run build --continue",
         "lint": "turbo run lint --continue",
-        "lint:fix": "turbo run lint:fix --continue"
+        "lint:fix": "turbo run lint:fix --continue",
+        "test": "turbo run test --continue"
     },
     "devDependencies": {
         "prettier": "^3.8.1",
