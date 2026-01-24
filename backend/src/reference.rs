@@ -226,6 +226,16 @@ fn parse_book_reference(
         })
     };
 
+    let verify_not_book = || {
+        Book::parse(full_reference, additional_aliases).map_or_else(
+            || ParseReferenceError::UnknownBook {
+                book: reference_remainder.to_string(),
+                valid_otherwise: false,
+            },
+            |_| ParseReferenceError::MissingChapter,
+        )
+    };
+
     Ok(
         if let Some((chapter, verses)) = reference_remainder.split_once(':') {
             let chapter =
@@ -249,19 +259,13 @@ fn parse_book_reference(
                 book,
                 reference: BookReference {
                     chapter,
-                    verses: parse_verses(reference_remainder)?,
+                    verses: parse_verses(reference_remainder).map_err(|_| verify_not_book())?,
                 },
             }
         } else {
-            let chapter = reference_remainder.parse::<NonZeroU8>().map_err(|_| {
-                Book::parse(full_reference, additional_aliases).map_or_else(
-                    || ParseReferenceError::UnknownBook {
-                        book: reference_remainder.to_string(),
-                        valid_otherwise: false,
-                    },
-                    |_| ParseReferenceError::MissingChapter,
-                )
-            })?;
+            let chapter = reference_remainder
+                .parse::<NonZeroU8>()
+                .map_err(|_| verify_not_book())?;
             let verse_count = book
                 .verse_count(chapter)
                 .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
@@ -429,7 +433,7 @@ mod tests {
         assert_parse!(
             "John1:1:;4",
             Err(InvalidVerse { verse: "1:".to_string() }),
-            Ok(John 4:1-54),
+            Ok(John 1:4-4),
         );
         assert_parse!(
             "John 1:1;3:",
@@ -442,5 +446,7 @@ mod tests {
                 verses: (nz_u8!(6), nz_u8!(3)),
             }),
         );
+        assert_parse!("John", Err(MissingChapter));
+        assert_parse!("John;Acts", Err(MissingChapter), Err(MissingChapter));
     }
 }
