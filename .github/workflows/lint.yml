@@ -18,9 +18,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ''
+          components: clippy, rustfmt
+          cache: true
       - name: Install nextest
-        run: cargo binstall -y cargo-nextest
-      - uses: Swatinem/rust-cache@v2
+        uses: taiki-e/install-action@nextest
       - name: Install frontend dependencies
         run: pnpm install
       - name: Run lint
