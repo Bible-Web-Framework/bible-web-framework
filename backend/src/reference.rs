@@ -113,18 +113,24 @@ pub fn parse_references(
     additional_aliases: AdditionalAliases,
 ) -> Vec<ReferenceResult> {
     with_normalized_str(reference, |reference| {
-        let mut book = None;
+        let mut state = ParseState::default();
         reference
             .split([';', ','])
             .filter(|x| !x.is_empty())
-            .map(|x| parse_reference_part(x, &mut book, additional_aliases))
+            .map(|x| parse_reference_part(x, &mut state, additional_aliases))
             .collect()
     })
 }
 
+#[derive(Default)]
+struct ParseState {
+    book: Option<Book>,
+    chapter: Option<NonZeroU8>,
+}
+
 fn parse_reference_part(
     reference: &str,
-    book: &mut Option<Book>,
+    state: &mut ParseState,
     additional_aliases: AdditionalAliases,
 ) -> ReferenceResult {
     let book_data = {
@@ -138,11 +144,12 @@ fn parse_reference_part(
     };
 
     let remainder = if let Some((book_str, remainder)) = book_data {
-        *book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
+        state.book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
             ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
                 valid_otherwise: parse_book_reference(
                     Book::Genesis,
+                    state,
                     reference,
                     remainder,
                     additional_aliases,
@@ -150,8 +157,9 @@ fn parse_reference_part(
                 .is_ok(),
             }
         })?);
+        state.chapter = None;
         remainder
-    } else if book.is_none() {
+    } else if state.book.is_none() {
         return Err(Book::parse(reference, additional_aliases).map_or_else(
             || ParseReferenceError::UnknownBook {
                 book: reference.to_string(),
@@ -163,15 +171,61 @@ fn parse_reference_part(
         reference
     };
 
-    parse_book_reference(book.unwrap(), reference, remainder, additional_aliases)
+    parse_book_reference(
+        state.book.unwrap(),
+        state,
+        reference,
+        remainder,
+        additional_aliases,
+    )
 }
 
 fn parse_book_reference(
     book: Book,
+    state: &mut ParseState,
     full_reference: &str,
     reference_remainder: &str,
     additional_aliases: AdditionalAliases,
 ) -> ReferenceResult {
+    let process_chapter_number = |chapter| -> Result<_, ParseReferenceError> {
+        let verse_count = book
+            .verse_count(chapter)
+            .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
+        let parse_verse = move |verse: &str, default_verse: Option<NonZeroU8>| {
+            if let Some(default_verse) = default_verse
+                && verse.is_empty()
+            {
+                return Ok(default_verse);
+            }
+            let verse = verse
+                .parse()
+                .map_err(|_| ParseReferenceError::InvalidVerse {
+                    verse: verse.to_string(),
+                })?;
+            if verse > verse_count {
+                return Err(ParseReferenceError::OutOfBoundsVerse {
+                    book,
+                    chapter,
+                    verse,
+                });
+            }
+            Ok(verse)
+        };
+
+        Ok(move |verses: &str| {
+            if let Some((verse_start, verse_end)) = verses.split_once('-') {
+                VerseRange::new(
+                    parse_verse(verse_start, Some(nz_u8!(1)))?,
+                    parse_verse(verse_end, Some(verse_count))?,
+                )
+                .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })
+            } else {
+                let verse = parse_verse(verses, None)?;
+                Ok(VerseRange::new(verse, verse).unwrap())
+            }
+        })
+    };
+
     Ok(
         if let Some((chapter, verses)) = reference_remainder.split_once(':') {
             let chapter =
@@ -180,43 +234,22 @@ fn parse_book_reference(
                     .map_err(|_| ParseReferenceError::InvalidChapter {
                         chapter: chapter.to_string(),
                     })?;
-            let verse_count = book
-                .verse_count(chapter)
-                .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
-            let parse_verse = |verse: &str, default_verse: Option<NonZeroU8>| {
-                if let Some(default_verse) = default_verse
-                    && verse.is_empty()
-                {
-                    return Ok(default_verse);
-                }
-                let verse = verse
-                    .parse()
-                    .map_err(|_| ParseReferenceError::InvalidVerse {
-                        verse: verse.to_string(),
-                    })?;
-                if verse > verse_count {
-                    return Err(ParseReferenceError::OutOfBoundsVerse {
-                        book,
-                        chapter,
-                        verse,
-                    });
-                }
-                Ok(verse)
-            };
+            state.chapter = Some(chapter);
+            let parse_verses = process_chapter_number(chapter)?;
             BibleReference {
                 book,
                 reference: BookReference {
                     chapter,
-                    verses: if let Some((verse_start, verse_end)) = verses.split_once('-') {
-                        VerseRange::new(
-                            parse_verse(verse_start, Some(nz_u8!(1)))?,
-                            parse_verse(verse_end, Some(verse_count))?,
-                        )
-                        .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })?
-                    } else {
-                        let verse = parse_verse(verses, None)?;
-                        VerseRange::new(verse, verse).unwrap()
-                    },
+                    verses: parse_verses(verses)?,
+                },
+            }
+        } else if let Some(chapter) = state.chapter {
+            let parse_verses = process_chapter_number(chapter)?;
+            BibleReference {
+                book,
+                reference: BookReference {
+                    chapter,
+                    verses: parse_verses(reference_remainder)?,
                 },
             }
         } else {
@@ -308,7 +341,7 @@ mod tests {
             Ok(James 1:1-4),
             Ok(Hosea 4:1-19),
             Ok(Luke 6:1-14),
-            Ok(Luke 7:1-50),
+            Ok(Luke 6:7-7),
             Ok(Luke 9:1-9),
             Ok(Luke 10:16-16),
         );
@@ -318,7 +351,7 @@ mod tests {
             Ok(Proverbs 3:1-35),
         );
         assert_parse!("John 1:1;,", Ok(John 1:1-1));
-        assert_parse!("John 1:1;,3", Ok(John 1:1-1), Ok(John 3:1-36));
+        assert_parse!("John 1:1;,3", Ok(John 1:1-1), Ok(John 1:3-3));
         assert_parse!("John 1:-3", Ok(John 1:1-3));
         assert_parse!("John 1:6-", Ok(John 1:6-51));
         assert_parse!(
@@ -326,6 +359,8 @@ mod tests {
             "ヨハネ" => John,
             Ok(John 1:1-1)
         );
+        assert_parse!("acts2:1,3,5", Ok(Acts 2:1-1), Ok(Acts 2:3-3), Ok(Acts 2:5-5));
+        assert_parse!("acts2,3,5", Ok(Acts 2:1-47), Ok(Acts 3:1-26), Ok(Acts 5:1-42));
     }
 
     #[test]
