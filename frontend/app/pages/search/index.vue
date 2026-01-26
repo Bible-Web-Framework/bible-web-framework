@@ -84,7 +84,12 @@ watch(resultsPerPage, (newCount, oldCount) => {
           <hr v-if="referenceIndex > 0" />
           <template v-if="'content' in reference">
             <UsjContentsRenderer v-if="reference.content" :contents="reference.content" />
+            <p v-else class="error">
+              No scripture passage found for {{ reference.translated_book_name }}
+              {{ reference.reference.chapter }}:{{ reference.reference.verses }}
+            </p>
           </template>
+          <td v-else class="error">{{ reference.details }}</td>
         </template>
       </template>
       <template v-else-if="searchResults.search_term">
@@ -93,7 +98,9 @@ watch(resultsPerPage, (newCount, oldCount) => {
         </h2>
         <table>
           <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
-            <td v-if="'invalid_reference' in reference">{{ reference.details }}</td>
+            <td v-if="'invalid_reference' in reference" class="error" colspan="2">
+              {{ reference.details }}
+            </td>
             <template v-else>
               <td>
                 {{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{

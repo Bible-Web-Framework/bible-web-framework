@@ -59,5 +59,5 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
 </template>
 
 <style>
-@import url('~/assets/usj.css');
+@import url('~/assets/bwf.css');
 </style>
