@@ -1,4 +1,4 @@
-use crate::book_data::Book;
+use crate::book_data::{Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
@@ -254,6 +254,13 @@ impl BibleConfig {
             us,
             additional_aliases: HashMap::new(), // TODO: Parse from config
         })
+    }
+
+    pub fn book_parse_options(&self) -> BookParseOptions<'_, impl Fn(Book) -> bool> {
+        BookParseOptions {
+            additional_aliases: Some(&self.additional_aliases),
+            book_allowed: |book| self.us.files.contains_key(&book),
+        }
     }
 }
 

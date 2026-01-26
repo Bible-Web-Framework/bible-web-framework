@@ -13,7 +13,29 @@ include!(concat!(env!("OUT_DIR"), "/book.rs"));
 
 /// A map from NFKC-normalized case-folded strings with no spaces. `None` is treated as an empty
 /// map.
-pub type AdditionalAliases<'a> = Option<&'a HashMap<UniCase<Cow<'a, str>>, Book>>;
+pub type AdditionalAliases<'a> = &'a HashMap<UniCase<Cow<'a, str>>, Book>;
+
+#[derive(Copy, Clone)]
+pub struct BookParseOptions<'a, BookAllowed>
+where
+    BookAllowed: Fn(Book) -> bool,
+{
+    pub additional_aliases: Option<AdditionalAliases<'a>>,
+    pub book_allowed: BookAllowed,
+}
+
+impl BookParseOptions<'static, fn(Book) -> bool> {
+    pub const NONE: Self = Self {
+        additional_aliases: None,
+        book_allowed: |_| true,
+    };
+}
+
+impl Default for BookParseOptions<'static, fn(Book) -> bool> {
+    fn default() -> Self {
+        Self::NONE
+    }
+}
 
 impl Book {
     pub const fn chapter_count(&self) -> Option<NonZeroU8> {
@@ -33,12 +55,14 @@ impl Book {
         include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 
-    pub fn parse(book: &str, additional_aliases: AdditionalAliases) -> Option<Self> {
+    pub fn parse(book: &str, options: &BookParseOptions<impl Fn(Book) -> bool>) -> Option<Self> {
         with_normalized_str(book, |book| {
             let book = UniCase::new(book);
-            additional_aliases
+            options
+                .additional_aliases
                 .and_then(|x| x.get(&to_unicase_cow(book)).copied())
                 .or_else(|| BOOK_ALIASES.get(&book).copied())
+                .take_if(|&mut x| (options.book_allowed)(x))
         })
     }
 }
@@ -51,7 +75,7 @@ impl FromStr for Book {
     type Err = BookFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::parse(s, None).ok_or_else(|| BookFromStrError(s.to_string()))
+        Self::parse(s, &BookParseOptions::NONE).ok_or_else(|| BookFromStrError(s.to_string()))
     }
 }
 
@@ -95,7 +119,8 @@ impl<'de> Deserialize<'de> for Book {
             where
                 E: Error,
             {
-                Book::parse(v, None).ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
+                Book::parse(v, &BookParseOptions::NONE)
+                    .ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
             }
         }
         deserializer.deserialize_str(Deserializer)
@@ -130,16 +155,16 @@ impl Display for Book {
 
 #[cfg(test)]
 mod tests {
-    use crate::book_data::Book;
+    use crate::book_data::{Book, BookParseOptions};
     use crate::nz_u8;
     use std::num::NonZeroU8;
 
     fn assert_parse(name: &str, book: Book) {
-        assert_eq!(Book::parse(name, None), Some(book));
+        assert_eq!(Book::parse(name, &BookParseOptions::NONE), Some(book));
     }
 
     fn assert_parse_fail(name: &str) {
-        assert_eq!(Book::parse(name, None), None);
+        assert_eq!(Book::parse(name, &BookParseOptions::NONE), None);
     }
 
     #[test]

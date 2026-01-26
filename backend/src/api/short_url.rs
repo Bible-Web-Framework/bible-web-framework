@@ -59,7 +59,7 @@ pub async fn short_create(
     let references = query.into_inner().r#ref;
     let references: Vec<_> = {
         let config = config.read().unwrap();
-        parse_references(&references, Some(&config.additional_aliases))
+        parse_references(&references, &config.book_parse_options())
             .into_iter()
             .map(|reference| match reference {
                 Ok(r) => {

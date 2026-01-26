@@ -1,5 +1,5 @@
-use crate::book_data::AdditionalAliases;
 use crate::book_data::Book;
+use crate::book_data::BookParseOptions;
 use crate::nz_u8;
 use crate::utils::with_normalized_str;
 use crate::verse_range::VerseRange;
@@ -110,14 +110,14 @@ pub type ReferenceResult = Result<BibleReference, ParseReferenceError>;
 
 pub fn parse_references(
     reference: &str,
-    additional_aliases: AdditionalAliases,
+    options: &BookParseOptions<impl Fn(Book) -> bool>,
 ) -> Vec<ReferenceResult> {
     with_normalized_str(reference, |reference| {
         let mut state = ParseState::default();
         reference
             .split([';', ','])
             .filter(|x| !x.is_empty())
-            .map(|x| parse_reference_part(x, &mut state, additional_aliases))
+            .map(|x| parse_reference_part(x, &mut state, options))
             .collect()
     })
 }
@@ -131,7 +131,7 @@ struct ParseState {
 fn parse_reference_part(
     reference: &str,
     state: &mut ParseState,
-    additional_aliases: AdditionalAliases,
+    options: &BookParseOptions<impl Fn(Book) -> bool>,
 ) -> ReferenceResult {
     let book_data = {
         let without_prefix_nums = reference.trim_start_matches(char::is_numeric);
@@ -144,7 +144,7 @@ fn parse_reference_part(
     };
 
     let remainder = if let Some((book_str, remainder)) = book_data {
-        state.book = Some(Book::parse(book_str, additional_aliases).ok_or_else(|| {
+        state.book = Some(Book::parse(book_str, options).ok_or_else(|| {
             ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
                 valid_otherwise: parse_book_reference(
@@ -152,7 +152,7 @@ fn parse_reference_part(
                     state,
                     reference,
                     remainder,
-                    additional_aliases,
+                    options,
                 )
                 .is_ok(),
             }
@@ -160,7 +160,7 @@ fn parse_reference_part(
         state.chapter = None;
         remainder
     } else if state.book.is_none() {
-        return Err(Book::parse(reference, additional_aliases).map_or_else(
+        return Err(Book::parse(reference, options).map_or_else(
             || ParseReferenceError::UnknownBook {
                 book: reference.to_string(),
                 valid_otherwise: false,
@@ -171,13 +171,7 @@ fn parse_reference_part(
         reference
     };
 
-    parse_book_reference(
-        state.book.unwrap(),
-        state,
-        reference,
-        remainder,
-        additional_aliases,
-    )
+    parse_book_reference(state.book.unwrap(), state, reference, remainder, options)
 }
 
 fn parse_book_reference(
@@ -185,7 +179,7 @@ fn parse_book_reference(
     state: &mut ParseState,
     full_reference: &str,
     reference_remainder: &str,
-    additional_aliases: AdditionalAliases,
+    options: &BookParseOptions<impl Fn(Book) -> bool>,
 ) -> ReferenceResult {
     let process_chapter_number = |chapter| -> Result<_, ParseReferenceError> {
         let verse_count = book
@@ -227,7 +221,7 @@ fn parse_book_reference(
     };
 
     let verify_not_book = || {
-        Book::parse(full_reference, additional_aliases).map_or_else(
+        Book::parse(full_reference, options).map_or_else(
             || ParseReferenceError::UnknownBook {
                 book: reference_remainder.to_string(),
                 valid_otherwise: false,
@@ -303,6 +297,7 @@ mod tests {
     use super::ParseReferenceError::*;
     use super::parse_references;
     use crate::book_data::Book::*;
+    use crate::book_data::BookParseOptions;
     use crate::nz_u8;
     use std::borrow::Cow;
     use std::collections::HashMap;
@@ -320,11 +315,14 @@ mod tests {
 
     macro_rules! parse_references {
         ($reference:literal,) => {
-            parse_references($reference, None)
+            parse_references($reference, &BookParseOptions::NONE)
         };
 
         ($reference:literal, $($name:literal => $book:ident),+) => {
-            parse_references($reference, Some(&HashMap::from([$((UniCase::new(Cow::Borrowed($name)), $book)),+])))
+            parse_references($reference, &BookParseOptions {
+                additional_aliases: Some(&HashMap::from([$((UniCase::new(Cow::Borrowed($name)), $book)),+])),
+                ..BookParseOptions::NONE
+            })
         };
     }
 

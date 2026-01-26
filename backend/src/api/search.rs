@@ -16,7 +16,7 @@ pub async fn book(
 ) -> ApiResult<HttpResponse> {
     let book = book.into_inner();
     let config = config.read().unwrap();
-    let Some(book) = Book::parse(&book, Some(&config.additional_aliases)) else {
+    let Some(book) = Book::parse(&book, &config.book_parse_options()) else {
         return Err(ApiError::InvalidBook(book));
     };
     let Some(usj) = config.us.files.get(&book) else {

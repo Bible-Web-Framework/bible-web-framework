@@ -48,7 +48,7 @@ pub fn search_bible(
     config: &BibleConfig,
     index: &BibleIndexLock,
 ) -> SearchResponse {
-    let references = parse_references(&term, Some(&config.additional_aliases));
+    let references = parse_references(&term, &config.book_parse_options());
     if references
         .iter()
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
