@@ -19,7 +19,7 @@
     },
     "devDependencies": {
         "@nuxt/eslint": "^1.13.0",
-        "@types/node": "^25.0.10",
+        "@types/node": "^25.1.0",
         "eslint": "^9.39.2",
         "json-stringify-pretty-compact": "^4.0.0",
         "typescript": "^5.9.3"
