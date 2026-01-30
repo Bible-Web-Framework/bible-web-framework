@@ -68,11 +68,11 @@ impl<'a> PossiblySimpleBookInfo<'a> {
 impl<'a> BookAlias<'a> {
     fn permute(
         &self,
-        aliases: &'a HashMap<&str, Vec<&str>>,
+        common_aliases: &'a HashMap<&str, Vec<&str>>,
         mut handler: impl FnMut(Cow<'a, str>),
     ) {
         let get_alias = |alias| {
-            aliases
+            common_aliases
                 .get(alias)
                 .unwrap_or_else(|| panic!("Unknown alias '{alias}'"))
         };

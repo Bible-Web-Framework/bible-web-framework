@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
+use std::io::{BufRead, Read};
 use std::num::NonZeroU8;
-use std::path::Path;
 use std::slice::SliceIndex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -543,14 +543,15 @@ impl UsjRoot {
 pub enum UsjLoadError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("Zip error: {0}")]
+    Zip(#[from] zip::result::ZipError),
     #[error("Json error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("Failed to load USFM: {0}")]
     Usfm(#[from] FatalUsfmError),
 }
 
-pub fn load_usj(path: impl AsRef<Path>) -> Result<UsjContent, UsjLoadError> {
-    let reader = std::io::BufReader::new(std::fs::File::open(path)?);
+pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, UsjLoadError> {
     Ok(serde_json::from_reader(reader)?)
 }
 
@@ -560,8 +561,8 @@ pub struct LoadedUsjFromUsfm {
     pub diagnostics: Vec<MietteDiagnostic>,
 }
 
-pub fn load_usj_from_usfm(path: impl AsRef<Path>) -> Result<LoadedUsjFromUsfm, UsjLoadError> {
-    let parser = UsfmParser::new(std::fs::read_to_string(path)?)?;
+pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, UsjLoadError> {
+    let parser = UsfmParser::new(content)?;
 
     let (usj, conversion_diags) = parser.to_usj();
     let mut all_diags = parser.diagnostics;

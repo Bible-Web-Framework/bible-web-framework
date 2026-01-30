@@ -1,0 +1,6 @@
+[book_aliases.books]
+JHN = ["Test"]
+
+[search]
+languages = ["eng"]
+ignored_words = ["of", "the"]

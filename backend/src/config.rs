@@ -1,6 +1,6 @@
 use crate::book_data::{Book, BookParseOptions};
-use crate::index::{BibleIndex, ReindexType};
-use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
+use crate::index::ReindexType;
+use crate::usj::{UsjBookInfo, UsjContent, UsjLoadError, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
 use notify_debouncer_full::notify;
@@ -12,11 +12,12 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::ffi::{OsStr, OsString};
-use std::fs::canonicalize;
-use std::io;
+use std::fs::{File, canonicalize};
+use std::io::BufReader;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
+use std::{fs, io};
 use unicase::UniCase;
 
 #[derive(Debug)]
@@ -86,11 +87,16 @@ impl UsFileMap {
             .map(str::to_ascii_lowercase)
             .as_deref()
         {
-            Some("usj") => load_usj(full_path)
+            Some("usj") => File::open(full_path)
+                .map_err(UsjLoadError::Io)
+                .map(BufReader::new)
+                .and_then(load_usj)
                 .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
                 .ok(),
             Some("usfm") => {
-                let usj = load_usj_from_usfm(full_path)
+                let usj = fs::read_to_string(full_path)
+                    .map_err(UsjLoadError::Io)
+                    .and_then(load_usj_from_usfm)
                     .inspect_err(|err| tracing::error!("Failed to load {}: {err}", file.display()))
                     .ok()?;
                 if !usj.diagnostics.is_empty() {
@@ -136,7 +142,7 @@ impl UsFileMap {
         self.sources.clear();
         self.has_ignored_files = false;
         let start = Instant::now();
-        std::fs::read_dir(&self.root_dir)?
+        fs::read_dir(&self.root_dir)?
             .par_bridge()
             .filter_map(|entry| {
                 let entry = match entry {
@@ -215,7 +221,7 @@ impl UsFileMap {
                     tracing::info!(
                         "Detected rename of book {book} source file from {} to {}",
                         old_path.display(),
-                        new_path.display()
+                        new_path.display(),
                     );
                     self.sources.insert(book, new_path);
                 }
@@ -265,4 +271,3 @@ impl BibleConfig {
 }
 
 pub type BibleConfigLock = RwLock<BibleConfig>;
-pub type BibleIndexLock = RwLock<BibleIndex>;

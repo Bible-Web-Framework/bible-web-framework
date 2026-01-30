@@ -44,6 +44,12 @@ actix-cors = "0.7.1"
 rustrict = "0.7.38"
 validator = { version = "0.20.0", features = ["derive"] }
 actix-web-validator = "7.0.0"
+permutate = "0.3.2"
+fst = "0.4.7"
+toml = "0.9.11"
+zip = "7.2.0"
+io-enum = "1.2.0"
+sync_file = "0.3.2"
 
 [dev-dependencies]
 censor = "0.3.0"

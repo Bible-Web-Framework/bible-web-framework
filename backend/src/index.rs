@@ -10,12 +10,14 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::num::NonZeroU8;
 use std::ops::Range;
+use std::sync::RwLock;
 use std::time::Instant;
 use string_interner::StringInterner;
 use string_interner::backend::{Backend, StringBackend};
 use string_interner::symbol::SymbolU16;
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
+pub type BibleIndexLock = RwLock<BibleIndex>;
 
 type InternerBackend = StringBackend<SymbolU16>;
 type Interner = StringInterner<InternerBackend>;

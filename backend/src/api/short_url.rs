@@ -1,5 +1,5 @@
 use crate::api::{ApiError, ApiResult};
-use crate::config::BibleConfigLock;
+use crate::config_new::MultiBibleData;
 use crate::reference::{BibleReference, parse_references};
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
@@ -47,23 +47,24 @@ impl FromStr for ShortUrlValue {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateShortQueryParams {
+    bible: String,
     r#ref: String,
 }
 
 #[get("/short/create")]
 pub async fn short_create(
     query: Query<CreateShortQueryParams>,
-    config: web::Data<BibleConfigLock>,
+    config: web::Data<MultiBibleData>,
     database: web::Data<SqlitePool>,
 ) -> ApiResult<web::Json<ShortUrl>> {
-    let references = query.into_inner().r#ref;
+    let query = query.into_inner();
     let references: Vec<_> = {
-        let config = config.read().unwrap();
-        parse_references(&references, &config.book_parse_options())
+        let bible = config.get_or_api_error(query.bible)?;
+        parse_references(&query.r#ref, &bible.book_parse_options())
             .into_iter()
             .map(|reference| match reference {
                 Ok(r) => {
-                    if !config.us.files.contains_key(&r.book) {
+                    if !bible.files.contains_key(&r.book) {
                         return Err(ApiError::MissingReference(r));
                     }
                     Ok(r)

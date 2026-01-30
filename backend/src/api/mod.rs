@@ -6,12 +6,15 @@ use crate::book_data::Book;
 use crate::reference::{BibleReference, ParseReferenceError};
 use crate::reference_encoding::ReferenceEncodingError;
 use actix_web::http::StatusCode;
-use actix_web::{HttpRequest, HttpResponse, ResponseError};
+use actix_web::{HttpRequest, HttpResponse, ResponseError, Scope, web};
+use actix_web_validator::QueryConfig;
 use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ApiError {
+    #[error("Unknown bible translation '{0}'")]
+    UnknownBible(String),
     #[error("Invalid book '{0}'")]
     InvalidBook(String),
     #[error("No USJ found for {0:?}")]
@@ -41,6 +44,7 @@ pub type ApiResult<T> = Result<T, ApiError>;
 impl ResponseError for ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
+            ApiError::UnknownBible(_) => StatusCode::NOT_FOUND,
             ApiError::InvalidBook(_) => StatusCode::BAD_REQUEST,
             ApiError::MissingUsj(_) => StatusCode::NOT_FOUND,
             ApiError::InvalidReference(_) => StatusCode::BAD_REQUEST,
@@ -68,4 +72,17 @@ impl ResponseError for ApiError {
 
 pub async fn route_not_found(req: HttpRequest) -> ApiResult<()> {
     Err(ApiError::RouteNotFound(req.path().to_string()))
+}
+
+pub fn scope() -> Scope {
+    web::scope("/v1")
+        .app_data(QueryConfig::default().error_handler(|e, _| ApiError::from(e).into()))
+        .service(short_url::short_create)
+        .service(short_url::short_resolve)
+        .service(
+            web::scope("/bible/{bible}")
+                .service(search::book)
+                .service(search::search)
+                .service(search::index_route),
+        )
 }

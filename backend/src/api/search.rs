@@ -1,6 +1,7 @@
 use crate::api::{ApiError, ApiResult};
 use crate::book_data::Book;
-use crate::config::{BibleConfigLock, BibleIndexLock};
+use crate::config_new::MultiBibleData;
+use crate::index::BibleIndexLock;
 use crate::search::{SearchResponse, search_bible};
 use actix_web::{HttpResponse, get, web};
 use actix_web_validator::Query;
@@ -11,15 +12,16 @@ use validator::Validate;
 
 #[get("/book/{book}")]
 pub async fn book(
+    bible: web::Path<String>,
     book: web::Path<String>,
-    config: web::Data<BibleConfigLock>,
+    config: web::Data<MultiBibleData>,
 ) -> ApiResult<HttpResponse> {
+    let bible = config.get_or_api_error(bible.into_inner())?;
     let book = book.into_inner();
-    let config = config.read().unwrap();
-    let Some(book) = Book::parse(&book, &config.book_parse_options()) else {
+    let Some(book) = Book::parse(&book, &bible.book_parse_options()) else {
         return Err(ApiError::InvalidBook(book));
     };
-    let Some(usj) = config.us.files.get(&book) else {
+    let Some(usj) = bible.files.get(&book) else {
         return Err(ApiError::MissingUsj(book));
     };
     Ok(HttpResponse::Ok().json(usj))
@@ -35,8 +37,9 @@ pub struct SearchQueryParams {
 
 #[get("/search")]
 pub async fn search(
+    bible: web::Path<String>,
     query: Query<SearchQueryParams>,
-    config: web::Data<BibleConfigLock>,
+    config: web::Data<MultiBibleData>,
     index: web::Data<BibleIndexLock>,
 ) -> ApiResult<web::Json<SearchResponse>> {
     let query = query.into_inner();
@@ -44,7 +47,7 @@ pub async fn search(
         query.term,
         query.start.unwrap_or(0),
         query.count.unwrap_or(50),
-        &config.read().unwrap(),
+        &*config.get_or_api_error(bible.into_inner())?,
         &index,
     )))
 }

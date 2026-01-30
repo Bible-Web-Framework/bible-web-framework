@@ -1,11 +1,8 @@
-use crate::api::{ApiError, route_not_found};
-use crate::config::BibleConfig;
-use crate::index::{BibleIndex, ReindexType};
+use crate::api::route_not_found;
+use crate::config_new::{ConfigError, MultiBibleData};
+use crate::index::BibleIndex;
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
-use actix_web_validator::QueryConfig;
-use notify_debouncer_full::DebounceEventResult;
-use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
 use std::env;
 use std::error::Error;
@@ -14,7 +11,6 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::RwLock;
-use std::time::Duration;
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -22,6 +18,7 @@ use tracing_subscriber::filter::LevelFilter;
 mod api;
 mod book_data;
 mod config;
+mod config_new;
 mod index;
 mod reference;
 mod reference_encoding;
@@ -49,6 +46,8 @@ pub enum ServerError {
     Database(#[from] sqlx::Error),
     #[error("Database migration error: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
+    #[error("Configuration error: {0}")]
+    Config(#[from] ConfigError),
 }
 
 #[actix_web::main]
@@ -79,55 +78,56 @@ async fn real_main() -> Result<(), ServerError> {
         .init();
     tracing::debug!("Debug logging is enabled");
 
-    let us_dir = var::<PathBuf>("US_DIRECTORY")?;
-    let bible_config = BibleConfig::load_initial(us_dir.clone())?;
+    let bibles_dir = var::<PathBuf>("BIBLES_DIR")?;
+    let bible_data = MultiBibleData::load(bibles_dir.clone())?;
 
-    let mut bible_index = BibleIndex::new();
-    bible_index.update_index(ReindexType::FullReindex, &bible_config.us.files);
+    let bible_index = BibleIndex::new();
+    // bible_index.update_index(ReindexType::FullReindex, &bible_config.us.files);
 
-    let bible_config = web::Data::new(RwLock::new(bible_config));
+    let bible_config = web::Data::new(bible_data);
     let bible_index = web::Data::new(RwLock::new(bible_index));
 
     let usj_watcher = {
-        let config = bible_config.clone();
-        let index = bible_index.clone();
-        let mut usj_watcher = notify_debouncer_full::new_debouncer(
-            Duration::from_secs(2),
-            None,
-            move |event: DebounceEventResult| {
-                tracing::debug!("Received file watch event {event:?}");
-                match event {
-                    Ok(evs) => {
-                        let mut config = config.write().unwrap();
-                        for ev in evs {
-                            match config.us.handle_file_change(ev.event) {
-                                Ok(reindex) => {
-                                    if reindex != ReindexType::NoReindex {
-                                        let mut index = index.write().unwrap();
-                                        index.update_index(reindex, &config.us.files);
-                                    }
-                                }
-                                Err(err) => {
-                                    tracing::error!(
-                                        "Failed to update loaded USJs from file watch event: {err}"
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    Err(errs) => {
-                        for err in errs {
-                            tracing::error!("Error in USJ file watcher: {err}");
-                        }
-                        if let Err(err) = config.write().unwrap().us.reload_all_from_dir() {
-                            tracing::error!("Failed to reload all USJs: {err}");
-                        }
-                    }
-                };
-            },
-        )?;
-        usj_watcher.watch(us_dir, RecursiveMode::NonRecursive)?;
-        web::Data::new(usj_watcher)
+        // let config = bible_config.clone();
+        // let index = bible_index.clone();
+        // let mut usj_watcher = notify_debouncer_full::new_debouncer(
+        //     Duration::from_secs(2),
+        //     None,
+        //     move |event: DebounceEventResult| {
+        //         tracing::debug!("Received file watch event {event:?}");
+        //         match event {
+        //             Ok(evs) => {
+        //                 let mut config = config.write().unwrap();
+        //                 for ev in evs {
+        //                     match config.us.handle_file_change(ev.event) {
+        //                         Ok(reindex) => {
+        //                             if reindex != ReindexType::NoReindex {
+        //                                 let mut index = index.write().unwrap();
+        //                                 index.update_index(reindex, &config.us.files);
+        //                             }
+        //                         }
+        //                         Err(err) => {
+        //                             tracing::error!(
+        //                                 "Failed to update loaded USJs from file watch event: {err}"
+        //                             );
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //             Err(errs) => {
+        //                 for err in errs {
+        //                     tracing::error!("Error in USJ file watcher: {err}");
+        //                 }
+        //                 if let Err(err) = config.write().unwrap().us.reload_all_from_dir() {
+        //                     tracing::error!("Failed to reload all USJs: {err}");
+        //                 }
+        //             }
+        //         };
+        //     },
+        // )?;
+        // usj_watcher.watch(bibles_dir, RecursiveMode::NonRecursive)?;
+        // web::Data::new(usj_watcher)
+        web::Data::new(())
     };
 
     let database = {
@@ -153,15 +153,7 @@ async fn real_main() -> Result<(), ServerError> {
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default().log_level(Level::Debug))
             .default_service(web::to(route_not_found))
-            .service(
-                web::scope("/v1")
-                    .app_data(QueryConfig::default().error_handler(|e, _| ApiError::from(e).into()))
-                    .service(api::search::book)
-                    .service(api::search::search)
-                    .service(api::search::index_route)
-                    .service(api::short_url::short_create)
-                    .service(api::short_url::short_resolve),
-            )
+            .service(api::scope())
     })
     .bind((bind_host, bind_port))?
     .run()

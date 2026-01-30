@@ -1,6 +1,6 @@
 use crate::book_data::Book;
-use crate::config::{BibleConfig, BibleIndexLock};
-use crate::index::BibleIndex;
+use crate::config_new::BibleData;
+use crate::index::{BibleIndex, BibleIndexLock};
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::{UsjContent, UsjRoot};
 use charabia::Tokenize;
@@ -45,10 +45,10 @@ pub fn search_bible(
     term: String,
     search_start: usize,
     search_max_count: usize,
-    config: &BibleConfig,
+    bible: &BibleData,
     index: &BibleIndexLock,
 ) -> SearchResponse {
-    let references = parse_references(&term, &config.book_parse_options());
+    let references = parse_references(&term, &bible.book_parse_options());
     if references
         .iter()
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
@@ -58,7 +58,7 @@ pub fn search_bible(
             &term,
             search_start,
             search_max_count,
-            &config.us.files,
+            &bible.files,
             &index.read().unwrap(),
         );
         tracing::debug!(
@@ -80,8 +80,7 @@ pub fn search_bible(
                 .into_iter()
                 .map(|x| match x {
                     Ok(reference) => {
-                        let usj = config
-                            .us
+                        let usj = bible
                             .files
                             .get(&reference.book)
                             .map(UsjContent::unwrap_root);
