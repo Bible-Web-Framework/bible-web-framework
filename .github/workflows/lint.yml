@@ -28,7 +28,7 @@ jobs:
         uses: taiki-e/install-action@nextest
       - name: Install frontend dependencies
         run: pnpm install
-      - name: Run lint
-        run: pnpm lint
       - name: Run tests
         run: pnpm test
+      - name: Run lint
+        run: pnpm lint
