@@ -1,5 +1,5 @@
 use crate::api::route_not_found;
-use crate::config_new::{ConfigError, MultiBibleData};
+use crate::bible_data::{ConfigError, MultiBibleData};
 use crate::index::BibleIndex;
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
@@ -16,9 +16,9 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
 mod api;
+mod bible_data;
 mod book_data;
 mod config;
-mod config_new;
 mod index;
 mod reference;
 mod reference_encoding;

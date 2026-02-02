@@ -1,5 +1,5 @@
+use crate::bible_data::BibleData;
 use crate::book_data::Book;
-use crate::config_new::BibleData;
 use crate::index::{BibleIndex, BibleIndexLock};
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::{UsjContent, UsjRoot};

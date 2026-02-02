@@ -1,5 +1,5 @@
 use crate::api::{ApiError, ApiResult};
-use crate::config_new::MultiBibleData;
+use crate::bible_data::MultiBibleData;
 use crate::reference::{BibleReference, parse_references};
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,

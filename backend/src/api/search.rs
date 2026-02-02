@@ -1,6 +1,6 @@
 use crate::api::{ApiError, ApiResult};
+use crate::bible_data::MultiBibleData;
 use crate::book_data::Book;
-use crate::config_new::MultiBibleData;
 use crate::index::BibleIndexLock;
 use crate::search::{SearchResponse, search_bible};
 use actix_web::{HttpResponse, get, web};
