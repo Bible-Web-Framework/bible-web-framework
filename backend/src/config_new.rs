@@ -460,7 +460,7 @@ mod unresolved {
 
     impl BookAlias {
         fn permute(
-            &self,
+            self,
             common_aliases: &HashMap<String, Vec<String>>,
             mut handler: impl FnMut(String),
         ) {
@@ -470,7 +470,7 @@ mod unresolved {
                     .unwrap_or_else(|| panic!("Unknown alias '{alias}'"))
             };
             match self {
-                Self::Simple(alias) => handler(alias.clone()),
+                Self::Simple(alias) => handler(alias),
                 Self::Permutations(groups) if groups.len() != 1 => {
                     let groups = groups
                         .iter()

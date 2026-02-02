@@ -1,8 +1,8 @@
 use charabia::Language;
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_cow::CowStr;
 use serde_with::{DeserializeAs, SerializeAs};
-use std::borrow::Cow;
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
 /// Returns a normalized version of `s`, or `None` if normalization was not needed. Normalized
@@ -120,7 +120,7 @@ impl<'de> DeserializeAs<'de, Language> for LanguageAsCode {
     where
         D: Deserializer<'de>,
     {
-        let code = <Cow<'de, str>>::deserialize(deserializer)?;
+        let code = <CowStr>::deserialize(deserializer)?.0;
         Language::from_code(&code).ok_or_else(|| {
             Error::invalid_value(
                 Unexpected::Str(&code),
