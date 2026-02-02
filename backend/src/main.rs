@@ -18,7 +18,6 @@ use tracing_subscriber::filter::LevelFilter;
 mod api;
 mod bible_data;
 mod book_data;
-mod config;
 mod index;
 mod reference;
 mod reference_encoding;
