@@ -13,7 +13,7 @@ use std::io::{BufReader, ErrorKind, Read};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Instant;
-use std::{fs, io};
+use std::{fs, io, path};
 use sync_file::SyncFile;
 use thiserror::Error;
 use unicase::UniCase;
@@ -86,6 +86,12 @@ impl MultiBibleData {
     }
 }
 
+macro_rules! format_source {
+    ($self:ident) => {
+        format_args!("{}{}", $self.source.display(), path::MAIN_SEPARATOR)
+    };
+}
+
 impl BibleData {
     const CONFIG_PATH: &str = "bible.toml";
 
@@ -135,7 +141,7 @@ impl BibleData {
                 },
             )?)?,
             source: path,
-            source_is_zip: false,
+            source_is_zip: true,
             files: HashMap::new(),
             sources: BiMap::new(),
             has_ignored_files: false,
@@ -154,8 +160,8 @@ impl BibleData {
     fn insert_or_warn(&mut self, usj: UsjContent, source: String) -> Option<UsjBookInfo> {
         let Some(book) = usj.as_root().and_then(UsjRoot::book_info) else {
             tracing::error!(
-                "Book at {}/{source} missing root element or book identifier",
-                self.source.display()
+                "Book at {}{source} missing root element or book identifier",
+                format_source!(self),
             );
             return None;
         };
@@ -207,10 +213,10 @@ impl BibleData {
                 .map(BufReader::new)
                 .and_then(load_usj)
                 .inspect_err(|err| {
-                    tracing::error!("Failed to load {}/{filename}: {err}", self.source.display())
+                    tracing::error!("Failed to load {}{filename}: {err}", format_source!(self));
                 })
                 .ok(),
-            Some("usfm") => {
+            Some("usfm" | "sfm") => {
                 let mut usfm = String::new();
                 let usj = reader
                     .map_err(Into::into)
@@ -219,10 +225,7 @@ impl BibleData {
                     })
                     .and_then(|_| load_usj_from_usfm(usfm))
                     .inspect_err(|err| {
-                        tracing::error!(
-                            "Failed to load {}/{filename}: {err}",
-                            self.source.display()
-                        )
+                        tracing::error!("Failed to load {}{filename}: {err}", format_source!(self));
                     })
                     .ok()?;
                 if !usj.diagnostics.is_empty() {
@@ -241,23 +244,20 @@ impl BibleData {
                     }
                     if is_all_error {
                         tracing::error!(
-                            "Errors in {}/{filename}. The file will be attempted to be loaded, but errors may occur.{diag_message}",
-                            self.source.display()
+                            "Errors in {}{filename}. The file will be attempted to be loaded, but errors may occur.{diag_message}",
+                            format_source!(self),
                         );
                     } else {
                         tracing::warn!(
-                            "Warnings in {}/{filename}.{diag_message}",
-                            self.source.display()
+                            "Warnings in {}{filename}.{diag_message}",
+                            format_source!(self),
                         );
                     }
                 }
                 Some(usj.usj)
             }
             Some(_) | None => {
-                tracing::warn!(
-                    "Found non-USFM/USJ file {}/{filename}",
-                    self.source.display()
-                );
+                tracing::warn!("Found non-USFM/USJ file {}{filename}", format_source!(self));
                 None
             }
         }
