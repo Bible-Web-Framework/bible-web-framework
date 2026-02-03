@@ -220,10 +220,12 @@ impl BookIndexer {
             UsjContent::Paragraph { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::TableCell { content, .. } => {
-                self.for_with_path(content, |this, child| match child {
-                    ParaContent::Usj(usj) => this.index_usj(usj, tokenizer),
-                    ParaContent::Plain(text) => this.index_text(text, tokenizer),
-                });
+                if !usj.is_title_para() {
+                    self.for_with_path(content, |this, child| match child {
+                        ParaContent::Usj(usj) => this.index_usj(usj, tokenizer),
+                        ParaContent::Plain(text) => this.index_text(text, tokenizer),
+                    });
+                }
             }
 
             UsjContent::Character { content, .. } => {
