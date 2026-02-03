@@ -3,6 +3,7 @@ use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_cow::CowStr;
 use serde_with::{DeserializeAs, SerializeAs};
+use std::sync::atomic::{AtomicBool, Ordering};
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
 /// Returns a normalized version of `s`, or `None` if normalization was not needed. Normalized
@@ -127,5 +128,27 @@ impl<'de> DeserializeAs<'de, Language> for LanguageAsCode {
                 &"an ISO 639-9 3-letter language code",
             )
         })
+    }
+}
+
+#[derive(Default)]
+pub struct ExclusiveMutex {
+    active: AtomicBool,
+}
+
+impl ExclusiveMutex {
+    pub fn lock(&self) -> Option<PanicBarrierLock<'_>> {
+        self.active
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+            .ok()?;
+        Some(PanicBarrierLock(&self.active))
+    }
+}
+
+pub struct PanicBarrierLock<'a>(&'a AtomicBool);
+
+impl Drop for PanicBarrierLock<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
     }
 }

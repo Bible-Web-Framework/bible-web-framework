@@ -2,7 +2,8 @@ use crate::book_data::Book;
 use crate::reference::BookReference;
 use crate::usj::{ParaContent, UsjContent, UsjRoot};
 use crate::verse_range::VerseRange;
-use charabia::{Tokenize, Tokenizer};
+use charabia::Tokenizer;
+use dashmap::DashMap;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::SmallVec;
@@ -10,14 +11,12 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::num::NonZeroU8;
 use std::ops::Range;
-use std::sync::RwLock;
 use std::time::Instant;
 use string_interner::StringInterner;
 use string_interner::backend::{Backend, StringBackend};
 use string_interner::symbol::SymbolU16;
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
-pub type BibleIndexLock = RwLock<BibleIndex>;
 
 type InternerBackend = StringBackend<SymbolU16>;
 type Interner = StringInterner<InternerBackend>;
@@ -139,7 +138,7 @@ impl BibleIndex {
     pub fn update_index(
         &mut self,
         reindex_type: ReindexType,
-        book_content: &HashMap<Book, UsjContent>,
+        book_content: &DashMap<Book, UsjContent>,
         tokenizer: &Tokenizer,
     ) {
         match reindex_type {
@@ -149,7 +148,7 @@ impl BibleIndex {
                 tracing::info!("Reindexing {book_count} book(s)");
                 for book in books {
                     if let Some(usj) = book_content.get(&book) {
-                        self.reindex_usj(book, usj, tokenizer);
+                        self.reindex_usj(book, &usj, tokenizer);
                     }
                 }
             }
@@ -164,10 +163,10 @@ impl BibleIndex {
                 self.words_by_book.clear();
                 book_content
                     .par_iter()
-                    .map(|(book, content)| {
+                    .map(|entry| {
                         let mut indexer = BookIndexer::new();
-                        indexer.index_usj(content, tokenizer);
-                        (*book, indexer)
+                        indexer.index_usj(entry.value(), tokenizer);
+                        (*entry.key(), indexer)
                     })
                     .collect::<Vec<_>>()
                     .into_iter()

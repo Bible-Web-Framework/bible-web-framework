@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
-use std::io::{BufRead, Read};
+use std::io::BufRead;
 use std::num::NonZeroU8;
 use std::slice::SliceIndex;
 

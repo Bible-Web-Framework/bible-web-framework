@@ -2,17 +2,20 @@ use crate::api::{ApiError, ApiResult};
 use crate::book_data::{Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
 use crate::usj::{UsjBookInfo, UsjContent, UsjLoadError, UsjRoot, load_usj, load_usj_from_usfm};
-use bimap::BiMap;
+use crate::utils::ExclusiveMutex;
+use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
+use dashmap::mapref::one::Ref;
+use dashmap::{DashMap, Entry};
 use miette::{GraphicalReportHandler, NamedSource, Severity};
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read};
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use std::{fs, io, path};
 use sync_file::SyncFile;
@@ -21,11 +24,9 @@ use unicase::UniCase;
 use zip::ZipArchive;
 use zip::result::ZipError;
 
-pub type BibleDataLock = RwLock<BibleData>;
-
 pub struct MultiBibleData {
     pub root_dir: PathBuf,
-    pub bibles: HashMap<String, BibleDataLock>,
+    pub bibles: DashMap<String, BibleData>,
 }
 
 #[derive(Default)]
@@ -34,10 +35,11 @@ pub struct BibleData {
     pub source_is_zip: bool,
     pub id: String,
     pub config: BibleConfig,
-    pub files: HashMap<Book, UsjContent>,
-    pub index: BibleIndex,
-    sources: BiMap<Book, String>,
-    has_ignored_files: bool,
+    pub files: DashMap<Book, UsjContent>,
+    pub index: RwLock<BibleIndex>,
+    sources: RwLock<BiMap<Book, String>>,
+    has_ignored_files: AtomicBool,
+    full_reload_active: ExclusiveMutex,
 }
 
 #[derive(Debug, Default)]
@@ -54,20 +56,16 @@ pub struct SearchConfig {
 
 impl MultiBibleData {
     pub fn load(bibles_dir: PathBuf) -> ConfigResult<Self> {
-        let mut bibles = HashMap::new();
+        let bibles = DashMap::new();
         for entry in fs::read_dir(&bibles_dir)? {
             let entry = entry?;
-            let mut data = if entry.file_type()?.is_file() {
+            let data = if entry.file_type()?.is_file() {
                 BibleData::load_from_zip(entry.path())?
             } else {
                 BibleData::load_from_dir(entry.path())?
             };
-            data.index.update_index(
-                ReindexType::FullReindex,
-                &data.files,
-                &data.config.search.create_tokenizer(),
-            );
-            bibles.insert(data.id.clone(), RwLock::new(data));
+            data.update_index(ReindexType::FullReindex);
+            bibles.insert(data.id.clone(), data);
         }
         Ok(Self {
             root_dir: bibles_dir,
@@ -75,13 +73,8 @@ impl MultiBibleData {
         })
     }
 
-    pub fn get_or_api_error(&self, bible: String) -> ApiResult<RwLockReadGuard<'_, BibleData>> {
-        Ok(self
-            .bibles
-            .get(&bible)
-            .ok_or(ApiError::UnknownBible(bible))?
-            .read()
-            .unwrap())
+    pub fn get_or_api_error(&self, bible: String) -> ApiResult<Ref<'_, String, BibleData>> {
+        self.bibles.get(&bible).ok_or(ApiError::UnknownBible(bible))
     }
 }
 
@@ -96,7 +89,7 @@ impl BibleData {
 
     pub fn load_from_dir(path: PathBuf) -> ConfigResult<Self> {
         let config_path = path.join(Self::CONFIG_PATH);
-        let mut data = BibleData {
+        let data = BibleData {
             id: path
                 .file_name()
                 .expect("BibleData::load_from_dir called with .. path")
@@ -119,7 +112,7 @@ impl BibleData {
 
     pub fn load_from_zip(path: PathBuf) -> ConfigResult<Self> {
         let mut zip_file = ZipArchive::new(SyncFile::open(&path)?)?;
-        let mut data = BibleData {
+        let data = BibleData {
             id: path
                 .file_stem()
                 .unwrap_or_else(|| {
@@ -152,7 +145,15 @@ impl BibleData {
         }
     }
 
-    fn insert_or_warn(&mut self, usj: UsjContent, source: String) -> Option<UsjBookInfo> {
+    fn update_index(&self, reindex_type: ReindexType) {
+        self.index.write().unwrap().update_index(
+            reindex_type,
+            &self.files,
+            &self.config.search.create_tokenizer(),
+        );
+    }
+
+    fn insert_or_warn(&self, usj: UsjContent, source: String) -> Option<UsjBookInfo> {
         let Some(book) = usj.as_root().and_then(UsjRoot::book_info) else {
             tracing::error!(
                 "Book at {}{source} missing root element or book identifier",
@@ -163,14 +164,20 @@ impl BibleData {
         match self.files.entry(book.book) {
             Entry::Vacant(e) => {
                 e.insert(usj);
-                self.sources.insert(book.book, source);
+                if let Overwritten::Right(book, _) =
+                    self.sources.write().unwrap().insert(book.book, source)
+                {
+                    self.files.remove(&book);
+                    self.update_index(ReindexType::Unindex(book));
+                }
             }
             Entry::Occupied(mut e) => {
-                let old_path = self.sources.get_by_left(&book.book).unwrap();
+                let sources = self.sources.read().unwrap();
+                let old_path = sources.get_by_left(&book.book).unwrap();
                 if &source == old_path {
                     e.insert(usj);
                 } else {
-                    self.has_ignored_files = true;
+                    self.has_ignored_files.store(true, Ordering::Release);
                     let new_description = book
                         .description
                         .map_or("".to_string(), |x| format!(" ({x})"));
@@ -267,10 +274,14 @@ impl BibleData {
             .and_then(|usj| self.insert_or_warn(usj, filename))
     }
 
-    fn reload_all(&mut self, source_zip: Option<ZipArchive<SyncFile>>) -> ConfigResult<()> {
+    fn reload_all(&self, source_zip: Option<ZipArchive<SyncFile>>) -> ConfigResult<()> {
+        let _lock = self
+            .full_reload_active
+            .lock()
+            .expect("BibleData::reload_all called while reload active");
         self.files.clear();
-        self.sources.clear();
-        self.has_ignored_files = false;
+        self.sources.write().unwrap().clear();
+        self.has_ignored_files.store(false, Ordering::Relaxed);
         let start = Instant::now();
         let files = if !self.source_is_zip {
             fs::read_dir(&self.source)?
