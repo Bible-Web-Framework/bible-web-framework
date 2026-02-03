@@ -11,12 +11,11 @@ use validator::Validate;
 
 #[get("/book/{book}")]
 pub async fn book(
-    bible: web::Path<String>,
-    book: web::Path<String>,
+    bible_and_book: web::Path<(String, String)>,
     bibles: web::Data<MultiBibleData>,
 ) -> ApiResult<HttpResponse> {
-    let bible = bibles.get_or_api_error(bible.into_inner())?;
-    let book = book.into_inner();
+    let (bible, book) = bible_and_book.into_inner();
+    let bible = bibles.get_or_api_error(bible)?;
     let Some(book) = Book::parse(&book, &bible.book_parse_options()) else {
         return Err(ApiError::InvalidBook(book));
     };
