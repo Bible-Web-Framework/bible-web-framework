@@ -1,8 +1,9 @@
 use crate::api::{ApiError, ApiResult};
 use crate::book_data::{Book, BookParseOptions};
+use crate::index::{BibleIndex, ReindexType};
 use crate::usj::{UsjBookInfo, UsjContent, UsjLoadError, UsjRoot, load_usj, load_usj_from_usfm};
 use bimap::BiMap;
-use charabia::Language;
+use charabia::{Language, Tokenizer, TokenizerBuilder};
 use miette::{GraphicalReportHandler, NamedSource, Severity};
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::borrow::Cow;
@@ -22,30 +23,30 @@ use zip::result::ZipError;
 
 pub type BibleDataLock = RwLock<BibleData>;
 
-#[derive(Debug)]
 pub struct MultiBibleData {
     pub root_dir: PathBuf,
     pub bibles: HashMap<String, BibleDataLock>,
 }
 
-#[derive(Debug)]
+#[derive(Default)]
 pub struct BibleData {
     pub source: PathBuf,
     pub source_is_zip: bool,
     pub id: String,
     pub config: BibleConfig,
     pub files: HashMap<Book, UsjContent>,
+    pub index: BibleIndex,
     sources: BiMap<Book, String>,
     has_ignored_files: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BibleConfig {
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SearchConfig {
     pub languages: Vec<Language>,
     pub ignored_words: fst::Set<Vec<u8>>,
@@ -56,19 +57,17 @@ impl MultiBibleData {
         let mut bibles = HashMap::new();
         for entry in fs::read_dir(&bibles_dir)? {
             let entry = entry?;
-            bibles.insert(
-                entry
-                    .path()
-                    .file_stem()
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
-                RwLock::new(if entry.file_type()?.is_file() {
-                    BibleData::load_from_zip(entry.path())?
-                } else {
-                    BibleData::load_from_dir(entry.path())?
-                }),
+            let mut data = if entry.file_type()?.is_file() {
+                BibleData::load_from_zip(entry.path())?
+            } else {
+                BibleData::load_from_dir(entry.path())?
+            };
+            data.index.update_index(
+                ReindexType::FullReindex,
+                &data.files,
+                &data.config.search.create_tokenizer(),
             );
+            bibles.insert(data.id.clone(), RwLock::new(data));
         }
         Ok(Self {
             root_dir: bibles_dir,
@@ -112,9 +111,7 @@ impl BibleData {
             })?)?,
             source: path,
             source_is_zip: false,
-            files: HashMap::new(),
-            sources: BiMap::new(),
-            has_ignored_files: false,
+            ..Default::default()
         };
         data.reload_all(None)?;
         Ok(data)
@@ -142,9 +139,7 @@ impl BibleData {
             )?)?,
             source: path,
             source_is_zip: true,
-            files: HashMap::new(),
-            sources: BiMap::new(),
-            has_ignored_files: false,
+            ..Default::default()
         };
         data.reload_all(Some(zip_file))?;
         Ok(data)
@@ -348,6 +343,15 @@ impl BibleConfig {
         reader.read_to_end(&mut data)?;
         let unresolved: unresolved::BibleConfig = toml::from_slice(&data)?;
         Ok(unresolved.into())
+    }
+}
+
+impl SearchConfig {
+    fn create_tokenizer(&self) -> Tokenizer<'_> {
+        let mut builder = TokenizerBuilder::new();
+        builder.allow_list(&self.languages);
+        builder.stop_words(&self.ignored_words);
+        builder.into_tokenizer()
     }
 }
 

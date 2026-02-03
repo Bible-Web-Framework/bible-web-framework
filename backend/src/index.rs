@@ -2,7 +2,7 @@ use crate::book_data::Book;
 use crate::reference::BookReference;
 use crate::usj::{ParaContent, UsjContent, UsjRoot};
 use crate::verse_range::VerseRange;
-use charabia::Tokenize;
+use charabia::{Tokenize, Tokenizer};
 use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::SmallVec;
@@ -31,11 +31,16 @@ pub enum ReindexType {
     FullReindex,
 }
 
-#[derive(Clone)]
 pub struct BibleIndex {
     interner: Interner,
     references_and_names_by_word: HashMap<InternerSymbol, (BookReferenceMap, Option<String>)>,
     words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
+}
+
+impl Default for BibleIndex {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Default)]
@@ -122,10 +127,10 @@ impl BibleIndex {
         }
     }
 
-    pub fn reindex_usj(&mut self, book: Book, usj: &UsjContent) {
+    pub fn reindex_usj(&mut self, book: Book, usj: &UsjContent, tokenizer: &Tokenizer) {
         let start = Instant::now();
         let mut indexer = BookIndexer::new();
-        indexer.index_usj(usj);
+        indexer.index_usj(usj, tokenizer);
         let words = indexer.indexed_words();
         self.replace_from_indexer(book, indexer);
         tracing::info!("Reindexed {book} ({words} words) in {:?}", start.elapsed());
@@ -135,6 +140,7 @@ impl BibleIndex {
         &mut self,
         reindex_type: ReindexType,
         book_content: &HashMap<Book, UsjContent>,
+        tokenizer: &Tokenizer,
     ) {
         match reindex_type {
             ReindexType::NoReindex => {}
@@ -143,7 +149,7 @@ impl BibleIndex {
                 tracing::info!("Reindexing {book_count} book(s)");
                 for book in books {
                     if let Some(usj) = book_content.get(&book) {
-                        self.reindex_usj(book, usj);
+                        self.reindex_usj(book, usj, tokenizer);
                     }
                 }
             }
@@ -160,7 +166,7 @@ impl BibleIndex {
                     .par_iter()
                     .map(|(book, content)| {
                         let mut indexer = BookIndexer::new();
-                        indexer.index_usj(content);
+                        indexer.index_usj(content, tokenizer);
                         (*book, indexer)
                     })
                     .collect::<Vec<_>>()
@@ -203,27 +209,27 @@ impl BookIndexer {
     }
 
     // This is the function that decides what gets indexed and what doesn't
-    pub fn index_usj(&mut self, usj: &UsjContent) {
+    pub fn index_usj(&mut self, usj: &UsjContent, tokenizer: &Tokenizer) {
         match usj {
             UsjContent::Root(UsjRoot { content, .. })
             | UsjContent::Table { content, .. }
             | UsjContent::TableRow { content, .. } => {
-                self.for_with_path(content, Self::index_usj);
+                self.for_with_path(content, |this, child| this.index_usj(child, tokenizer));
             }
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::TableCell { content, .. } => {
                 self.for_with_path(content, |this, child| match child {
-                    ParaContent::Usj(usj) => this.index_usj(usj),
-                    ParaContent::Plain(text) => this.index_text(text),
+                    ParaContent::Usj(usj) => this.index_usj(usj, tokenizer),
+                    ParaContent::Plain(text) => this.index_text(text, tokenizer),
                 });
             }
 
             UsjContent::Character { content, .. } => {
                 if let Some(content) = content {
                     self.current_path.push(0);
-                    self.index_text(content);
+                    self.index_text(content, tokenizer);
                     self.current_path.remove(self.current_path.len() - 1);
                 }
             }
@@ -250,7 +256,7 @@ impl BookIndexer {
         self.current_path.remove(self.current_path.len() - 1);
     }
 
-    fn index_text(&mut self, text: &str) {
+    fn index_text(&mut self, text: &str, tokenizer: &Tokenizer) {
         let Some(reference) = self.current_chapter.and_then(|chapter| {
             Some(BookReference {
                 chapter,
@@ -259,8 +265,7 @@ impl BookIndexer {
         }) else {
             return;
         };
-        // TODO: Add stop words to this so we don't get "the" with 20,000 hits
-        for token in text.tokenize() {
+        for token in tokenizer.tokenize(text) {
             if !token.is_word() {
                 continue;
             }

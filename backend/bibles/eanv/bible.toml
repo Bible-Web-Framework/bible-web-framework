@@ -3,4 +3,10 @@ JHN = ["Test"]
 
 [search]
 languages = ["eng"]
-ignored_words = ["of", "the"]
+ignored_words = [
+    "a", "A",
+    "an", "An", "AN",
+    "the", "The", "THE",
+    "of", "Of", "OF",
+    "and", "And", "AND",
+]

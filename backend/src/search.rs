@@ -1,6 +1,6 @@
 use crate::bible_data::BibleData;
 use crate::book_data::Book;
-use crate::index::{BibleIndex, BibleIndexLock};
+use crate::index::BibleIndex;
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::{UsjContent, UsjRoot};
 use charabia::Tokenize;
@@ -46,7 +46,7 @@ pub fn search_bible(
     search_start: usize,
     search_max_count: usize,
     bible: &BibleData,
-    index: &BibleIndexLock,
+    index: &BibleIndex,
 ) -> SearchResponse {
     let references = parse_references(&term, &bible.book_parse_options());
     if references
@@ -54,13 +54,8 @@ pub fn search_bible(
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
     {
         let start_time = Instant::now();
-        let (total_results, results) = search_for_terms(
-            &term,
-            search_start,
-            search_max_count,
-            &bible.files,
-            &index.read().unwrap(),
-        );
+        let (total_results, results) =
+            search_for_terms(&term, search_start, search_max_count, &bible.files, index);
         tracing::debug!(
             "Search for \"{term}\" (max {search_max_count} results) took {:?}",
             start_time.elapsed()

@@ -1,6 +1,5 @@
 use crate::api::route_not_found;
 use crate::bible_data::{ConfigError, MultiBibleData};
-use crate::index::BibleIndex;
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
 use sqlx::migrate::MigrateDatabase;
@@ -10,7 +9,6 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::sync::RwLock;
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -78,13 +76,7 @@ async fn real_main() -> Result<(), ServerError> {
     tracing::debug!("Debug logging is enabled");
 
     let bibles_dir = var::<PathBuf>("BIBLES_DIR")?;
-    let bible_data = MultiBibleData::load(bibles_dir.clone())?;
-
-    let bible_index = BibleIndex::new();
-    // bible_index.update_index(ReindexType::FullReindex, &bible_config.us.files);
-
-    let bible_config = web::Data::new(bible_data);
-    let bible_index = web::Data::new(RwLock::new(bible_index));
+    let bible_data = web::Data::new(MultiBibleData::load(bibles_dir.clone())?);
 
     let usj_watcher = {
         // let config = bible_config.clone();
@@ -144,8 +136,7 @@ async fn real_main() -> Result<(), ServerError> {
     let bind_port = var("BIND_PORT")?;
     HttpServer::new(move || {
         App::new()
-            .app_data(bible_config.clone())
-            .app_data(bible_index.clone())
+            .app_data(bible_data.clone())
             .app_data(usj_watcher.clone())
             .app_data(database.clone())
             .wrap(Cors::permissive())
