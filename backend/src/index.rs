@@ -144,7 +144,11 @@ impl BibleIndex {
         indexer.index_usj(usj, tokenizer);
         let words = indexer.indexed_words();
         self.replace_from_indexer(book, indexer);
-        tracing::info!("Reindexed {book}{} ({words} words) in {:?}", format_marker!(self), start.elapsed());
+        tracing::info!(
+            "Reindexed {book}{} ({words} words) in {:?}",
+            format_marker!(self),
+            start.elapsed(),
+        );
     }
 
     pub fn update_index(
@@ -187,9 +191,10 @@ impl BibleIndex {
                 self.references_and_names_by_word.shrink_to_fit();
                 self.words_by_book.shrink_to_fit();
                 tracing::info!(
-                    "Reindexed all books{} ({} words) in {:?}", format_marker!(self),
+                    "Reindexed all books{} ({} words) in {:?}",
+                    format_marker!(self),
                     self.references_and_names_by_word.len(),
-                    start.elapsed()
+                    start.elapsed(),
                 );
             }
         }
