@@ -80,7 +80,6 @@ impl MultiBibleData {
             } else {
                 BibleData::load_from_dir(path)?
             };
-            data.update_index(ReindexType::FullReindex);
             bibles.insert(data.id.clone(), data);
         }
         Ok(Self {
@@ -123,6 +122,7 @@ impl BibleData {
             ..Default::default()
         };
         data.reload_all(None)?;
+        data.finish_load();
         Ok(data)
     }
 
@@ -151,7 +151,14 @@ impl BibleData {
             ..Default::default()
         };
         data.reload_all(Some(zip_file))?;
+        data.finish_load();
         Ok(data)
+    }
+
+    fn finish_load(&self) {
+        let mut index = self.index.write().unwrap();
+        index.log_marker = Some(self.id.clone());
+        index.update_index(ReindexType::FullReindex, &self.files, &self.config.search.create_tokenizer());
     }
 
     pub fn book_parse_options(&self) -> BookParseOptions<'_, impl Fn(Book) -> bool> {

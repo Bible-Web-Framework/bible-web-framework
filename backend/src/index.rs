@@ -31,6 +31,7 @@ pub enum ReindexType {
 }
 
 pub struct BibleIndex {
+    pub log_marker: Option<String>,
     interner: Interner,
     references_and_names_by_word: HashMap<InternerSymbol, (BookReferenceMap, Option<String>)>,
     words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
@@ -48,9 +49,20 @@ struct BookReferenceMap {
     by_book: SearchResultMap,
 }
 
+macro_rules! format_marker {
+    ($self:ident) => {
+        if let Some(marker) = $self.log_marker.as_ref() {
+            format!(" from {marker}")
+        } else {
+            "".to_string()
+        }
+    };
+}
+
 impl BibleIndex {
     pub fn new() -> Self {
         Self {
+            log_marker: None,
             interner: Interner::new(),
             references_and_names_by_word: HashMap::new(),
             words_by_book: HashMap::default(),
@@ -132,7 +144,7 @@ impl BibleIndex {
         indexer.index_usj(usj, tokenizer);
         let words = indexer.indexed_words();
         self.replace_from_indexer(book, indexer);
-        tracing::info!("Reindexed {book} ({words} words) in {:?}", start.elapsed());
+        tracing::info!("Reindexed {book}{} ({words} words) in {:?}", format_marker!(self), start.elapsed());
     }
 
     pub fn update_index(
@@ -145,7 +157,7 @@ impl BibleIndex {
             ReindexType::NoReindex => {}
             ReindexType::PartialReindex(books) => {
                 let book_count = books.len();
-                tracing::info!("Reindexing {book_count} book(s)");
+                tracing::info!("Reindexing {book_count} book(s){}", format_marker!(self));
                 for book in books {
                     if let Some(usj) = book_content.get(&book) {
                         self.reindex_usj(book, &usj, tokenizer);
@@ -156,7 +168,7 @@ impl BibleIndex {
                 self.replace_from_indexer(book, BookIndexer::new());
             }
             ReindexType::FullReindex => {
-                tracing::info!("Reindexing all books");
+                tracing::info!("Reindexing all books{}", format_marker!(self));
                 let start = Instant::now();
                 self.interner = Interner::new();
                 self.references_and_names_by_word.clear();
@@ -175,7 +187,7 @@ impl BibleIndex {
                 self.references_and_names_by_word.shrink_to_fit();
                 self.words_by_book.shrink_to_fit();
                 tracing::info!(
-                    "Reindexed all books ({} words) in {:?}",
+                    "Reindexed all books{} ({} words) in {:?}", format_marker!(self),
                     self.references_and_names_by_word.len(),
                     start.elapsed()
                 );
