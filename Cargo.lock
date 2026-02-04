@@ -437,6 +437,7 @@ dependencies = [
  "unicase",
  "unicode-normalization",
  "validator",
+ "walkdir",
  "zip",
 ]
 

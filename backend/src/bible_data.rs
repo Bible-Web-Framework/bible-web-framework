@@ -59,10 +59,26 @@ impl MultiBibleData {
         let bibles = DashMap::new();
         for entry in fs::read_dir(&bibles_dir)? {
             let entry = entry?;
-            let data = if entry.file_type()?.is_file() {
-                BibleData::load_from_zip(entry.path())?
+            let path = entry.path();
+            let is_file = {
+                let base = entry.file_type()?;
+                if !base.is_symlink() {
+                    base.is_file()
+                } else {
+                    #[cfg(windows)]
+                    {
+                        use std::os::windows::fs::FileTypeExt;
+                        base.is_symlink_file()
+                    }
+
+                    #[cfg(not(windows))]
+                    fs::metadata(&path)?.is_file()
+                }
+            };
+            let data = if is_file {
+                BibleData::load_from_zip(path)?
             } else {
-                BibleData::load_from_dir(entry.path())?
+                BibleData::load_from_dir(path)?
             };
             data.update_index(ReindexType::FullReindex);
             bibles.insert(data.id.clone(), data);
@@ -284,29 +300,24 @@ impl BibleData {
         self.has_ignored_files.store(false, Ordering::Relaxed);
         let start = Instant::now();
         let files = if !self.source_is_zip {
-            fs::read_dir(&self.source)?
+            walkdir::WalkDir::new(&self.source)
+                .follow_links(true) // Eh, sure why not
+                .into_iter()
                 .par_bridge()
                 .filter_map(|entry| {
                     let entry = match entry {
                         Ok(e) => e,
                         Err(err) => return Some(Err(err)),
                     };
-                    let file_type = match entry.file_type() {
-                        Ok(t) => t,
-                        Err(err) => return Some(Err(err)),
-                    };
-                    if !file_type.is_file() {
+                    if !entry.file_type().is_file() {
                         return None;
                     }
-                    let filename = entry.file_name();
-                    let filename = filename.to_string_lossy();
-                    if filename == Self::CONFIG_PATH {
-                        return None;
-                    }
-                    self.load_us_or_warn(&filename, File::open(entry.path()))
-                        .map(|usj| Ok((usj, filename.into_owned())))
+                    let path = entry.path();
+                    let rel_path = path.strip_prefix(&self.source).unwrap().to_string_lossy();
+                    self.load_us_or_warn(&rel_path, File::open(entry.path()))
+                        .map(|usj| Ok((usj, rel_path.into_owned())))
                 })
-                .collect::<io::Result<Vec<_>>>()?
+                .collect::<walkdir::Result<Vec<_>>>()?
         } else {
             #[allow(unused_qualifications)] // It is, in fact, used
             let zip = source_zip.map_or_else(
@@ -370,6 +381,8 @@ impl SearchConfig {
 pub enum ConfigError {
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
+    #[error("Directory walk error: {0}")]
+    WalkDir(#[from] walkdir::Error),
     #[error("Zip file error: {0}")]
     Zip(#[from] ZipError),
     #[error("Missing bible config file {0}")]
