@@ -15,25 +15,38 @@ include!(concat!(env!("OUT_DIR"), "/book.rs"));
 /// map.
 pub type AdditionalAliases<'a> = &'a HashMap<UniCase<Cow<'a, str>>, Book>;
 
-#[derive(Copy, Clone)]
-pub struct BookParseOptions<'a, BookAllowed>
-where
-    BookAllowed: Fn(Book) -> bool,
-{
-    pub additional_aliases: Option<AdditionalAliases<'a>>,
-    pub book_allowed: BookAllowed,
+pub trait BookParseOptions {
+    fn additional_aliases(&self) -> Option<AdditionalAliases<'_>> {
+        None
+    }
+
+    fn book_allowed(&self, book: Book) -> bool {
+        let _ = book;
+        true
+    }
 }
 
-impl BookParseOptions<'static, fn(Book) -> bool> {
-    pub const NONE: Self = Self {
-        additional_aliases: None,
-        book_allowed: |_| true,
-    };
+impl BookParseOptions for () {}
+
+impl<'a> BookParseOptions for AdditionalAliases<'a> {
+    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
+        Some(self)
+    }
 }
 
-impl Default for BookParseOptions<'static, fn(Book) -> bool> {
-    fn default() -> Self {
-        Self::NONE
+impl<F: Fn(Book) -> bool> BookParseOptions for F {
+    fn book_allowed(&self, book: Book) -> bool {
+        self(book)
+    }
+}
+
+impl<'a, F: Fn(Book) -> bool> BookParseOptions for (AdditionalAliases<'a>, F) {
+    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
+        Some(self.0)
+    }
+
+    fn book_allowed(&self, book: Book) -> bool {
+        (self.1)(book)
     }
 }
 
@@ -55,14 +68,14 @@ impl Book {
         include!(concat!(env!("OUT_DIR"), "/usfm_ids.rs"))
     }
 
-    pub fn parse(book: &str, options: &BookParseOptions<impl Fn(Book) -> bool>) -> Option<Self> {
+    pub fn parse(book: &str, options: &impl BookParseOptions) -> Option<Self> {
         with_normalized_str(book, |book| {
             let book = UniCase::new(book);
             options
-                .additional_aliases
+                .additional_aliases()
                 .and_then(|x| x.get(&to_unicase_cow(book)).copied())
                 .or_else(|| BOOK_ALIASES.get(&book).copied())
-                .take_if(|&mut x| (options.book_allowed)(x))
+                .take_if(|&mut x| options.book_allowed(x))
         })
     }
 }
@@ -75,7 +88,7 @@ impl FromStr for Book {
     type Err = BookFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::parse(s, &BookParseOptions::NONE).ok_or_else(|| BookFromStrError(s.to_string()))
+        Self::parse(s, &()).ok_or_else(|| BookFromStrError(s.to_string()))
     }
 }
 
@@ -119,8 +132,7 @@ impl<'de> Deserialize<'de> for Book {
             where
                 E: Error,
             {
-                Book::parse(v, &BookParseOptions::NONE)
-                    .ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
+                Book::parse(v, &()).ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
             }
         }
         deserializer.deserialize_str(Deserializer)
@@ -155,16 +167,16 @@ impl Display for Book {
 
 #[cfg(test)]
 mod tests {
-    use crate::book_data::{Book, BookParseOptions};
+    use crate::book_data::Book;
     use crate::nz_u8;
     use std::num::NonZeroU8;
 
     fn assert_parse(name: &str, book: Book) {
-        assert_eq!(Book::parse(name, &BookParseOptions::NONE), Some(book));
+        assert_eq!(Book::parse(name, &()), Some(book));
     }
 
     fn assert_parse_fail(name: &str) {
-        assert_eq!(Book::parse(name, &BookParseOptions::NONE), None);
+        assert_eq!(Book::parse(name, &()), None);
     }
 
     #[test]

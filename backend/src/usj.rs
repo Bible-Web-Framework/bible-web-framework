@@ -1,6 +1,7 @@
+use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
-use crate::usfm_converter::{FatalUsfmError, UsfmParser};
+use crate::usfm_converter::UsfmParser;
 use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
 use either::Either;
@@ -539,19 +540,7 @@ impl UsjRoot {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum UsjLoadError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Zip error: {0}")]
-    Zip(#[from] zip::result::ZipError),
-    #[error("Json error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error("Failed to load USFM: {0}")]
-    Usfm(#[from] FatalUsfmError),
-}
-
-pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, UsjLoadError> {
+pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, BibleDataError> {
     Ok(serde_json::from_reader(reader)?)
 }
 
@@ -561,7 +550,7 @@ pub struct LoadedUsjFromUsfm {
     pub diagnostics: Vec<MietteDiagnostic>,
 }
 
-pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, UsjLoadError> {
+pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDataError> {
     let parser = UsfmParser::new(content)?;
 
     let (usj, conversion_diags) = parser.to_usj();

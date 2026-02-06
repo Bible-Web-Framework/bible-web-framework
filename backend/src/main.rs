@@ -1,5 +1,5 @@
 use crate::api::route_not_found;
-use crate::bible_data::{ConfigError, MultiBibleData};
+use crate::bible_data::{BibleDataError, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
 use notify_debouncer_full::DebounceEventResult;
@@ -47,7 +47,7 @@ pub enum ServerError {
     #[error("Database migration error: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("Configuration error: {0}")]
-    Config(#[from] ConfigError),
+    Config(#[from] BibleDataError),
 }
 
 #[actix_web::main]

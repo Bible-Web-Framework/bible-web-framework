@@ -108,10 +108,7 @@ impl ParseReferenceError {
 
 pub type ReferenceResult = Result<BibleReference, ParseReferenceError>;
 
-pub fn parse_references(
-    reference: &str,
-    options: &BookParseOptions<impl Fn(Book) -> bool>,
-) -> Vec<ReferenceResult> {
+pub fn parse_references(reference: &str, options: &impl BookParseOptions) -> Vec<ReferenceResult> {
     with_normalized_str(reference, |reference| {
         let mut state = ParseState::default();
         reference
@@ -131,7 +128,7 @@ struct ParseState {
 fn parse_reference_part(
     reference: &str,
     state: &mut ParseState,
-    options: &BookParseOptions<impl Fn(Book) -> bool>,
+    options: &impl BookParseOptions,
 ) -> ReferenceResult {
     let book_data = {
         let without_prefix_nums = reference.trim_start_matches(char::is_numeric);
@@ -179,7 +176,7 @@ fn parse_book_reference(
     state: &mut ParseState,
     full_reference: &str,
     reference_remainder: &str,
-    options: &BookParseOptions<impl Fn(Book) -> bool>,
+    options: &impl BookParseOptions,
 ) -> ReferenceResult {
     let process_chapter_number = |chapter| -> Result<_, ParseReferenceError> {
         let verse_count = book
@@ -297,7 +294,6 @@ mod tests {
     use super::ParseReferenceError::*;
     use super::parse_references;
     use crate::book_data::Book::*;
-    use crate::book_data::BookParseOptions;
     use crate::nz_u8;
     use std::borrow::Cow;
     use std::collections::HashMap;
@@ -315,14 +311,11 @@ mod tests {
 
     macro_rules! parse_references {
         ($reference:literal,) => {
-            parse_references($reference, &BookParseOptions::NONE)
+            parse_references($reference, &())
         };
 
         ($reference:literal, $($name:literal => $book:ident),+) => {
-            parse_references($reference, &BookParseOptions {
-                additional_aliases: Some(&HashMap::from([$((UniCase::new(Cow::Borrowed($name)), $book)),+])),
-                ..BookParseOptions::NONE
-            })
+            parse_references($reference, &&HashMap::from([$((UniCase::new(Cow::Borrowed($name)), $book)),+]))
         };
     }
 
