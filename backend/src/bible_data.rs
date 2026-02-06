@@ -58,8 +58,8 @@ pub struct BibleConfig {
 
 #[derive(Debug, Default)]
 pub struct SearchConfig {
-    pub languages: Vec<Language>,
-    pub ignored_words: fst::Set<Vec<u8>>,
+    pub languages: Option<Vec<Language>>,
+    pub ignored_words: Option<fst::Set<Vec<u8>>>,
 }
 
 impl MultiBibleData {
@@ -350,13 +350,11 @@ impl BibleData {
                 .expect("BibleData::load_from_dir called with .. path")
                 .to_string_lossy()
                 .into_owned(),
-            config: BibleConfig::from_reader(File::open(&config_path).map_err(|e| {
-                if e.kind() == ErrorKind::NotFound {
-                    ConfigError::MissingFile(config_path)
-                } else {
-                    e.into()
-                }
-            })?)?,
+            config: match File::open(&config_path) {
+                Ok(file) => BibleConfig::from_reader(file)?,
+                Err(e) if e.kind() == ErrorKind::NotFound => BibleConfig::default(),
+                Err(e) => return Err(e.into()),
+            },
             source: path,
             source_is_zip: false,
             ..Default::default()
@@ -370,15 +368,11 @@ impl BibleData {
         let mut zip_file = ZipArchive::new(SyncFile::open(&path)?)?;
         let data = BibleData {
             id: Self::get_file_bible_id(&path).into_owned(),
-            config: BibleConfig::from_reader(zip_file.by_name(Self::CONFIG_PATH).map_err(
-                |e| {
-                    if matches!(e, ZipError::FileNotFound) {
-                        ConfigError::MissingInZip(path.clone())
-                    } else {
-                        e.into()
-                    }
-                },
-            )?)?,
+            config: match zip_file.by_name(Self::CONFIG_PATH) {
+                Ok(file) => BibleConfig::from_reader(file)?,
+                Err(ZipError::FileNotFound) => BibleConfig::default(),
+                Err(e) => return Err(e.into()),
+            },
             source: path,
             source_is_zip: true,
             ..Default::default()
@@ -629,8 +623,12 @@ impl BibleConfig {
 impl SearchConfig {
     fn create_tokenizer(&self) -> Tokenizer<'_> {
         let mut builder = TokenizerBuilder::new();
-        builder.allow_list(&self.languages);
-        builder.stop_words(&self.ignored_words);
+        if let Some(languages) = &self.languages {
+            builder.allow_list(languages);
+        }
+        if let Some(words) = &self.ignored_words {
+            builder.stop_words(words);
+        }
         builder.into_tokenizer()
     }
 }
@@ -668,20 +666,23 @@ mod unresolved {
 
     #[derive(Debug, Deserialize)]
     pub struct BibleConfig {
+        #[serde(default)]
         book_aliases: AliasesConfig,
+        #[serde(default)]
         search: SearchConfig,
     }
 
     #[serde_as]
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Default, Deserialize)]
     pub struct SearchConfig {
-        #[serde_as(as = "Vec<LanguageAsCode>")]
-        pub languages: Vec<Language>,
+        #[serde_as(as = "Option<Vec<LanguageAsCode>>")]
         #[serde(default)]
-        pub ignored_words: Vec<String>,
+        pub languages: Option<Vec<Language>>,
+        #[serde(default)]
+        pub ignored_words: Option<Vec<String>>,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Default, Deserialize)]
     struct AliasesConfig {
         #[serde(default)]
         common: HashMap<String, Vec<String>>,
@@ -724,22 +725,24 @@ mod unresolved {
         fn from(val: SearchConfig) -> Self {
             super::SearchConfig {
                 languages: val.languages,
-                ignored_words: fst::Set::from_iter(
-                    val.ignored_words
-                        .into_iter()
-                        .sorted_unstable()
-                        .map(|x| {
-                            Token {
-                                lemma: Cow::Owned(x),
-                                ..Default::default()
-                            }
-                            .normalize(&NormalizerOption::default())
-                            .lemma
-                            .into_owned()
-                        })
-                        .dedup(),
-                )
-                .unwrap(),
+                ignored_words: val.ignored_words.map(|words| {
+                    fst::Set::from_iter(
+                        words
+                            .into_iter()
+                            .sorted_unstable()
+                            .map(|x| {
+                                Token {
+                                    lemma: Cow::Owned(x),
+                                    ..Default::default()
+                                }
+                                .normalize(&NormalizerOption::default())
+                                .lemma
+                                .into_owned()
+                            })
+                            .dedup(),
+                    )
+                    .unwrap()
+                }),
             }
         }
     }
