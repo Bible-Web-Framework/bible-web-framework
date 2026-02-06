@@ -8,16 +8,22 @@ use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, Entry};
 use miette::{GraphicalReportHandler, NamedSource, Severity};
+use notify_debouncer_full::notify;
+use notify_debouncer_full::notify::EventKind;
+use notify_debouncer_full::notify::event::{
+    CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
+};
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use smallvec::smallvec;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
-use std::{fs, io, path};
+use std::{io, mem, path};
 use sync_file::SyncFile;
 use thiserror::Error;
 use unicase::UniCase;
@@ -26,7 +32,8 @@ use zip::result::ZipError;
 
 pub struct MultiBibleData {
     pub root_dir: PathBuf,
-    pub bibles: DashMap<String, BibleData>,
+    pub bibles: DashMap<Cow<'static, str>, BibleData>,
+    file_change_active: ExclusiveMutex,
 }
 
 #[derive(Default)]
@@ -37,7 +44,7 @@ pub struct BibleData {
     pub config: BibleConfig,
     pub files: DashMap<Book, UsjContent>,
     pub index: RwLock<BibleIndex>,
-    sources: RwLock<BiMap<Book, String>>,
+    sources: RwLock<BiMap<Book, Cow<'static, str>>>,
     has_ignored_files: AtomicBool,
     full_reload_active: ExclusiveMutex,
 }
@@ -56,8 +63,248 @@ pub struct SearchConfig {
 
 impl MultiBibleData {
     pub fn load(bibles_dir: PathBuf) -> ConfigResult<Self> {
-        let bibles = DashMap::new();
-        for entry in fs::read_dir(&bibles_dir)? {
+        let result = Self {
+            root_dir: bibles_dir,
+            bibles: DashMap::new(),
+            file_change_active: ExclusiveMutex::default(),
+        };
+        result.reload_everything()?;
+        Ok(result)
+    }
+
+    pub fn get_or_api_error(
+        &self,
+        bible: String,
+    ) -> ApiResult<Ref<'_, Cow<'static, str>, BibleData>> {
+        let bible = Cow::Owned(bible);
+        self.bibles
+            .get(&bible)
+            .ok_or_else(|| ApiError::UnknownBible(bible.into_owned()))
+    }
+
+    // TODO: Handle config file edits too
+    pub fn handle_file_change(&self, mut event: notify::Event) -> ConfigResult<()> {
+        if event.need_rescan() {
+            tracing::info!("File watcher requested full rescan. Reloading everything.");
+            return self.reload_everything();
+        }
+        let _lock = self
+            .file_change_active
+            .lock()
+            .expect("MultiBibleData::handle_file_change called while already reloading");
+
+        let get_path = |index: usize| {
+            let path = event.paths[index].as_path();
+            (
+                path,
+                path.strip_prefix(&self.root_dir)
+                    .expect("MultiBibleData::handle_file_change called with unrelated filename"),
+            )
+        };
+        fn get_root_bible_id(trimmed_path: &Path) -> Cow<'_, str> {
+            BibleData::get_file_bible_id(Path::new(
+                trimmed_path.components().next().unwrap().as_os_str(),
+            ))
+        }
+        fn get_inside_bible_path(trimmed_path: &Path) -> Cow<'_, str> {
+            let mut iter = trimmed_path.components();
+            iter.next();
+            iter.as_path().to_string_lossy()
+        }
+
+        match event.kind {
+            EventKind::Create(CreateKind::Any | CreateKind::File | CreateKind::Folder)
+            | EventKind::Modify(ModifyKind::Name(RenameMode::To)) => {
+                let (path, trimmed_path) = get_path(0);
+                let is_file = match event.kind {
+                    EventKind::Create(CreateKind::File) => true,
+                    EventKind::Create(CreateKind::Folder) => false,
+                    _ => {
+                        let file_type = path.metadata()?.file_type();
+                        if !file_type.is_file() && !file_type.is_dir() {
+                            return Ok(());
+                        }
+                        file_type.is_file()
+                    }
+                };
+                if is_file {
+                    if trimmed_path.components().nth(1).is_none() {
+                        tracing::info!("Loading new bible from {}", path.display());
+                        let data = BibleData::load_from_zip(path.to_owned())?;
+                        self.bibles.insert(Cow::Owned(data.id.clone()), data);
+                    } else {
+                        let bible_id = get_root_bible_id(trimmed_path);
+                        if let Some(bible) = self.bibles.get(&*bible_id)
+                            && let Some(book) = bible
+                                .insert_from_file_or_warn(path, get_inside_bible_path(trimmed_path))
+                        {
+                            tracing::info!("Loaded new book {book} from {}", path.display());
+                            bible.update_index(ReindexType::PartialReindex(smallvec![book.book]));
+                            return Ok(());
+                        }
+                    }
+                } else if trimmed_path.components().nth(1).is_none() {
+                    tracing::info!("Loading new bible from {}", path.display());
+                    let data = BibleData::load_from_dir(path.to_owned())?;
+                    self.bibles.insert(Cow::Owned(data.id.clone()), data);
+                }
+            }
+            EventKind::Modify(ModifyKind::Any | ModifyKind::Data(_)) => {
+                // Any is only used in places that could be substituted for Data
+                // It sometimes fires on directories though, at least on Windows.
+                let (path, trimmed_path) = get_path(0);
+                if !path.is_file() {
+                    return Ok(());
+                }
+                let bible_id = get_root_bible_id(trimmed_path);
+                let Some(bible) = self.bibles.get(&*bible_id) else {
+                    return Ok(());
+                };
+                if trimmed_path.components().nth(1).is_some() {
+                    let inside_path = get_inside_bible_path(trimmed_path);
+                    let old_book = bible
+                        .sources
+                        .write()
+                        .unwrap()
+                        .remove_by_right(&*inside_path)
+                        .and_then(|(b, _)| bible.files.remove(&b))
+                        .and_then(|(_, b)| b.unwrap_root().book_info());
+                    if let Some(new_book) = bible.insert_from_file_or_warn(path, inside_path) {
+                        let reindex_type = if let Some(old_book) = old_book
+                            && new_book != old_book
+                        {
+                            tracing::info!(
+                                "Loaded book {new_book} in {bible_id} from {} (was {old_book})",
+                                path.display()
+                            );
+                            ReindexType::PartialReindex(smallvec![old_book.book, new_book.book])
+                        } else {
+                            tracing::info!(
+                                "Loaded book {new_book} in {bible_id} from {}",
+                                path.display()
+                            );
+                            ReindexType::PartialReindex(smallvec![new_book.book])
+                        };
+                        bible.update_index(reindex_type);
+                    }
+                } else {
+                    tracing::info!("Reloading bible from {}", path.display());
+                    bible.reload_all(None)?;
+                    bible.update_index(ReindexType::FullReindex);
+                }
+            }
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {
+                let (old_path, old_trimmed_path) = get_path(0);
+                let (new_path, new_trimmed_path) = get_path(1);
+                let old_is_book = old_trimmed_path.components().nth(1).is_some();
+                let new_is_book = new_trimmed_path.components().nth(1).is_some();
+                match (old_is_book, new_is_book) {
+                    (false, false) => {
+                        let old_id = get_root_bible_id(old_trimmed_path);
+                        let new_id = get_root_bible_id(new_trimmed_path);
+                        if let Some((_, bible)) = self.bibles.remove(&*old_id) {
+                            tracing::info!("Detected rename of bible {old_id} to {new_id}");
+                            self.bibles.insert(Cow::Owned(new_id.into_owned()), bible);
+                        }
+                    }
+                    (true, true) => {
+                        let old_bible = get_root_bible_id(old_trimmed_path);
+                        let new_bible = get_root_bible_id(new_trimmed_path);
+                        let old_inside_path = get_inside_bible_path(old_trimmed_path);
+                        let new_inside_path = get_inside_bible_path(new_trimmed_path);
+                        let Some(old_bible_data) = self.bibles.get(&*old_bible) else {
+                            return Ok(());
+                        };
+                        if old_bible == new_bible {
+                            let mut sources = old_bible_data.sources.write().unwrap();
+                            if let Some((book, _)) = sources.remove_by_right(&*old_inside_path) {
+                                tracing::info!(
+                                    "Detected rename of book {book} in {old_bible} from {} to {}",
+                                    old_path.display(),
+                                    new_path.display(),
+                                );
+                                sources.insert(book, Cow::Owned(new_inside_path.into_owned()));
+                            }
+                        } else {
+                            let Some(new_bible_data) = self.bibles.get(&*new_bible) else {
+                                return Ok(());
+                            };
+                            let Some((book, _)) = old_bible_data
+                                .sources
+                                .write()
+                                .unwrap()
+                                .remove_by_right(&*old_inside_path)
+                            else {
+                                return Ok(());
+                            };
+                            tracing::info!(
+                                "Detected rename of book {book} in {old_bible} from {} to new bible {new_bible} at {}",
+                                old_path.display(),
+                                new_path.display(),
+                            );
+                            new_bible_data.insert_or_warn(
+                                old_bible_data.files.remove(&book).unwrap().1,
+                                new_inside_path.into_owned(),
+                            );
+                            old_bible_data.update_index(ReindexType::Unindex(book));
+                        }
+                    }
+                    _ => {
+                        let mut paths = mem::take(&mut event.paths);
+                        self.handle_file_change(notify::Event {
+                            kind: EventKind::Modify(ModifyKind::Name(RenameMode::From)),
+                            paths: vec![paths.remove(0)],
+                            attrs: EventAttributes::default(),
+                        })?;
+                        self.handle_file_change(notify::Event {
+                            kind: EventKind::Modify(ModifyKind::Name(RenameMode::To)),
+                            paths,
+                            attrs: EventAttributes::default(),
+                        })?;
+                    }
+                }
+            }
+            EventKind::Remove(RemoveKind::Any | RemoveKind::File | RemoveKind::Folder)
+            | EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
+                let (path, trimmed_path) = get_path(0);
+                let bible_id = get_root_bible_id(trimmed_path);
+                if trimmed_path.components().nth(1).is_none() {
+                    if self.bibles.remove(&*bible_id).is_some() {
+                        tracing::info!("Removed bible {bible_id}");
+                    }
+                } else {
+                    let Some(bible) = self.bibles.get(&*bible_id) else {
+                        return Ok(());
+                    };
+                    let inside_path = get_inside_bible_path(trimmed_path);
+                    if let Some((book, _)) = bible
+                        .sources
+                        .write()
+                        .unwrap()
+                        .remove_by_right(&*inside_path)
+                    {
+                        bible.files.remove(&book);
+                        tracing::info!(
+                            "Removed book {book} from {bible_id} source from {}",
+                            path.display()
+                        );
+                        bible.update_index(ReindexType::Unindex(book));
+                    }
+                }
+            }
+            unknown => tracing::debug!("Received unknown file watch event {unknown:?}: {event:?}"),
+        }
+        Ok(())
+    }
+
+    pub fn reload_everything(&self) -> ConfigResult<()> {
+        let _lock = self
+            .file_change_active
+            .lock()
+            .expect("MultiBibleData::reload_everything called while already reloading");
+
+        let mut keys_to_keep = (!self.bibles.is_empty()).then(HashSet::<Cow<str>>::new);
+        for entry in self.root_dir.read_dir()? {
             let entry = entry?;
             let path = entry.path();
             let is_file = {
@@ -72,7 +319,7 @@ impl MultiBibleData {
                     }
 
                     #[cfg(not(windows))]
-                    fs::metadata(&path)?.is_file()
+                    path.metadata()?.is_file()
                 }
             };
             let data = if is_file {
@@ -80,16 +327,15 @@ impl MultiBibleData {
             } else {
                 BibleData::load_from_dir(path)?
             };
-            bibles.insert(data.id.clone(), data);
+            if let Some(keys) = &mut keys_to_keep {
+                keys.insert(Cow::Owned(data.id.clone()));
+            }
+            self.bibles.insert(Cow::Owned(data.id.clone()), data);
         }
-        Ok(Self {
-            root_dir: bibles_dir,
-            bibles,
-        })
-    }
-
-    pub fn get_or_api_error(&self, bible: String) -> ApiResult<Ref<'_, String, BibleData>> {
-        self.bibles.get(&bible).ok_or(ApiError::UnknownBible(bible))
+        if let Some(keys) = keys_to_keep {
+            self.bibles.retain(|k, _| keys.contains(k));
+        }
+        Ok(())
     }
 }
 
@@ -129,14 +375,7 @@ impl BibleData {
     pub fn load_from_zip(path: PathBuf) -> ConfigResult<Self> {
         let mut zip_file = ZipArchive::new(SyncFile::open(&path)?)?;
         let data = BibleData {
-            id: path
-                .file_stem()
-                .unwrap_or_else(|| {
-                    path.file_name()
-                        .expect("BibleData::load_from_zip called with non-file path")
-                })
-                .to_string_lossy()
-                .to_string(),
+            id: Self::get_file_bible_id(&path).into_owned(),
             config: BibleConfig::from_reader(zip_file.by_name(Self::CONFIG_PATH).map_err(
                 |e| {
                     if matches!(e, ZipError::FileNotFound) {
@@ -153,6 +392,15 @@ impl BibleData {
         data.reload_all(Some(zip_file))?;
         data.finish_load();
         Ok(data)
+    }
+
+    fn get_file_bible_id(path: &Path) -> Cow<'_, str> {
+        path.file_stem()
+            .unwrap_or_else(|| {
+                path.file_name()
+                    .expect("BibleData::load_from_zip called with non-file path")
+            })
+            .to_string_lossy()
     }
 
     fn finish_load(&self) {
@@ -173,6 +421,15 @@ impl BibleData {
     }
 
     fn update_index(&self, reindex_type: ReindexType) {
+        if matches!(reindex_type, ReindexType::Unindex(_))
+            && self.has_ignored_files.load(Ordering::Acquire)
+        {
+            tracing::info!(
+                "Reloading all books in {} due to previously ignored files",
+                self.id
+            );
+            return self.update_index(ReindexType::FullReindex);
+        }
         self.index.write().unwrap().update_index(
             reindex_type,
             &self.files,
@@ -191,8 +448,11 @@ impl BibleData {
         match self.files.entry(book.book) {
             Entry::Vacant(e) => {
                 e.insert(usj);
-                if let Overwritten::Right(book, _) =
-                    self.sources.write().unwrap().insert(book.book, source)
+                if let Overwritten::Right(book, _) = self
+                    .sources
+                    .write()
+                    .unwrap()
+                    .insert(book.book, Cow::Owned(source))
                 {
                     self.files.remove(&book);
                     self.update_index(ReindexType::Unindex(book));
@@ -292,13 +552,9 @@ impl BibleData {
         }
     }
 
-    fn insert_from_file_or_warn(
-        &mut self,
-        filename: String,
-        reader: Result<impl Read, impl Into<UsjLoadError>>,
-    ) -> Option<UsjBookInfo> {
-        self.load_us_or_warn(&filename, reader)
-            .and_then(|usj| self.insert_or_warn(usj, filename))
+    fn insert_from_file_or_warn(&self, path: &Path, filename: Cow<'_, str>) -> Option<UsjBookInfo> {
+        self.load_us_or_warn(&filename, File::open(path))
+            .and_then(|usj| self.insert_or_warn(usj, filename.into_owned()))
     }
 
     fn reload_all(&self, source_zip: Option<ZipArchive<SyncFile>>) -> ConfigResult<()> {

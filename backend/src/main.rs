@@ -2,13 +2,16 @@ use crate::api::route_not_found;
 use crate::bible_data::{ConfigError, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
+use notify_debouncer_full::DebounceEventResult;
+use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
-use std::env;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
+use std::time::Duration;
+use std::{env, path};
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -75,50 +78,39 @@ async fn real_main() -> Result<(), ServerError> {
         .init();
     tracing::debug!("Debug logging is enabled");
 
-    let bibles_dir = var::<PathBuf>("BIBLES_DIR")?;
+    let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
     let bible_data = web::Data::new(MultiBibleData::load(bibles_dir.clone())?);
 
     let usj_watcher = {
-        // let config = bible_config.clone();
-        // let index = bible_index.clone();
-        // let mut usj_watcher = notify_debouncer_full::new_debouncer(
-        //     Duration::from_secs(2),
-        //     None,
-        //     move |event: DebounceEventResult| {
-        //         tracing::debug!("Received file watch event {event:?}");
-        //         match event {
-        //             Ok(evs) => {
-        //                 let mut config = config.write().unwrap();
-        //                 for ev in evs {
-        //                     match config.us.handle_file_change(ev.event) {
-        //                         Ok(reindex) => {
-        //                             if reindex != ReindexType::NoReindex {
-        //                                 let mut index = index.write().unwrap();
-        //                                 index.update_index(reindex, &config.us.files);
-        //                             }
-        //                         }
-        //                         Err(err) => {
-        //                             tracing::error!(
-        //                                 "Failed to update loaded USJs from file watch event: {err}"
-        //                             );
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //             Err(errs) => {
-        //                 for err in errs {
-        //                     tracing::error!("Error in USJ file watcher: {err}");
-        //                 }
-        //                 if let Err(err) = config.write().unwrap().us.reload_all_from_dir() {
-        //                     tracing::error!("Failed to reload all USJs: {err}");
-        //                 }
-        //             }
-        //         };
-        //     },
-        // )?;
-        // usj_watcher.watch(bibles_dir, RecursiveMode::NonRecursive)?;
-        // web::Data::new(usj_watcher)
-        web::Data::new(())
+        let bible_data = bible_data.clone();
+        let mut usj_watcher = notify_debouncer_full::new_debouncer(
+            Duration::from_secs(2),
+            None,
+            move |event: DebounceEventResult| {
+                tracing::debug!("Received file watch event {event:?}");
+                match event {
+                    Ok(evs) => {
+                        for ev in evs {
+                            if let Err(err) = bible_data.handle_file_change(ev.event) {
+                                tracing::error!(
+                                    "Failed to update loaded data from file watch event: {err}"
+                                );
+                            }
+                        }
+                    }
+                    Err(errs) => {
+                        for err in errs {
+                            tracing::error!("Error in USJ file watcher: {err}");
+                        }
+                        if let Err(err) = bible_data.reload_everything() {
+                            tracing::error!("Failed to reload all USJs: {err}");
+                        }
+                    }
+                };
+            },
+        )?;
+        usj_watcher.watch(bibles_dir, RecursiveMode::Recursive)?;
+        web::Data::new(usj_watcher)
     };
 
     let database = {

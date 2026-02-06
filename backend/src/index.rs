@@ -24,7 +24,6 @@ type InternerSymbol = <InternerBackend as Backend>::Symbol;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReindexType {
-    NoReindex,
     PartialReindex(SmallVec<[Book; 2]>),
     Unindex(Book),
     FullReindex,
@@ -158,7 +157,6 @@ impl BibleIndex {
         tokenizer: &Tokenizer,
     ) {
         match reindex_type {
-            ReindexType::NoReindex => {}
             ReindexType::PartialReindex(books) => {
                 let book_count = books.len();
                 tracing::info!("Reindexing {book_count} book(s){}", format_marker!(self));
