@@ -47,7 +47,6 @@ pub fn search_bible(
     search_start: usize,
     search_max_count: usize,
     bible: &BibleData,
-    index: &BibleIndex,
 ) -> SearchResponse {
     let references = parse_references(&term, &bible.book_parse_options());
     if references
@@ -55,8 +54,13 @@ pub fn search_bible(
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
     {
         let start_time = Instant::now();
-        let (total_results, results) =
-            search_for_terms(&term, search_start, search_max_count, &bible.files, index);
+        let (total_results, results) = search_for_terms(
+            &term,
+            search_start,
+            search_max_count,
+            &bible.files,
+            &bible.index.read(),
+        );
         tracing::debug!(
             "Search for \"{term}\" (max {search_max_count} results) took {:?}",
             start_time.elapsed()

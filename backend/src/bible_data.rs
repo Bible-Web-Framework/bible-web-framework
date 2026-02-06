@@ -13,6 +13,7 @@ use notify_debouncer_full::notify::EventKind;
 use notify_debouncer_full::notify::event::{
     CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
 };
+use parking_lot::RwLock;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use smallvec::smallvec;
 use std::borrow::Cow;
@@ -20,8 +21,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use std::{io, mem, path};
 use sync_file::SyncFile;
@@ -165,7 +166,6 @@ impl MultiBibleData {
                     let old_book = bible
                         .sources
                         .write()
-                        .unwrap()
                         .remove_by_right(&*inside_path)
                         .and_then(|(b, _)| bible.files.remove(&b))
                         .and_then(|(_, b)| b.unwrap_root().book_info());
@@ -216,7 +216,7 @@ impl MultiBibleData {
                             return Ok(());
                         };
                         if old_bible == new_bible {
-                            let mut sources = old_bible_data.sources.write().unwrap();
+                            let mut sources = old_bible_data.sources.write();
                             if let Some((book, _)) = sources.remove_by_right(&*old_inside_path) {
                                 tracing::info!(
                                     "Detected rename of book {book} in {old_bible} from {} to {}",
@@ -232,7 +232,6 @@ impl MultiBibleData {
                             let Some((book, _)) = old_bible_data
                                 .sources
                                 .write()
-                                .unwrap()
                                 .remove_by_right(&*old_inside_path)
                             else {
                                 return Ok(());
@@ -277,12 +276,7 @@ impl MultiBibleData {
                         return Ok(());
                     };
                     let inside_path = get_inside_bible_path(trimmed_path);
-                    if let Some((book, _)) = bible
-                        .sources
-                        .write()
-                        .unwrap()
-                        .remove_by_right(&*inside_path)
-                    {
+                    if let Some((book, _)) = bible.sources.write().remove_by_right(&*inside_path) {
                         bible.files.remove(&book);
                         tracing::info!(
                             "Removed book {book} from {bible_id} source from {}",
@@ -404,7 +398,7 @@ impl BibleData {
     }
 
     fn finish_load(&self) {
-        let mut index = self.index.write().unwrap();
+        let mut index = self.index.write();
         index.log_marker = Some(self.id.clone());
         index.update_index(
             ReindexType::FullReindex,
@@ -430,7 +424,7 @@ impl BibleData {
             );
             return self.update_index(ReindexType::FullReindex);
         }
-        self.index.write().unwrap().update_index(
+        self.index.write().update_index(
             reindex_type,
             &self.files,
             &self.config.search.create_tokenizer(),
@@ -448,18 +442,15 @@ impl BibleData {
         match self.files.entry(book.book) {
             Entry::Vacant(e) => {
                 e.insert(usj);
-                if let Overwritten::Right(book, _) = self
-                    .sources
-                    .write()
-                    .unwrap()
-                    .insert(book.book, Cow::Owned(source))
+                if let Overwritten::Right(book, _) =
+                    self.sources.write().insert(book.book, Cow::Owned(source))
                 {
                     self.files.remove(&book);
                     self.update_index(ReindexType::Unindex(book));
                 }
             }
             Entry::Occupied(mut e) => {
-                let sources = self.sources.read().unwrap();
+                let sources = self.sources.read();
                 let old_path = sources.get_by_left(&book.book).unwrap();
                 if &source == old_path {
                     e.insert(usj);
@@ -563,7 +554,7 @@ impl BibleData {
             .lock()
             .expect("BibleData::reload_all called while reload active");
         self.files.clear();
-        self.sources.write().unwrap().clear();
+        self.sources.write().clear();
         self.has_ignored_files.store(false, Ordering::Relaxed);
         let start = Instant::now();
         let files = if !self.source_is_zip {

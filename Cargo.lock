@@ -410,6 +410,7 @@ dependencies = [
  "miette",
  "monostate",
  "notify-debouncer-full",
+ "parking_lot",
  "permutate",
  "phf",
  "phf_codegen",
