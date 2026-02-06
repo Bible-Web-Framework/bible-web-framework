@@ -17,7 +17,7 @@ use parking_lot::RwLock;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use smallvec::smallvec;
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, LinkedList};
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read};
 use std::path::{Path, PathBuf};
@@ -559,7 +559,7 @@ impl BibleData {
         let start = Instant::now();
         let files = if !self.source_is_zip {
             walkdir::WalkDir::new(&self.source)
-                .follow_links(true) // Eh, sure why not
+                .follow_links(true)
                 .into_iter()
                 .par_bridge()
                 .filter_map(|entry| {
@@ -575,7 +575,7 @@ impl BibleData {
                     self.load_us_or_warn(&rel_path, File::open(entry.path()))
                         .map(|usj| Ok((usj, rel_path.into_owned())))
                 })
-                .collect::<walkdir::Result<Vec<_>>>()?
+                .collect::<walkdir::Result<LinkedList<_>>>()?
         } else {
             #[allow(unused_qualifications)] // It is, in fact, used
             let zip = source_zip.map_or_else(

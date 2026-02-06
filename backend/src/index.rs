@@ -7,8 +7,8 @@ use dashmap::DashMap;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::SmallVec;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, LinkedList};
 use std::num::NonZeroU8;
 use std::ops::Range;
 use std::time::Instant;
@@ -182,7 +182,7 @@ impl BibleIndex {
                         indexer.index_usj(entry.value(), tokenizer);
                         (*entry.key(), indexer)
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<LinkedList<_>>()
                     .into_iter()
                     .for_each(|(book, indexer)| self.replace_from_indexer(book, indexer));
                 self.interner.shrink_to_fit();
