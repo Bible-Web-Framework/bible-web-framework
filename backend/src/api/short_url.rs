@@ -1,6 +1,7 @@
 use crate::api::{ApiError, ApiResult};
 use crate::bible_data::MultiBibleData;
 use crate::reference::{BibleReference, parse_references};
+use crate::reference_encoding;
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
     encode_references_to_num, is_base58_swear,
@@ -29,7 +30,7 @@ pub enum ShortUrlType {
 }
 
 #[derive(Copy, Clone, Debug, SerializeDisplay, DeserializeFromStr)]
-pub struct ShortUrlValue(u64);
+pub struct ShortUrlValue(reference_encoding::Carrier);
 
 impl Display for ShortUrlValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -51,15 +52,15 @@ pub struct CreateShortQueryParams {
     r#ref: String,
 }
 
-#[get("/short/create")]
-pub async fn short_create(
+#[get("/create")]
+pub async fn create(
     query: Query<CreateShortQueryParams>,
-    config: web::Data<MultiBibleData>,
+    bibles: web::Data<MultiBibleData>,
     database: web::Data<SqlitePool>,
 ) -> ApiResult<web::Json<ShortUrl>> {
     let query = query.into_inner();
     let references: Vec<_> = {
-        let bible = config.get_or_api_error(query.bible)?;
+        let bible = bibles.get_or_api_error(query.bible)?;
         parse_references(&query.r#ref, &bible.book_parse_options())
             .into_iter()
             .map(|reference| match reference {
@@ -142,8 +143,8 @@ pub async fn short_create(
     }))
 }
 
-#[get("/short/resolve")]
-pub async fn short_resolve(
+#[get("/resolve")]
+pub async fn resolve(
     query: Query<ShortUrl>,
     database: web::Data<SqlitePool>,
 ) -> ApiResult<web::Json<Vec<BibleReference>>> {

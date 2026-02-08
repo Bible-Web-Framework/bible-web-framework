@@ -27,7 +27,7 @@ pub enum ReferenceEncodingError {
 
 const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
-type Carrier = u64;
+pub type Carrier = u64;
 const MAX_BASE58_LENGTH: usize = Carrier::MAX.ilog(58) as usize + 1;
 
 pub fn base58_encode(value: Carrier) -> String {

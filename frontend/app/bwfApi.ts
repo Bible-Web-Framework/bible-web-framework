@@ -1,8 +1,36 @@
 import type { Book, UsjContent, UsjRoot, VerseRange } from './usj'
 
-export type BookResponse = UsjRoot
+/**
+ * `/v1/bibles`
+ */
+export type BiblesResponse = {
+  bibles: { [id: string]: BibleInfo }
+}
 
-export type SearchResponse = {
+export type BibleInfo = Record<string, never>
+
+/**
+ * `/v1/short/create?bible={bible}&ref={ref}`
+ */
+export type ShortCreateResponse = {
+  type: 'id' | 'encoded'
+  value: string
+}
+
+/**
+ * `/v1/short/resolve?type={type}&value={value}`
+ */
+export type ShortResolveResponse = BibleReference[]
+
+/**
+ * `/v1/bible/{bible}/book/{book}`
+ */
+export type BibleBookResponse = UsjRoot
+
+/**
+ * `/v1/bible/{bible}/search?term={term}&start={start}&count={count}`
+ */
+export type BibleSearchResponse = {
   response_type: 'search_results' | 'scripture_passages'
   search_term: string
   total_results: number
@@ -67,6 +95,9 @@ export type ParseReferenceError =
       verses: [number, number]
     }
 
-export type IndexResponse = {
+/**
+ * `/v1/bible/{bible}/index
+ */
+export type BibleIndexResponse = {
   words: { [word: string]: number }
 }

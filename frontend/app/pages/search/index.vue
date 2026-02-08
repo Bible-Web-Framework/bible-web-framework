@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { SearchResponse } from '~/bwfApi'
+import type { BibleSearchResponse } from '~/bwfApi'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -9,7 +9,7 @@ const resultsPerPage = ref(
   Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),
 )
 const loadingIndicator = useLoadingIndicator()
-const { data: searchResults } = await useFetch<SearchResponse>('/v1/search', {
+const { data: searchResults } = await useFetch<BibleSearchResponse>('/v1/search', {
   baseURL: config.public.apiRootUrl,
   query: {
     term: query,

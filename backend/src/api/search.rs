@@ -56,17 +56,16 @@ pub async fn index_route(
 ) -> ApiResult<HttpResponse> {
     #[derive(Serialize)]
     struct Response<'a> {
-        words: WordsResponse<'a>,
+        #[serde(with = "tuple_vec_map")]
+        words: Vec<(&'a str, usize)>,
     }
-
-    #[derive(Serialize)]
-    struct WordsResponse<'a>(#[serde(with = "tuple_vec_map")] Vec<(&'a str, usize)>);
 
     let bible = bibles.get_or_api_error(bible.into_inner())?;
     let index = bible.index.read();
-    let mut result = index.iter_names_and_counts().collect_vec();
-    result.sort_by_cached_key(|(name, _)| UniCase::new(*name));
     Ok(HttpResponse::Ok().json(Response {
-        words: WordsResponse(result),
+        words: index
+            .iter_names_and_counts()
+            .sorted_by_cached_key(|(name, _)| UniCase::new(*name))
+            .collect(),
     }))
 }
