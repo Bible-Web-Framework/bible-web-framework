@@ -67,8 +67,8 @@ watch(resultsPerPage, (newCount, oldCount) => {
 
     <div>
       <select v-if="biblesData" v-model="bible">
-        <option v-for="bibleId in Object.keys(biblesData.bibles)" :key="bibleId" :value="bibleId">
-          {{ bibleId.toUpperCase() }}
+        <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
+          {{ info.display_name ?? id.toLocaleUpperCase() }}
         </option>
       </select>
     </div>

@@ -54,6 +54,7 @@ pub struct BibleData {
 
 #[derive(Debug, Default)]
 pub struct BibleConfig {
+    pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
 }
@@ -737,6 +738,8 @@ mod unresolved {
     #[derive(Debug, Deserialize)]
     pub struct BibleConfig {
         #[serde(default)]
+        display_name: Option<String>,
+        #[serde(default)]
         book_aliases: AliasesConfig,
         #[serde(default)]
         search: SearchConfig,
@@ -785,6 +788,7 @@ mod unresolved {
             }
 
             super::BibleConfig {
+                display_name: val.display_name,
                 book_aliases,
                 search: val.search.into(),
             }

@@ -44,7 +44,9 @@ export type BiblesResponse = {
   bibles: Record<string, BibleInfo>
 }
 
-export type BibleInfo = Record<string, never>
+export type BibleInfo = {
+  display_name: string | null
+}
 
 export type ShortCreateResponse = {
   type: 'id' | 'encoded'
