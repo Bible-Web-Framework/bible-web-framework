@@ -1,26 +1,35 @@
 <script lang="ts" setup>
-import type { SearchResponse } from '~/bwfApi'
+import type { ApiV1 } from '~/bwfApi'
 
 const config = useRuntimeConfig()
+const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
+  baseURL: config.public.apiRootUrl,
+})
+
 const route = useRoute()
 const query = ref((route.query.q || '').toString())
+const bible = ref((route.query.bible || biblesData.value?.default_bible || '').toString())
 const page = ref(Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1))
 const resultsPerPage = ref(
   Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),
 )
+
 const loadingIndicator = useLoadingIndicator()
-const { data: searchResults } = await useFetch<SearchResponse>('/v1/search', {
-  baseURL: config.public.apiRootUrl,
-  query: {
-    term: query,
-    start: computed(() => (page.value - 1) * resultsPerPage.value),
-    count: resultsPerPage,
+const { data: searchResults } = await useFetch<ApiV1['bible']['search']>(
+  () => `/v1/bible/${bible.value}/search`,
+  {
+    baseURL: config.public.apiRootUrl,
+    query: {
+      term: query,
+      start: computed(() => (page.value - 1) * resultsPerPage.value),
+      count: resultsPerPage,
+    },
+    onRequest: () => loadingIndicator.start(),
+    onRequestError: () => loadingIndicator.finish({ error: true }),
+    onResponse: () => loadingIndicator.finish(),
+    onResponseError: () => loadingIndicator.finish({ error: true }),
   },
-  onRequest: () => loadingIndicator.start(),
-  onRequestError: () => loadingIndicator.finish({ error: true }),
-  onResponse: () => loadingIndicator.finish(),
-  onResponseError: () => loadingIndicator.finish({ error: true }),
-})
+)
 
 const pageCount = computed(() => {
   if (!searchResults.value || searchResults.value.response_type !== 'search_results') {
@@ -41,6 +50,7 @@ function search() {
   query.value = newQuery.value
 }
 
+watch(bible, () => setQueryParam('bible', bible.value))
 watch(page, () => setQueryParam('page', page.value.toString()))
 watch(resultsPerPage, (newCount, oldCount) => {
   setQueryParam('count', newCount.toString())
@@ -53,8 +63,17 @@ watch(resultsPerPage, (newCount, oldCount) => {
   <div>
     <h1>Search Page</h1>
 
-    <input v-model="newQuery" placeholder="Enter search term" @keyup.enter="search" />
-    <button @click="search">Search</button>
+    <div>
+      <select v-if="biblesData" v-model="bible">
+        <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
+          {{ info.display_name ?? id.toLocaleUpperCase() }}
+        </option>
+      </select>
+    </div>
+    <div>
+      <input v-model="newQuery" placeholder="Enter search term" @keyup.enter="search" />
+      <button @click="search">Search</button>
+    </div>
 
     <template v-if="searchResults?.response_type === 'search_results'">
       <template v-if="pageCount > 1">

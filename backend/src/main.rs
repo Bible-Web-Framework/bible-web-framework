@@ -1,27 +1,24 @@
-use crate::api::{ApiError, route_not_found};
-use crate::config::BibleConfig;
-use crate::index::{BibleIndex, ReindexType};
+use crate::api::route_not_found;
+use crate::bible_data::{BibleDataError, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
-use actix_web_validator::QueryConfig;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
-use std::env;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::sync::RwLock;
 use std::time::Duration;
+use std::{env, path};
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
 mod api;
+mod bible_data;
 mod book_data;
-mod config;
 mod index;
 mod reference;
 mod reference_encoding;
@@ -49,6 +46,8 @@ pub enum ServerError {
     Database(#[from] sqlx::Error),
     #[error("Database migration error: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
+    #[error("Configuration error: {0}")]
+    Config(#[from] BibleDataError),
 }
 
 #[actix_web::main]
@@ -79,18 +78,14 @@ async fn real_main() -> Result<(), ServerError> {
         .init();
     tracing::debug!("Debug logging is enabled");
 
-    let us_dir = var::<PathBuf>("US_DIRECTORY")?;
-    let bible_config = BibleConfig::load_initial(us_dir.clone())?;
-
-    let mut bible_index = BibleIndex::new();
-    bible_index.update_index(ReindexType::FullReindex, &bible_config.us.files);
-
-    let bible_config = web::Data::new(RwLock::new(bible_config));
-    let bible_index = web::Data::new(RwLock::new(bible_index));
+    let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
+    let bible_data = web::Data::new(MultiBibleData::load(
+        bibles_dir.clone(),
+        var_str("DEFAULT_BIBLE")?,
+    )?);
 
     let usj_watcher = {
-        let config = bible_config.clone();
-        let index = bible_index.clone();
+        let bible_data = bible_data.clone();
         let mut usj_watcher = notify_debouncer_full::new_debouncer(
             Duration::from_secs(2),
             None,
@@ -98,20 +93,11 @@ async fn real_main() -> Result<(), ServerError> {
                 tracing::debug!("Received file watch event {event:?}");
                 match event {
                     Ok(evs) => {
-                        let mut config = config.write().unwrap();
                         for ev in evs {
-                            match config.us.handle_file_change(ev.event) {
-                                Ok(reindex) => {
-                                    if reindex != ReindexType::NoReindex {
-                                        let mut index = index.write().unwrap();
-                                        index.update_index(reindex, &config.us.files);
-                                    }
-                                }
-                                Err(err) => {
-                                    tracing::error!(
-                                        "Failed to update loaded USJs from file watch event: {err}"
-                                    );
-                                }
+                            if let Err(err) = bible_data.handle_file_change(ev.event) {
+                                tracing::error!(
+                                    "Failed to update loaded data from file watch event: {err}"
+                                );
                             }
                         }
                     }
@@ -119,14 +105,14 @@ async fn real_main() -> Result<(), ServerError> {
                         for err in errs {
                             tracing::error!("Error in USJ file watcher: {err}");
                         }
-                        if let Err(err) = config.write().unwrap().us.reload_all_from_dir() {
+                        if let Err(err) = bible_data.reload_everything() {
                             tracing::error!("Failed to reload all USJs: {err}");
                         }
                     }
                 };
             },
         )?;
-        usj_watcher.watch(us_dir, RecursiveMode::NonRecursive)?;
+        usj_watcher.watch(bibles_dir, RecursiveMode::Recursive)?;
         web::Data::new(usj_watcher)
     };
 
@@ -145,23 +131,14 @@ async fn real_main() -> Result<(), ServerError> {
     let bind_port = var("BIND_PORT")?;
     HttpServer::new(move || {
         App::new()
-            .app_data(bible_config.clone())
-            .app_data(bible_index.clone())
+            .app_data(bible_data.clone())
             .app_data(usj_watcher.clone())
             .app_data(database.clone())
             .wrap(Cors::permissive())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default().log_level(Level::Debug))
             .default_service(web::to(route_not_found))
-            .service(
-                web::scope("/v1")
-                    .app_data(QueryConfig::default().error_handler(|e, _| ApiError::from(e).into()))
-                    .service(api::search::book)
-                    .service(api::search::search)
-                    .service(api::search::index_route)
-                    .service(api::short_url::short_create)
-                    .service(api::short_url::short_resolve),
-            )
+            .service(api::scope())
     })
     .bind((bind_host, bind_port))?
     .run()

@@ -1,3 +1,9 @@
+use charabia::Language;
+use serde::de::{Error, Unexpected};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_cow::CowStr;
+use serde_with::{DeserializeAs, SerializeAs};
+use std::sync::atomic::{AtomicBool, Ordering};
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
 /// Returns a normalized version of `s`, or `None` if normalization was not needed. Normalized
@@ -26,6 +32,7 @@ macro_rules! nz_u8 {
     };
 }
 
+// TODO: Migrate to serde_with
 pub mod option_as_vec {
     use serde::de::{Error, SeqAccess, Visitor};
     use serde::ser::SerializeSeq;
@@ -96,4 +103,52 @@ macro_rules! serde_display_and_parse {
             }
         }
     };
+}
+
+pub struct LanguageAsCode;
+
+impl SerializeAs<Language> for LanguageAsCode {
+    fn serialize_as<S>(source: &Language, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        source.code().serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, Language> for LanguageAsCode {
+    fn deserialize_as<D>(deserializer: D) -> Result<Language, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let code = <CowStr>::deserialize(deserializer)?.0;
+        Language::from_code(&code).ok_or_else(|| {
+            Error::invalid_value(
+                Unexpected::Str(&code),
+                &"an ISO 639-9 3-letter language code",
+            )
+        })
+    }
+}
+
+#[derive(Default)]
+pub struct ExclusiveMutex {
+    active: AtomicBool,
+}
+
+impl ExclusiveMutex {
+    pub fn lock(&self) -> Option<PanicBarrierLock<'_>> {
+        self.active
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+            .ok()?;
+        Some(PanicBarrierLock(&self.active))
+    }
+}
+
+pub struct PanicBarrierLock<'a>(&'a AtomicBool);
+
+impl Drop for PanicBarrierLock<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
 }

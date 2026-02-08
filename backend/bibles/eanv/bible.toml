@@ -1,0 +1,14 @@
+display_name = "EANV"
+
+[book_aliases.books]
+JHN = ["Test"]
+
+[search]
+languages = ["eng"]
+ignored_words = [
+    "a", "A",
+    "an", "An", "AN",
+    "the", "The", "THE",
+    "of", "Of", "OF",
+    "and", "And", "AND",
+]

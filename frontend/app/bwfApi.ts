@@ -1,8 +1,64 @@
 import type { Book, UsjContent, UsjRoot, VerseRange } from './usj'
 
-export type BookResponse = UsjRoot
+/**
+ * `/v1`
+ */
+export type ApiV1 = {
+  /**
+   * `/bibles`
+   */
+  bibles: BiblesResponse
+  /**
+   * `/short`
+   */
+  short: {
+    /**
+     * `/create?bible={bible}&ref={ref}`
+     */
+    create: ShortCreateResponse
+    /**
+     * `/resolve?type={type}&value={value}`
+     */
+    resolve: ShortResolveResponse
+  }
+  /**
+   * `/bible/{bible}`
+   */
+  bible: {
+    /**
+     * `/book/{book}`
+     */
+    book: BibleBookResponse
+    /**
+     * `/search?term={term}&start={start}&count={count}`
+     */
+    search: BibleSearchResponse
+    /**
+     * `/index
+     */
+    index: BibleIndexResponse
+  }
+}
 
-export type SearchResponse = {
+export type BiblesResponse = {
+  default_bible: string
+  bibles: Record<string, BibleInfo>
+}
+
+export type BibleInfo = {
+  display_name: string | null
+}
+
+export type ShortCreateResponse = {
+  type: 'id' | 'encoded'
+  value: string
+}
+
+export type ShortResolveResponse = BibleReference[]
+
+export type BibleBookResponse = UsjRoot
+
+export type BibleSearchResponse = {
   response_type: 'search_results' | 'scripture_passages'
   search_term: string
   total_results: number
@@ -27,7 +83,7 @@ export type BibleReference = {
   verses: VerseRange
 }
 
-export type HighlightsMap = { [text: string]: GenericRange<number>[] }
+export type HighlightsMap = Record<string, GenericRange<number>[]>
 
 export type GenericRange<T> = {
   start: T
@@ -67,6 +123,6 @@ export type ParseReferenceError =
       verses: [number, number]
     }
 
-export type IndexResponse = {
-  words: { [word: string]: number }
+export type BibleIndexResponse = {
+  words: Record<string, number>
 }

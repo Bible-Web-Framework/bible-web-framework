@@ -1,9 +1,10 @@
+use crate::bible_data::BibleData;
 use crate::book_data::Book;
-use crate::config::{BibleConfig, BibleIndexLock};
 use crate::index::BibleIndex;
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::{UsjContent, UsjRoot};
 use charabia::Tokenize;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
@@ -45,10 +46,9 @@ pub fn search_bible(
     term: String,
     search_start: usize,
     search_max_count: usize,
-    config: &BibleConfig,
-    index: &BibleIndexLock,
+    bible: &BibleData,
 ) -> SearchResponse {
-    let references = parse_references(&term, &config.book_parse_options());
+    let references = parse_references(&term, &bible.book_parse_options());
     if references
         .iter()
         .all(|r| matches!(r, Err(e) if e.is_syntax()))
@@ -58,8 +58,8 @@ pub fn search_bible(
             &term,
             search_start,
             search_max_count,
-            &config.us.files,
-            &index.read().unwrap(),
+            &bible.files,
+            &bible.index.read(),
         );
         tracing::debug!(
             "Search for \"{term}\" (max {search_max_count} results) took {:?}",
@@ -80,11 +80,8 @@ pub fn search_bible(
                 .into_iter()
                 .map(|x| match x {
                     Ok(reference) => {
-                        let usj = config
-                            .us
-                            .files
-                            .get(&reference.book)
-                            .map(UsjContent::unwrap_root);
+                        let usj = bible.files.get(&reference.book);
+                        let usj = usj.as_deref().map(UsjContent::unwrap_root);
                         SearchResponseResult::ReferenceContent {
                             reference,
                             translated_book_name: get_translated_book_name(usj),
@@ -113,7 +110,7 @@ fn search_for_terms(
     terms: &str,
     start: usize,
     max_count: usize,
-    usjs: &HashMap<Book, UsjContent>,
+    usjs: &DashMap<Book, UsjContent>,
     index: &BibleIndex,
 ) -> (usize, Vec<SearchResponseResult>) {
     let mut result: BTreeMap<_, Vec<_>> = BTreeMap::new();
@@ -155,7 +152,7 @@ fn search_for_terms(
             .map(|(reference, locations)| {
                 let mut highlights: HashMap<_, Vec<_>> = HashMap::new();
                 let usj = usjs.get(&reference.book);
-                if let Some(usj) = usj {
+                if let Some(usj) = &usj {
                     for location in locations {
                         if let Some(text) = location.resolve_text_section(usj) {
                             highlights
@@ -165,7 +162,7 @@ fn search_for_terms(
                         }
                     }
                 }
-                let usj = usj.map(UsjContent::unwrap_root);
+                let usj = usj.as_deref().map(UsjContent::unwrap_root);
                 SearchResponseResult::ReferenceContent {
                     reference,
                     translated_book_name: get_translated_book_name(usj),
