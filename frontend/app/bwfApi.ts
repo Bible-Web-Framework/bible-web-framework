@@ -1,35 +1,60 @@
 import type { Book, UsjContent, UsjRoot, VerseRange } from './usj'
 
 /**
- * `/v1/bibles`
+ * `/v1`
  */
+export type ApiV1 = {
+  /**
+   * `/bibles`
+   */
+  bibles: BiblesResponse
+  /**
+   * `/short`
+   */
+  short: {
+    /**
+     * `/create?bible={bible}&ref={ref}`
+     */
+    create: ShortCreateResponse
+    /**
+     * `/resolve?type={type}&value={value}`
+     */
+    resolve: ShortResolveResponse
+  }
+  /**
+   * `/bible/{bible}`
+   */
+  bible: {
+    /**
+     * `/book/{book}`
+     */
+    book: BibleBookResponse
+    /**
+     * `/search?term={term}&start={start}&count={count}`
+     */
+    search: BibleSearchResponse
+    /**
+     * `/index
+     */
+    index: BibleIndexResponse
+  }
+}
+
 export type BiblesResponse = {
-  bibles: { [id: string]: BibleInfo }
+  bibles: Record<string, BibleInfo>
 }
 
 export type BibleInfo = Record<string, never>
 
-/**
- * `/v1/short/create?bible={bible}&ref={ref}`
- */
 export type ShortCreateResponse = {
   type: 'id' | 'encoded'
   value: string
 }
 
-/**
- * `/v1/short/resolve?type={type}&value={value}`
- */
 export type ShortResolveResponse = BibleReference[]
 
-/**
- * `/v1/bible/{bible}/book/{book}`
- */
 export type BibleBookResponse = UsjRoot
 
-/**
- * `/v1/bible/{bible}/search?term={term}&start={start}&count={count}`
- */
 export type BibleSearchResponse = {
   response_type: 'search_results' | 'scripture_passages'
   search_term: string
@@ -55,7 +80,7 @@ export type BibleReference = {
   verses: VerseRange
 }
 
-export type HighlightsMap = { [text: string]: GenericRange<number>[] }
+export type HighlightsMap = Record<string, GenericRange<number>[]>
 
 export type GenericRange<T> = {
   start: T
@@ -95,9 +120,6 @@ export type ParseReferenceError =
       verses: [number, number]
     }
 
-/**
- * `/v1/bible/{bible}/index
- */
 export type BibleIndexResponse = {
-  words: { [word: string]: number }
+  words: Record<string, number>
 }
