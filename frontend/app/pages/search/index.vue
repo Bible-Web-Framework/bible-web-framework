@@ -8,9 +8,7 @@ const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
 
 const route = useRoute()
 const query = ref((route.query.q || '').toString())
-const bible = ref(
-  (route.query.bible || Object.keys(biblesData.value?.bibles || [])[0] || '').toString(),
-)
+const bible = ref((route.query.bible || biblesData.value?.default_bible || '').toString())
 const page = ref(Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1))
 const resultsPerPage = ref(
   Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),

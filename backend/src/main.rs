@@ -79,7 +79,10 @@ async fn real_main() -> Result<(), ServerError> {
     tracing::debug!("Debug logging is enabled");
 
     let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
-    let bible_data = web::Data::new(MultiBibleData::load(bibles_dir.clone())?);
+    let bible_data = web::Data::new(MultiBibleData::load(
+        bibles_dir.clone(),
+        var_str("DEFAULT_BIBLE")?,
+    )?);
 
     let usj_watcher = {
         let bible_data = bible_data.clone();

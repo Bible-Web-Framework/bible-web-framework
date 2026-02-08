@@ -35,6 +35,7 @@ use zip::result::ZipError;
 
 pub struct MultiBibleData {
     pub root_dir: PathBuf,
+    pub default_bible: String,
     pub bibles: DashMap<Cow<'static, str>, BibleData>,
     file_change_active: ExclusiveMutex,
 }
@@ -66,9 +67,10 @@ pub struct SearchConfig {
 }
 
 impl MultiBibleData {
-    pub fn load(bibles_dir: PathBuf) -> ConfigResult<Self> {
+    pub fn load(bibles_dir: PathBuf, default_bible: String) -> ConfigResult<Self> {
         let result = Self {
             root_dir: bibles_dir,
+            default_bible,
             bibles: DashMap::new(),
             file_change_active: ExclusiveMutex::default(),
         };
@@ -86,7 +88,6 @@ impl MultiBibleData {
             .ok_or_else(|| ApiError::UnknownBible(bible.into_owned()))
     }
 
-    // TODO: Handle config file edits too
     pub fn handle_file_change(&self, mut event: notify::Event) -> ConfigResult<()> {
         if event.need_rescan() {
             tracing::info!("File watcher requested full rescan. Reloading everything.");

@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BiblesResponse {
+    pub default_bible: String,
     pub bibles: BTreeMap<String, BiblesResponseData>,
 }
 
@@ -17,6 +18,7 @@ pub struct BiblesResponseData {
 #[get("/bibles")]
 pub async fn bibles(bibles: web::Data<MultiBibleData>) -> ApiResult<web::Json<BiblesResponse>> {
     Ok(web::Json(BiblesResponse {
+        default_bible: bibles.default_bible.clone(),
         bibles: bibles
             .bibles
             .iter()

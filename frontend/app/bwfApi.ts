@@ -41,6 +41,7 @@ export type ApiV1 = {
 }
 
 export type BiblesResponse = {
+  default_bible: string
   bibles: Record<string, BibleInfo>
 }
 
