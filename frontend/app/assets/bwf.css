@@ -7,7 +7,7 @@
   font-weight: bold;
 }
 
-.chapter-number {
+.c {
   font-size: 200%;
   margin-right: 0.2em;
 
@@ -16,9 +16,13 @@
   }
 }
 
-.verse-number {
+.v {
   vertical-align: 35%;
   font-size: 75%;
   margin-right: 0.2em;
   font-weight: bold;
+}
+
+.p {
+  text-indent: 1em;
 }

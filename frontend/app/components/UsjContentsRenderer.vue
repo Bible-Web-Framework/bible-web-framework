@@ -40,13 +40,20 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
     <RenderWithHighlight v-if="typeof content === 'string'" :text="content" suffix=" " />
-    <span v-else-if="content.type === 'chapter'" class="chapter-number">{{ content.number }}</span>
-    <span v-else-if="content.type === 'verse'" class="verse-number">{{ content.number }}</span>
+    <span v-else-if="content.type === 'chapter'" class="c">{{ content.number }}</span>
+    <span v-else-if="content.type === 'verse'" class="v">{{ content.number }}</span>
     <template v-else-if="content.type === 'para'">
       <!-- TODO: Implement \ip when an example is found -->
       <!-- TODO: Implement Titles and Sections -->
       <!-- #region Body Paragraphs -->
-      <p v-if="content.marker === 'p' || (content.marker === 'm' && content.content)">
+      <p v-if="content.marker === 'p'" class="p">
+        <UsjContentsRenderer
+          v-if="content.content"
+          :contents="content.content"
+          :highlights="highlights"
+        />
+      </p>
+      <p v-else-if="content.marker === 'm'" class="m">
         <UsjContentsRenderer
           v-if="content.content"
           :contents="content.content"
