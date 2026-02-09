@@ -311,7 +311,7 @@ impl MultiBibleData {
                     if let Some((book, _)) = bible.sources.write().remove_by_right(&*inside_path) {
                         bible.files.remove(&book);
                         tracing::info!(
-                            "Removed book {book} from {bible_id} source from {}",
+                            "Removed book {book} from {bible_id} sourced from {}",
                             path.display()
                         );
                         bible.update_index(ReindexType::Unindex(book));
