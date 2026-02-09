@@ -1,4 +1,5 @@
 import type { books } from './books_data.js'
+import { excelColumnName } from './utils.js'
 
 export type UsjRoot = {
   version: string
@@ -172,6 +173,7 @@ export type UsjContent =
     } & AttributesMap)
   | {
       type: 'note'
+      content: ParaContent[]
       marker: 'f' | 'fe' | 'ef' | 'x' | 'ex'
       caller: '+' | '-' | string
       category: string | null
@@ -182,6 +184,11 @@ export type UsjContent =
     }
   | {
       type: 'table:row'
+      marker: 'tr'
+      content: UsjContent[]
+    }
+  | {
+      type: 'table:cell'
       marker:
         | `th${number}`
         | `thr${number}`
@@ -189,11 +196,6 @@ export type UsjContent =
         | `tc${number}`
         | `tcr${number}`
         | `tcc${number}`
-      content: UsjContent[]
-    }
-  | {
-      type: 'table:cell'
-      marker: 'string // TODO'
       content: ParaContent[]
       align: 'start' | 'center' | 'end'
     }
@@ -222,3 +224,34 @@ export type Book = {
 export type VerseRange = `${number}-${number}`
 
 export type AttributesMap = { [attribute: string]: string }
+
+export function walkUsj(elements: ParaContent[], handler: (element: UsjContent) => boolean) {
+  for (const element of elements) {
+    if (typeof element === 'string') continue
+    if (!handler(element)) continue
+
+    switch (element.type) {
+      case 'USJ':
+      case 'para':
+      case 'ms':
+      case 'note':
+      case 'table':
+      case 'table:row':
+      case 'table:cell':
+      case 'sidebar':
+        if (element.content) {
+          walkUsj(element.content, handler)
+        }
+    }
+  }
+}
+
+export function normalizeNoteCallers(elements: ParaContent[], startId: number = 0) {
+  walkUsj(elements, (element) => {
+    if (element.type === 'note' && element.caller === '+') {
+      element.caller = excelColumnName(++startId)
+    }
+    return true
+  })
+  return startId
+}

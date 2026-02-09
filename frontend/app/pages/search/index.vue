@@ -1,5 +1,8 @@
 <script lang="ts" setup>
+import type { FunctionalComponent, VNode } from 'vue'
 import type { ApiV1 } from '~/bwfApi'
+import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
+import { normalizeNoteCallers, walkUsj, type ParaContent } from '~/usj'
 
 const config = useRuntimeConfig()
 const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
@@ -7,29 +10,50 @@ const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
 })
 
 const route = useRoute()
-const query = ref((route.query.q || '').toString())
 const bible = ref((route.query.bible || biblesData.value?.default_bible || '').toString())
+const query = ref((route.query.q || '').toString())
 const page = ref(Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1))
 const resultsPerPage = ref(
   Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),
 )
 
 const loadingIndicator = useLoadingIndicator()
-const { data: searchResults } = await useFetch<ApiV1['bible']['search']>(
-  () => `/v1/bible/${bible.value}/search`,
+const { data: searchData } = await useAsyncData(
+  'searchResults',
+  async (_nuxtApp, { signal }) => {
+    const response = await $fetch<ApiV1['bible']['search']>(`/v1/bible/${bible.value}/search`, {
+      baseURL: config.public.apiRootUrl,
+      query: {
+        term: query.value,
+        start: (page.value - 1) * resultsPerPage.value,
+        count: resultsPerPage.value,
+      },
+      signal,
+      onRequest: () => loadingIndicator.start(),
+      onRequestError: () => loadingIndicator.finish({ error: true }),
+      onResponse: () => {
+        loadingIndicator.finish()
+      },
+      onResponseError: () => loadingIndicator.finish({ error: true }),
+    })
+
+    let noteId = 0
+    for (const reference of response.references) {
+      if ('content' in reference && reference.content) {
+        noteId = normalizeNoteCallers(reference.content, noteId)
+      }
+    }
+
+    return {
+      results: response,
+      noteCount: noteId,
+    }
+  },
   {
-    baseURL: config.public.apiRootUrl,
-    query: {
-      term: query,
-      start: computed(() => (page.value - 1) * resultsPerPage.value),
-      count: resultsPerPage,
-    },
-    onRequest: () => loadingIndicator.start(),
-    onRequestError: () => loadingIndicator.finish({ error: true }),
-    onResponse: () => loadingIndicator.finish(),
-    onResponseError: () => loadingIndicator.finish({ error: true }),
+    watch: [bible, query, page, resultsPerPage],
   },
 )
+const searchResults = computed(() => searchData.value?.results)
 
 const pageCount = computed(() => {
   if (!searchResults.value || searchResults.value.response_type !== 'search_results') {
@@ -57,6 +81,31 @@ watch(resultsPerPage, (newCount, oldCount) => {
   const oldStart = (page.value - 1) * oldCount
   page.value = Math.floor(oldStart / newCount) + 1
 })
+
+const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
+  const notes: VNode[] = []
+  walkUsj(contents, (element) => {
+    if (element.type !== 'note') {
+      return true
+    }
+    notes.push(
+      h('div', { class: 'note-contents' }, [
+        h(
+          'a',
+          {
+            class: 'f',
+            name: `note-contents-${element.caller}`,
+            href: `#note-source-${element.caller}`,
+          },
+          [element.caller],
+        ),
+        h(UsjContentsRenderer, { contents: element.content }),
+      ]),
+    )
+    return false
+  })
+  return notes
+}
 </script>
 
 <template>
@@ -109,6 +158,18 @@ watch(resultsPerPage, (newCount, oldCount) => {
             </p>
           </template>
           <td v-else class="error">{{ reference.details }}</td>
+        </template>
+        <template v-if="searchData?.noteCount">
+          <hr />
+          <template
+            v-for="(reference, referenceIndex) in searchResults.references"
+            :key="referenceIndex"
+          >
+            <NotesRenderer
+              v-if="'content' in reference && reference.content"
+              :contents="reference.content"
+            />
+          </template>
         </template>
       </template>
       <template v-else-if="searchResults.search_term">

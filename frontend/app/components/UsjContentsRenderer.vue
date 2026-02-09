@@ -62,6 +62,37 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       </p>
       <!-- #endregion -->
     </template>
+    <template v-else-if="content.type === 'char'">
+      <!-- TODO: Implement Text Features -->
+      <!-- TODO: Implement Text Formatting -->
+      <!-- TODO: Implement Breaks -->
+      <!-- TODO: Implement Introductions -->
+      <!-- TODO: Implement Poetry -->
+      <!-- TODO: Implement Lists -->
+      <!-- TODO: Implement Tables -->
+      <!-- #region Notes -->
+      <!-- #region Footnotes -->
+      <span v-if="content.marker === 'fr'" class="fr">
+        <UsjContentsRenderer :contents="content.content" :highlights="highlights" />
+      </span>
+      <span v-else-if="content.marker === 'ft'" class="ft">
+        <UsjContentsRenderer :contents="content.content" :highlights="highlights" />
+      </span>
+      <!-- #endregion -->
+      <!-- #endregion -->
+    </template>
+    <!-- TODO: Implement Milestones -->
+    <template v-else-if="content.type === 'note' && !highlights">
+      <!-- #region Footnotes -->
+      <a
+        v-if="content.marker === 'f' && content.caller !== '-'"
+        class="note-source f"
+        :name="`note-source-${content.caller}`"
+        :href="`#note-contents-${content.caller}`"
+        >{{ content.caller }}</a
+      >
+      <!-- #endregion -->
+    </template>
   </template>
 </template>
 
