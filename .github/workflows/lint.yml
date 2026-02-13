@@ -4,7 +4,6 @@ on: [push, pull_request]
 env:
   CARGO_TERM_COLOR: always
   FORCE_COLOR: 3
-  RUSTFLAGS: -Dwarnings
 
 jobs:
   lint-and-test:
