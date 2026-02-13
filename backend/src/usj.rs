@@ -308,8 +308,8 @@ impl UsjContent {
     }
 
     pub fn is_title_para(&self) -> bool {
-        const REGEX: ere::Regex =
-            compile_regex!("mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?");
+        const REGEX: ere::Regex<2> =
+            compile_regex!("^(mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?)$");
         matches!(&self, Self::Paragraph { marker, .. } if REGEX.test(marker))
     }
 }

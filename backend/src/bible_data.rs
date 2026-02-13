@@ -8,6 +8,7 @@ use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, Entry};
+use ere::{Regex, compile_regex};
 use fst::Streamer;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
 use notify_debouncer_full::notify;
@@ -538,6 +539,9 @@ impl BibleData {
         filename: &str,
         reader: Result<impl Read, impl Into<BibleDataError>>,
     ) -> Result<Option<LoadAction>, BibleDataError> {
+        const IGNORED_EXTENSIONS: Regex<3> =
+            compile_regex!("^(a?png|avif|gif|jpe?g|jfif|pjp(eg)?|svg|webp)$");
+
         if filename == "bible.toml" {
             return Ok(Some(LoadAction::Config(
                 reader
@@ -595,8 +599,9 @@ impl BibleData {
                     }
                     Some(LoadAction::Book(usj.usj))
                 }
+                Some(ext) if IGNORED_EXTENSIONS.test(ext) => None,
                 Some(_) | None => {
-                    tracing::warn!("Found non-USFM/USJ file {}{filename}", format_source!(self));
+                    tracing::warn!("Found unknown file {}{filename}", format_source!(self));
                     None
                 }
             },
