@@ -18,6 +18,7 @@ use tracing_subscriber::filter::LevelFilter;
 
 mod api;
 mod bible_data;
+mod book_category;
 mod book_data;
 mod index;
 mod reference;
@@ -52,6 +53,7 @@ pub enum ServerError {
 
 #[actix_web::main]
 async fn main() -> ExitCode {
+    std::env::set_current_dir(r"C:\Users\josia\bible-web-framework\backend").unwrap();
     match real_main().await {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {

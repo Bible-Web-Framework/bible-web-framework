@@ -398,9 +398,11 @@ dependencies = [
  "bimap",
  "censor",
  "charabia",
+ "constcat",
  "dashmap",
  "dotenvy",
  "either",
+ "enumset",
  "ere",
  "fst",
  "hashlink 0.11.0",
@@ -415,6 +417,7 @@ dependencies = [
  "phf",
  "phf_codegen",
  "phf_shared",
+ "prefix_tree_map",
  "rayon",
  "rustrict",
  "serde",
@@ -426,6 +429,7 @@ dependencies = [
  "smallvec",
  "sqlx",
  "string-interner",
+ "strum",
  "subslice-offset",
  "sync_file",
  "thiserror 2.0.18",
@@ -653,6 +657,12 @@ name = "constant_time_eq"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+
+[[package]]
+name = "constcat"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "136d3e02915a2cea4d74caa8681e2d44b1c3254bdbf17d11d41d587ff858832c"
 
 [[package]]
 name = "cookie"
@@ -1089,6 +1099,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1cc3c5651fb62ab8aa3103998dade57efdd028544bd300516baa31840c252a83"
 dependencies = [
  "encoding_rs",
+]
+
+[[package]]
+name = "enumset"
+version = "1.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25b07a8dfbbbfc0064c0a6bdf9edcf966de6b1c33ce344bdeca3b41615452634"
+dependencies = [
+ "enumset_derive",
+ "serde",
+]
+
+[[package]]
+name = "enumset_derive"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f43e744e4ea338060faee68ed933e46e722fb7f3617e722a5772d7e856d8b3ce"
+dependencies = [
+ "darling 0.21.3",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.108",
 ]
 
 [[package]]
@@ -2711,6 +2743,12 @@ checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
 ]
+
+[[package]]
+name = "prefix_tree_map"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff18d4689013a9426f91537e79fcc8ccdb1b8f595a42b510fcbb7687e96f71da"
 
 [[package]]
 name = "proc-macro-error"

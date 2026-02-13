@@ -8,6 +8,7 @@ use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, Entry};
+use enumset::EnumSet;
 use ere::{Regex, compile_regex};
 use fst::Streamer;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
@@ -17,6 +18,7 @@ use notify_debouncer_full::notify::event::{
     CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
 };
 use parking_lot::RwLock;
+use prefix_tree_map::{PrefixTreeMap, PrefixTreeMapBuilder};
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use smallvec::smallvec;
 use std::borrow::Cow;
@@ -54,17 +56,35 @@ pub struct BibleData {
     full_reload_active: ExclusiveMutex,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BibleConfig {
     pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
+    pub footnotes: PrefixTreeMap<String, (), Box<[FootnotesConfig]>>,
+}
+
+impl Default for BibleConfig {
+    fn default() -> Self {
+        Self {
+            display_name: None,
+            book_aliases: HashMap::new(),
+            search: SearchConfig::default(),
+            footnotes: PrefixTreeMapBuilder::new().build(),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct SearchConfig {
-    pub languages: Option<Vec<Language>>,
-    pub ignored_words: Option<fst::Set<Vec<u8>>>,
+    pub languages: Option<Box<[Language]>>,
+    pub ignored_words: Option<fst::Set<Box<[u8]>>>,
+}
+
+#[derive(Debug)]
+pub struct FootnotesConfig {
+    pub books: EnumSet<Book>,
+    pub footnote: UsjContent,
 }
 
 impl MultiBibleData {
@@ -724,17 +744,24 @@ pub enum BibleDataError {
     Json(#[from] serde_json::Error),
     #[error("Error parsing USFM: {0}")]
     Usfm(#[from] FatalUsfmError),
+    #[error("Injected footnote has multiple ({0}) paragraph elements")]
+    InjectedFootnoteLength(usize),
+    #[error("Injected footnote is not a note (was a {0})")]
+    InjectedFootnoteNotNote(String),
 }
 
 pub type ConfigResult<T> = Result<T, BibleDataError>;
 
 mod unresolved {
+    use crate::book_category::BooksOrBookCategory;
     use crate::book_data::Book;
-    use crate::utils::LanguageAsCode;
+    use crate::usj::UsjContent;
+    use crate::utils::{FootnoteAsUsfm, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
     use charabia::{Language, Normalize, Token};
     use itertools::Itertools;
     use permutate::Permutator;
+    use prefix_tree_map::PrefixTreeMapBuilder;
     use serde::Deserialize;
     use serde_with::serde_as;
     use std::borrow::Cow;
@@ -749,16 +776,8 @@ mod unresolved {
         book_aliases: AliasesConfig,
         #[serde(default)]
         search: SearchConfig,
-    }
-
-    #[serde_as]
-    #[derive(Debug, Default, Deserialize)]
-    pub struct SearchConfig {
-        #[serde_as(as = "Option<Vec<LanguageAsCode>>")]
         #[serde(default)]
-        pub languages: Option<Vec<Language>>,
-        #[serde(default)]
-        pub ignored_words: Option<Vec<String>>,
+        footnotes: HashMap<String, Vec<FootnotesConfig>>,
     }
 
     #[derive(Debug, Default, Deserialize)]
@@ -766,6 +785,24 @@ mod unresolved {
         #[serde(default)]
         common: HashMap<String, Vec<String>>,
         books: HashMap<Book, Vec<BookAlias>>,
+    }
+
+    #[serde_as]
+    #[derive(Debug, Default, Deserialize)]
+    struct SearchConfig {
+        #[serde_as(as = "Option<Vec<LanguageAsCode>>")]
+        #[serde(default)]
+        languages: Option<Vec<Language>>,
+        #[serde(default)]
+        ignored_words: Option<Vec<String>>,
+    }
+
+    #[serde_as]
+    #[derive(Debug, Deserialize)]
+    struct FootnotesConfig {
+        books: BooksOrBookCategory,
+        #[serde_as(as = "FootnoteAsUsfm")]
+        footnote: UsjContent,
     }
 
     #[derive(Debug, Deserialize)]
@@ -793,10 +830,22 @@ mod unresolved {
                 }
             }
 
+            let search = super::SearchConfig::from(val.search);
+
+            let tokenizer = search.create_tokenizer();
+            let mut footnotes_builder = PrefixTreeMapBuilder::new();
+            for (key, footnotes) in val.footnotes {
+                footnotes_builder.insert_exact(
+                    tokenizer.tokenize(&key).map(|t| t.lemma.into_owned()),
+                    footnotes.into_iter().map(Into::into).collect(),
+                );
+            }
+
             super::BibleConfig {
                 display_name: val.display_name,
                 book_aliases,
-                search: val.search.into(),
+                search,
+                footnotes: footnotes_builder.build(),
             }
         }
     }
@@ -804,7 +853,7 @@ mod unresolved {
     impl From<SearchConfig> for super::SearchConfig {
         fn from(val: SearchConfig) -> Self {
             super::SearchConfig {
-                languages: val.languages,
+                languages: val.languages.map(Vec::into_boxed_slice),
                 ignored_words: val.ignored_words.map(|words| {
                     fst::Set::from_iter(
                         words
@@ -822,7 +871,18 @@ mod unresolved {
                             .dedup(),
                     )
                     .unwrap()
+                    .map_data(Vec::into_boxed_slice)
+                    .unwrap()
                 }),
+            }
+        }
+    }
+
+    impl From<FootnotesConfig> for super::FootnotesConfig {
+        fn from(value: FootnotesConfig) -> Self {
+            super::FootnotesConfig {
+                books: value.books.into(),
+                footnote: value.footnote,
             }
         }
     }

@@ -12,3 +12,7 @@ ignored_words = [
     "of", "Of", "OF",
     "and", "And", "AND",
 ]
+
+[[footnotes.Allah]]
+books = "OT"
+footnote = "\\f +\\ft This word shows up as \\nd Lord\\nd* in most English translation\\f*"

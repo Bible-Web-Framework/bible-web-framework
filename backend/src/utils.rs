@@ -1,8 +1,10 @@
+use crate::usj::{UsjContent, load_footnote_from_usfm};
 use charabia::Language;
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_cow::CowStr;
 use serde_with::{DeserializeAs, SerializeAs};
+use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
@@ -150,5 +152,26 @@ pub struct PanicBarrierLock<'a>(&'a AtomicBool);
 impl Drop for PanicBarrierLock<'_> {
     fn drop(&mut self) {
         self.0.store(false, Ordering::Release);
+    }
+}
+
+// TODO: Move the SerializeAs and DeserializeAs implementations into their own module
+pub struct FootnoteAsUsfm;
+
+impl<'de> DeserializeAs<'de, UsjContent> for FootnoteAsUsfm {
+    fn deserialize_as<D>(deserializer: D) -> Result<UsjContent, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let footnote = <CowStr>::deserialize(deserializer)?.0;
+        let loaded = load_footnote_from_usfm(&footnote).map_err(Error::custom)?;
+        if !loaded.diagnostics.is_empty() {
+            let mut error = String::from("Invalid footnote:");
+            for diag in loaded.diagnostics {
+                let _ = write!(error, "\n  - {}", diag.message);
+            }
+            return Err(Error::custom(error));
+        }
+        Ok(loaded.usj)
     }
 }

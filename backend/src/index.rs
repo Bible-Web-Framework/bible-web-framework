@@ -232,6 +232,7 @@ impl BookIndexer {
             }
 
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::TableCell { content, .. } => {
                 if !usj.is_title_para() {
@@ -242,13 +243,6 @@ impl BookIndexer {
                 }
             }
 
-            UsjContent::Character { content, .. } => {
-                if let Some(content) = content {
-                    self.current_path.push(0);
-                    self.index_text(content, tokenizer);
-                    self.current_path.remove(self.current_path.len() - 1);
-                }
-            }
             UsjContent::Chapter { number, .. } => {
                 self.current_chapter = Some(*number);
                 self.current_verses = None;

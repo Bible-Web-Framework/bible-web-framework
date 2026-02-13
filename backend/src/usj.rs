@@ -34,7 +34,7 @@ impl Display for UsjBookInfo {
 
 #[serde_as]
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UsjContent {
     #[serde(rename = "USJ")]
@@ -50,8 +50,7 @@ pub enum UsjContent {
     #[serde(rename = "char")]
     Character {
         marker: String,
-        #[serde(with = "option_as_vec")]
-        content: Option<String>,
+        content: Vec<ParaContent>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -140,7 +139,7 @@ pub enum UsjContent {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ParaContent {
     Usj(UsjContent),
@@ -218,12 +217,12 @@ impl UsjContent {
     pub fn push_text_content(&mut self, text: String) -> bool {
         match self {
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
 
-            UsjContent::Character { content, .. }
-            | UsjContent::Book { content, .. }
+            UsjContent::Book { content, .. }
             | UsjContent::Figure { content, .. }
             | UsjContent::Reference { content, .. }
                 if content.is_none() =>
@@ -243,6 +242,7 @@ impl UsjContent {
             | UsjContent::TableRow { content, .. } => content.push(new_content),
 
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
@@ -260,6 +260,7 @@ impl UsjContent {
             | UsjContent::Sidebar { content, .. } => Either::Left(content.get(index)?),
 
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => match content.get(index)? {
@@ -267,8 +268,7 @@ impl UsjContent {
                 ParaContent::Plain(text) => Either::Right(text),
             },
 
-            UsjContent::Character { content, .. }
-            | UsjContent::Book { content, .. }
+            UsjContent::Book { content, .. }
             | UsjContent::Figure { content, .. }
             | UsjContent::Reference { content, .. } => {
                 if index == 0 {
@@ -314,7 +314,7 @@ impl UsjContent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UsjRoot {
     pub version: String,
     pub content: Vec<UsjContent>,
@@ -544,6 +544,7 @@ pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, BibleDataError> {
     Ok(serde_json::from_reader(reader)?)
 }
 
+#[derive(Debug)]
 pub struct LoadedUsjFromUsfm {
     pub usj: UsjContent,
     pub source: String,
@@ -562,4 +563,85 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
         source: parser.usfm,
         diagnostics: all_diags,
     })
+}
+
+pub fn load_footnote_from_usfm(footnote: &str) -> Result<LoadedUsjFromUsfm, BibleDataError> {
+    let mut base = load_usj_from_usfm(format!("\\id GEN\n\\c 1\n{footnote}"))?;
+    base.usj = match base.usj {
+        UsjContent::Root(root) => {
+            if root.content.len() > 3 {
+                return Err(BibleDataError::InjectedFootnoteLength(
+                    root.content.len() - 2,
+                ));
+            }
+            let element = root.content.into_iter().nth(2).unwrap();
+            if !matches!(element, UsjContent::Note { .. }) {
+                return Err(BibleDataError::InjectedFootnoteNotNote(
+                    element.marker_or_type().to_string(),
+                ));
+            }
+            element
+        }
+        _ => unreachable!(),
+    };
+    Ok(base)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::bible_data::BibleDataError;
+    use crate::usj::{AttributesMap, NoteCaller, ParaContent, UsjContent, load_footnote_from_usfm};
+    use std::error::Error;
+
+    #[test]
+    fn test_load_footnote() -> Result<(), Box<dyn Error>> {
+        let usfm = "\\f +\\ft Test footnote \\nd Lord\\nd*\\f*";
+        let usj = UsjContent::Note {
+            marker: "f".to_string(),
+            caller: NoteCaller::Generated,
+            category: None,
+            content: vec![ParaContent::Usj(UsjContent::Character {
+                marker: "ft".to_string(),
+                content: vec![
+                    ParaContent::Plain("Test footnote ".to_string()),
+                    ParaContent::Usj(UsjContent::Character {
+                        marker: "nd".to_string(),
+                        content: vec![ParaContent::Plain("Lord".to_string())],
+                        attributes: AttributesMap::default(),
+                    }),
+                ],
+                attributes: AttributesMap::default(),
+            })],
+        };
+
+        let converted_usj = load_footnote_from_usfm(usfm)?;
+        assert!(
+            converted_usj.diagnostics.is_empty(),
+            "{:#?}",
+            converted_usj.diagnostics
+        );
+        assert_eq!(converted_usj.usj, usj);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_footnote_extra_data() {
+        let usfm = "\\f +\\ft Test footnote\\f*\n\\b\n\\p Hello";
+        let usj = load_footnote_from_usfm(usfm);
+        assert!(
+            matches!(&usj, Err(BibleDataError::InjectedFootnoteLength(3))),
+            "{usj:#?}",
+        );
+    }
+
+    #[test]
+    fn test_load_footnote_not_note() {
+        let usfm = "\\p Hello, world!";
+        let usj = load_footnote_from_usfm(usfm);
+        assert!(
+            matches!(&usj, Err(BibleDataError::InjectedFootnoteNotNote(marker)) if marker == "p"),
+            "{usj:#?}",
+        );
+    }
 }

@@ -145,7 +145,7 @@ export type UsjContent =
         | 'xot'
         | 'xnt'
         | 'xdc'
-      content: [string] | []
+      content: ParaContent[]
     } & AttributesMap)
   | {
       type: 'book'
@@ -225,14 +225,15 @@ export type VerseRange = `${number}-${number}`
 
 export type AttributesMap = { [attribute: string]: string }
 
-export function walkUsj(elements: ParaContent[], handler: (element: UsjContent) => boolean) {
+export function walkUsj(elements: ParaContent[], handler: (element: ParaContent) => boolean) {
   for (const element of elements) {
-    if (typeof element === 'string') continue
     if (!handler(element)) continue
+    if (typeof element === 'string') continue
 
     switch (element.type) {
       case 'USJ':
       case 'para':
+      case 'char':
       case 'ms':
       case 'note':
       case 'table':
@@ -248,7 +249,7 @@ export function walkUsj(elements: ParaContent[], handler: (element: UsjContent) 
 
 export function normalizeNoteCallers(elements: ParaContent[], startId: number = 0) {
   walkUsj(elements, (element) => {
-    if (element.type === 'note' && element.caller === '+') {
+    if (typeof element !== 'string' && element.type === 'note' && element.caller === '+') {
       element.caller = excelColumnName(++startId)
     }
     return true

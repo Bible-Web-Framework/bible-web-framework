@@ -602,7 +602,7 @@ fn convert_node_char(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into
 
     let mut character = UsjContent::Character {
         marker: base_style.trim_start_matches(['\\', '+']).to_string(),
-        content: None,
+        content: vec![],
         attributes: AttributesMap::new(),
     };
 
