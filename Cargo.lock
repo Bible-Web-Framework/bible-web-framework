@@ -417,7 +417,6 @@ dependencies = [
  "phf",
  "phf_codegen",
  "phf_shared",
- "prefix_tree_map",
  "rayon",
  "rustrict",
  "serde",
@@ -2770,12 +2769,6 @@ checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
 ]
-
-[[package]]
-name = "prefix_tree_map"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff18d4689013a9426f91537e79fcc8ccdb1b8f595a42b510fcbb7687e96f71da"
 
 [[package]]
 name = "prettyplease"

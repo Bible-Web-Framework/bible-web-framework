@@ -3,7 +3,7 @@ use crate::book_data::{AdditionalAliases, Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
 use crate::usfm_converter::FatalUsfmError;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
-use crate::utils::ExclusiveMutex;
+use crate::utils::{ExclusiveMutex, PrefixTree};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
@@ -18,7 +18,6 @@ use notify_debouncer_full::notify::event::{
     CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
 };
 use parking_lot::RwLock;
-use prefix_tree_map::{PrefixTreeMap, PrefixTreeMapBuilder};
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use smallvec::smallvec;
 use std::borrow::Cow;
@@ -56,23 +55,12 @@ pub struct BibleData {
     full_reload_active: ExclusiveMutex,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BibleConfig {
     pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
-    pub footnotes: PrefixTreeMap<String, (), Box<[FootnotesConfig]>>,
-}
-
-impl Default for BibleConfig {
-    fn default() -> Self {
-        Self {
-            display_name: None,
-            book_aliases: HashMap::new(),
-            search: SearchConfig::default(),
-            footnotes: PrefixTreeMapBuilder::new().build(),
-        }
-    }
+    pub footnotes: PrefixTree<String, Box<[FootnotesConfig]>>,
 }
 
 #[derive(Debug, Default)]
@@ -761,7 +749,6 @@ mod unresolved {
     use charabia::{Language, Normalize, Token};
     use itertools::Itertools;
     use permutate::Permutator;
-    use prefix_tree_map::PrefixTreeMapBuilder;
     use serde::Deserialize;
     use serde_with::serde_as;
     use std::borrow::Cow;
@@ -831,21 +818,25 @@ mod unresolved {
             }
 
             let search = super::SearchConfig::from(val.search);
-
             let tokenizer = search.create_tokenizer();
-            let mut footnotes_builder = PrefixTreeMapBuilder::new();
-            for (key, footnotes) in val.footnotes {
-                footnotes_builder.insert_exact(
-                    tokenizer.tokenize(&key).map(|t| t.lemma.into_owned()),
-                    footnotes.into_iter().map(Into::into).collect(),
-                );
-            }
 
             super::BibleConfig {
                 display_name: val.display_name,
                 book_aliases,
+                footnotes: val
+                    .footnotes
+                    .into_iter()
+                    .map(|(key, footnotes)| {
+                        (
+                            tokenizer
+                                .tokenize(&key)
+                                .map(|t| t.lemma.into_owned())
+                                .collect_vec(),
+                            footnotes.into_iter().map(Into::into).collect(),
+                        )
+                    })
+                    .collect(),
                 search,
-                footnotes: footnotes_builder.build(),
             }
         }
     }
