@@ -1,6 +1,7 @@
 use crate::api::{ApiError, ApiResult};
 use crate::book_data::{AdditionalAliases, Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
+use crate::reference::BibleReference;
 use crate::usfm_converter::FatalUsfmError;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
 use crate::utils::{ExclusiveMutex, PrefixTree};
@@ -8,7 +9,6 @@ use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, Entry};
-use enumset::EnumSet;
 use ere::{Regex, compile_regex};
 use fst::Streamer;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
@@ -18,6 +18,7 @@ use notify_debouncer_full::notify::event::{
     CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
 };
 use parking_lot::RwLock;
+use rangemap::RangeInclusiveMap;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use smallvec::smallvec;
 use std::borrow::Cow;
@@ -60,7 +61,7 @@ pub struct BibleConfig {
     pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
-    pub footnotes: PrefixTree<String, Box<[FootnotesConfig]>>,
+    pub footnotes: PrefixTree<String, RangeInclusiveMap<BibleReference, FootnotesConfig>>,
 }
 
 #[derive(Debug, Default)]
@@ -69,9 +70,8 @@ pub struct SearchConfig {
     pub ignored_words: Option<fst::Set<Box<[u8]>>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FootnotesConfig {
-    pub books: EnumSet<Book>,
     pub footnote: UsjContent,
 }
 
@@ -741,8 +741,8 @@ pub enum BibleDataError {
 pub type ConfigResult<T> = Result<T, BibleDataError>;
 
 mod unresolved {
-    use crate::book_category::BooksOrBookCategory;
     use crate::book_data::Book;
+    use crate::reference::BibleReference;
     use crate::usj::UsjContent;
     use crate::utils::{FootnoteAsUsfm, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
@@ -750,9 +750,10 @@ mod unresolved {
     use itertools::Itertools;
     use permutate::Permutator;
     use serde::Deserialize;
-    use serde_with::serde_as;
+    use serde_with::{DisplayFromStr, serde_as};
     use std::borrow::Cow;
     use std::collections::HashMap;
+    use std::ops::RangeInclusive;
     use unicase::UniCase;
 
     #[derive(Debug, Deserialize)]
@@ -787,9 +788,20 @@ mod unresolved {
     #[serde_as]
     #[derive(Debug, Deserialize)]
     struct FootnotesConfig {
-        books: BooksOrBookCategory,
+        bible_range: BibleRange,
         #[serde_as(as = "FootnoteAsUsfm")]
         footnote: UsjContent,
+    }
+
+    #[serde_as]
+    #[derive(Copy, Clone, Debug, Deserialize)]
+    #[serde(untagged)]
+    enum BibleRange {
+        Simple(#[serde_as(as = "DisplayFromStr")] BibleReference),
+        MultiChapter(
+            #[serde_as(as = "DisplayFromStr")] BibleReference,
+            #[serde_as(as = "DisplayFromStr")] BibleReference,
+        ),
     }
 
     #[derive(Debug, Deserialize)]
@@ -832,7 +844,10 @@ mod unresolved {
                                 .tokenize(&key)
                                 .map(|t| t.lemma.into_owned())
                                 .collect_vec(),
-                            footnotes.into_iter().map(Into::into).collect(),
+                            footnotes
+                                .into_iter()
+                                .map(|footnote| (footnote.bible_range.into(), footnote.into()))
+                                .collect(),
                         )
                     })
                     .collect(),
@@ -872,8 +887,18 @@ mod unresolved {
     impl From<FootnotesConfig> for super::FootnotesConfig {
         fn from(value: FootnotesConfig) -> Self {
             super::FootnotesConfig {
-                books: value.books.into(),
                 footnote: value.footnote,
+            }
+        }
+    }
+
+    impl From<BibleRange> for RangeInclusive<BibleReference> {
+        fn from(value: BibleRange) -> Self {
+            match value {
+                BibleRange::Simple(reference) => reference.split_to_range(),
+                BibleRange::MultiChapter(start, end) => {
+                    *start.split_to_range().start()..=*end.split_to_range().end()
+                }
             }
         }
     }

@@ -119,31 +119,31 @@ const FIRST_APOCRYPHA_ID: Carrier = FIRST_APOCRYPHA as Carrier;
 const FIRST_SPECIAL: Book = Book::FrontMatter;
 const FIRST_SPECIAL_ID: Carrier = FIRST_SPECIAL as Carrier;
 const BOOK_TYPES: &[BookType] = &[
-    /* 0: OT */
+    // 0: OT
     BookType {
         len: FIRST_NEW_TESTAMENT_ID,
         into_carrier: |b| b as Carrier,
         from_carrier: |c| Book::VARIANTS[c as usize],
     },
-    /* 1: NT */
+    // 1: NT
     BookType {
         len: FIRST_APOCRYPHA_ID - FIRST_NEW_TESTAMENT_ID,
         into_carrier: |b| b as Carrier - FIRST_NEW_TESTAMENT_ID,
         from_carrier: |c| Book::VARIANTS[(c + FIRST_NEW_TESTAMENT_ID) as usize],
     },
-    /* 2: OT + NT */
+    // 2: OT + NT
     BookType {
         len: FIRST_APOCRYPHA_ID,
         into_carrier: |b| b as Carrier,
         from_carrier: |c| Book::VARIANTS[c as usize],
     },
-    /* 3: AP */
+    // 3: AP
     BookType {
         len: FIRST_SPECIAL_ID - FIRST_APOCRYPHA_ID,
         into_carrier: |b| b as Carrier - FIRST_APOCRYPHA_ID,
         from_carrier: |c| Book::VARIANTS[(c + FIRST_APOCRYPHA_ID) as usize],
     },
-    /* 4: OT + AP */
+    // 4: OT + AP
     BookType {
         len: FIRST_NEW_TESTAMENT_ID + (FIRST_SPECIAL_ID - FIRST_APOCRYPHA_ID),
         into_carrier: |b| {
@@ -161,7 +161,7 @@ const BOOK_TYPES: &[BookType] = &[
             }
         },
     },
-    /* 5: OT + NT + AP */
+    // 5: OT + NT + AP
     BookType {
         len: FIRST_SPECIAL_ID,
         into_carrier: |b| b as Carrier,
@@ -384,6 +384,7 @@ mod tests {
     };
     use crate::reference_value;
     use itertools::Itertools;
+    use pretty_assertions::assert_eq;
     use unicase::UniCase;
 
     fn encode_references(references: &[BibleReference]) -> Result<String, ReferenceEncodingError> {

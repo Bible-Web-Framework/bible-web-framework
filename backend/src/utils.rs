@@ -296,6 +296,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::utils::PrefixTree;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_construct_tree() {

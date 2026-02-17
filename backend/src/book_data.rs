@@ -171,6 +171,7 @@ impl<'a, F: Fn(Book) -> bool> BookParseOptions for (AdditionalAliases<'a>, F) {
 mod tests {
     use crate::book_data::Book;
     use crate::nz_u8;
+    use pretty_assertions::assert_eq;
     use std::num::NonZeroU8;
 
     fn assert_parse(name: &str, book: Book) {
