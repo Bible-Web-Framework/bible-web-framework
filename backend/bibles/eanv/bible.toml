@@ -14,5 +14,5 @@ ignored_words = [
 ]
 
 [[footnotes.Allah]]
-bible_range = ["Genesis 1:1", "Revelation 22:21"]
+bible_ranges = [["Genesis 1", "Revelation 22"]]
 footnote = "\\f +\\ft This word shows up as \\nd Lord\\nd* in most English translation\\f*"

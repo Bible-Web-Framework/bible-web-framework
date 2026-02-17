@@ -754,6 +754,7 @@ mod unresolved {
     use std::borrow::Cow;
     use std::collections::HashMap;
     use std::ops::RangeInclusive;
+    use std::{iter, mem};
     use unicase::UniCase;
 
     #[derive(Debug, Deserialize)]
@@ -788,7 +789,7 @@ mod unresolved {
     #[serde_as]
     #[derive(Debug, Deserialize)]
     struct FootnotesConfig {
-        bible_range: BibleRange,
+        bible_ranges: Vec<BibleRange>,
         #[serde_as(as = "FootnoteAsUsfm")]
         footnote: UsjContent,
     }
@@ -846,7 +847,13 @@ mod unresolved {
                                 .collect_vec(),
                             footnotes
                                 .into_iter()
-                                .map(|footnote| (footnote.bible_range.into(), footnote.into()))
+                                .flat_map(|mut footnote| {
+                                    let ranges_count = footnote.bible_ranges.len();
+                                    mem::take(&mut footnote.bible_ranges)
+                                        .into_iter()
+                                        .map(Into::into)
+                                        .zip(iter::repeat_n(footnote.into(), ranges_count))
+                                })
                                 .collect(),
                         )
                     })
