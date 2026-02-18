@@ -59,7 +59,7 @@ impl VerseRange {
         self.range().contains(&verse)
     }
 
-    pub fn split_to_range(self) -> RangeInclusive<Self> {
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
         Self::new_single_verse(self.first)..=Self::new_single_verse(self.last)
     }
 

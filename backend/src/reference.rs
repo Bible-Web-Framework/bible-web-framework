@@ -21,7 +21,7 @@ pub struct BibleReference {
 }
 
 impl BibleReference {
-    pub fn split_to_range(self) -> RangeInclusive<Self> {
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
         let split = self.reference.split_to_range();
         Self {
             book: self.book,
@@ -168,7 +168,7 @@ pub struct BookReference {
 }
 
 impl BookReference {
-    pub fn split_to_range(self) -> RangeInclusive<Self> {
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
         let split = self.verses.split_to_range();
         Self {
             chapter: self.chapter,

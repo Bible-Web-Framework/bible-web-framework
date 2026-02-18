@@ -293,6 +293,15 @@ mod test {
     const WHOLE_BIBLE: RangeInclusive<BibleReference> =
         reference_value!(Genesis 1:1)..=reference_value!(Revelation 22:21);
 
+    const FOOTNOTE_ALPHA: &str = "Test footnote alpha";
+    const FOOTNOTE_BRAVO: &str = "Test footnote bravo";
+    const FOOTNOTE_CHARLIE: &str = "Test footnote charlie";
+    const FOOTNOTE_DELTA: &str = "Test footnote delta";
+    const FOOTNOTE_ECHO: &str = "Test footnote echo";
+    const FOOTNOTE_FOXTROT: &str = "Test footnote foxtrot";
+    const FOOTNOTE_GOLF: &str = "Test footnote golf";
+    const FOOTNOTE_HOTEL: &str = "Test footnote hotel";
+
     fn key<const N: usize>(arr: [&str; N]) -> Vec<String> {
         arr.map(str::to_string).into()
     }
@@ -306,8 +315,11 @@ mod test {
         }
     }
 
-    fn footnote(x: &str) -> RangeInclusiveMap<BibleReference, FootnotesConfig> {
-        RangeInclusiveMap::from([(WHOLE_BIBLE, footnote_value(x))])
+    fn footnote(
+        range: RangeInclusive<BibleReference>,
+        x: &str,
+    ) -> RangeInclusiveMap<BibleReference, FootnotesConfig> {
+        RangeInclusiveMap::from([(range, footnote_value(x))])
     }
 
     fn tokens() -> vec::IntoIter<Cow<'static, str>> {
@@ -324,24 +336,24 @@ mod test {
 
     #[test]
     fn test_phrase_finder() {
-        const FOOTNOTE_ALPHA: &str = "Test footnote alpha";
-        const FOOTNOTE_BRAVO: &str = "Test footnote bravo";
-        const FOOTNOTE_CHARLIE: &str = "Test footnote charlie";
-        const FOOTNOTE_DELTA: &str = "Test footnote delta";
-        const FOOTNOTE_ECHO: &str = "Test footnote echo";
-        const FOOTNOTE_FOXTROT: &str = "Test footnote foxtrot";
-        const FOOTNOTE_GOLF: &str = "Test footnote golf";
-        const FOOTNOTE_HOTEL: &str = "Test footnote hotel";
-
         let footnotes_config = FootnotesTree::from([
-            (key(["eiusmod"]), footnote(FOOTNOTE_ALPHA)),
-            (key(["minim", "veniam"]), footnote(FOOTNOTE_BRAVO)),
-            (key(["quis"]), footnote(FOOTNOTE_CHARLIE)),
-            (key(["laborum"]), footnote(FOOTNOTE_DELTA)),
-            (key(["ut"]), footnote(FOOTNOTE_ECHO)),
-            (key(["ut", "enim"]), footnote(FOOTNOTE_FOXTROT)),
-            (key(["quid", "nostrud", "hominem"]), footnote(FOOTNOTE_GOLF)), // Impossible
-            (key(["nostrud", "exercitation"]), footnote(FOOTNOTE_HOTEL)),
+            (key(["eiusmod"]), footnote(WHOLE_BIBLE, FOOTNOTE_ALPHA)),
+            (
+                key(["minim", "veniam"]),
+                footnote(WHOLE_BIBLE, FOOTNOTE_BRAVO),
+            ),
+            (key(["quis"]), footnote(WHOLE_BIBLE, FOOTNOTE_CHARLIE)),
+            (key(["laborum"]), footnote(WHOLE_BIBLE, FOOTNOTE_DELTA)),
+            (key(["ut"]), footnote(WHOLE_BIBLE, FOOTNOTE_ECHO)),
+            (key(["ut", "enim"]), footnote(WHOLE_BIBLE, FOOTNOTE_FOXTROT)),
+            (
+                key(["quid", "nostrud", "hominem"]),
+                footnote(WHOLE_BIBLE, FOOTNOTE_GOLF),
+            ), // Impossible
+            (
+                key(["nostrud", "exercitation"]),
+                footnote(WHOLE_BIBLE, FOOTNOTE_HOTEL),
+            ),
         ]);
 
         let mut remaining_footnotes = HashMultiSet::from_iter([
@@ -393,5 +405,72 @@ mod test {
                 .map(|x| format!("{x:?}"))
                 .join("\n  - ")
         );
+    }
+
+    #[test]
+    fn test_verse_ranges_and_shadow() {
+        const REF_ALPHA: BibleReference = reference_value!(Genesis 1:1);
+        const REF_BETA: BibleReference = reference_value!(Genesis 1:2);
+        const REF_GAMMA: BibleReference = reference_value!(Genesis 1:3);
+        const REF_DELTA: BibleReference = reference_value!(Genesis 1:4);
+        let footnotes_config = FootnotesTree::from([
+            (
+                key(["one"]),
+                footnote(REF_ALPHA..=REF_ALPHA, FOOTNOTE_ALPHA),
+            ),
+            (key(["two"]), footnote(REF_BETA..=REF_BETA, FOOTNOTE_BRAVO)),
+            (
+                key(["three"]),
+                footnote(REF_GAMMA..=REF_DELTA, FOOTNOTE_CHARLIE),
+            ),
+            (
+                key(["three", "four"]),
+                footnote(REF_GAMMA..=REF_GAMMA, FOOTNOTE_DELTA),
+            ),
+        ]);
+
+        let mut finder = PhraseFinder::new(&footnotes_config);
+
+        // "one" should exist, "two" should not
+        finder.reset_to_location(REF_ALPHA);
+        assert_eq!(finder.push("one".into()), None);
+        assert_eq!(
+            finder.push("two".into()),
+            Some(&footnote_value(FOOTNOTE_ALPHA)),
+        );
+        assert_eq!(finder.attempt_finish(), None);
+
+        // "two" should exist, "one" should not
+        finder.reset_to_location(REF_BETA);
+        assert_eq!(finder.push("one".into()), None);
+        assert_eq!(finder.push("two".into()), None);
+        assert_eq!(
+            finder.attempt_finish(),
+            Some(&footnote_value(FOOTNOTE_BRAVO)),
+        );
+
+        // "three" and "three four" should both exist
+        finder.reset_to_location(REF_GAMMA);
+        assert_eq!(finder.push("three".into()), None);
+        assert_eq!(
+            finder.push("three".into()),
+            Some(&footnote_value(FOOTNOTE_CHARLIE)),
+        );
+        assert_eq!(finder.push("four".into()), None);
+        assert_eq!(
+            finder.attempt_finish(),
+            Some(&footnote_value(FOOTNOTE_DELTA)),
+        );
+
+        // "three" should exist, but "three four" should still shadow and prevent "three" from
+        // showing when followed by "four"
+        finder.reset_to_location(REF_DELTA);
+        assert_eq!(finder.push("three".into()), None);
+        assert_eq!(
+            finder.push("three".into()),
+            Some(&footnote_value(FOOTNOTE_CHARLIE)),
+        );
+        assert_eq!(finder.push("four".into()), None);
+        assert_eq!(finder.attempt_finish(), None);
     }
 }
