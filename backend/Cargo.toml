@@ -62,6 +62,7 @@ rangemap = { version = "1.7.1", features = ["serde"] }
 [dev-dependencies]
 censor = "0.3.0"
 cool_asserts = "2.0.4"
+multiset = "0.0.5"
 pretty_assertions = "1.4.1"
 
 [build-dependencies]

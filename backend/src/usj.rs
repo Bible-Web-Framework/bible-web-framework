@@ -34,7 +34,7 @@ impl Display for UsjBookInfo {
 
 #[serde_as]
 #[skip_serializing_none]
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UsjContent {
     #[serde(rename = "USJ")]
@@ -139,14 +139,14 @@ pub enum UsjContent {
     },
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ParaContent {
     Usj(UsjContent),
     Plain(String),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TableCellAlignment {
     Start,
@@ -154,7 +154,7 @@ pub enum TableCellAlignment {
     End,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum NoteCaller {
     #[serde(rename = "+")]
     Generated,
@@ -314,7 +314,7 @@ impl UsjContent {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct UsjRoot {
     pub version: String,
     pub content: Vec<UsjContent>,

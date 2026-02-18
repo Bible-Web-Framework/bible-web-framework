@@ -5,6 +5,7 @@ use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_cow::CowStr;
 use serde_with::{DeserializeAs, SerializeAs};
+use std::borrow::Borrow;
 use std::fmt::Write;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
@@ -183,7 +184,7 @@ impl<'de> DeserializeAs<'de, UsjContent> for FootnoteAsUsfm {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrefixTree<K, V> {
     children: Vec<(K, Self)>,
     value: Option<V>,
@@ -208,24 +209,36 @@ impl<K, V> PrefixTree<K, V>
 where
     K: Ord,
 {
-    pub fn child(&self, k: &K) -> Option<&Self> {
+    pub fn child<KB>(&self, k: KB) -> Option<&Self>
+    where
+        KB: Borrow<K>,
+    {
         self.children
-            .binary_search_by_key(&k, |(key, _)| key)
+            .binary_search_by_key(&k.borrow(), |(key, _)| key)
             .ok()
             .map(|idx| &self.children[idx].1)
     }
 
     #[cfg(test)]
-    pub fn get<'a, I>(&self, k: I) -> Option<&V>
+    pub fn indirect_child<KB, I>(&self, k: I) -> Option<&Self>
     where
-        K: 'a,
-        I: IntoIterator<Item = &'a K>,
+        KB: Borrow<K>,
+        I: IntoIterator<Item = KB>,
     {
         let mut tree = self;
         for part in k {
             tree = tree.child(part)?;
         }
-        tree.value()
+        Some(tree)
+    }
+
+    #[cfg(test)]
+    pub fn get<KB, I>(&self, k: I) -> Option<&V>
+    where
+        KB: Borrow<K>,
+        I: IntoIterator<Item = KB>,
+    {
+        self.indirect_child(k)?.value.as_ref()
     }
 }
 
@@ -310,15 +323,15 @@ mod test {
             (vec!["some", "really", "long"], 7),
             (vec![], 8),
         ]);
-        assert_eq!(tree.get(&["hello", "world"]), Some(&1));
-        assert_eq!(tree.get(&["hello", "echo", "apple"]), Some(&2));
-        assert_eq!(tree.get(&["hello", "echo"]), Some(&3));
-        assert_eq!(tree.get(&["hello"]), Some(&4));
-        assert_eq!(tree.get(&["hello", "deeper", "key"]), Some(&5));
-        assert_eq!(tree.get(&["other"]), Some(&6));
-        assert_eq!(tree.get(&["some", "really", "long"]), Some(&7));
-        assert_eq!(tree.get(&[]), Some(&8));
-        assert_eq!(tree.get(&["none"]), None);
-        assert_eq!(tree.get(&["hello", "none"]), None);
+        assert_eq!(tree.get(["hello", "world"]), Some(&1));
+        assert_eq!(tree.get(["hello", "echo", "apple"]), Some(&2));
+        assert_eq!(tree.get(["hello", "echo"]), Some(&3));
+        assert_eq!(tree.get(["hello"]), Some(&4));
+        assert_eq!(tree.get(["hello", "deeper", "key"]), Some(&5));
+        assert_eq!(tree.get(["other"]), Some(&6));
+        assert_eq!(tree.get(["some", "really", "long"]), Some(&7));
+        assert_eq!(tree.get::<&str, _>([]), Some(&8));
+        assert_eq!(tree.get(["none"]), None);
+        assert_eq!(tree.get(["hello", "none"]), None);
     }
 }

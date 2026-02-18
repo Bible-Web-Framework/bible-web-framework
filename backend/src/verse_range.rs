@@ -1,3 +1,4 @@
+use crate::nz_u8;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
@@ -17,6 +18,14 @@ impl VerseRange {
             return Err((first, last));
         }
         Ok(Self { first, last })
+    }
+
+    pub const fn const_new(first: NonZeroU8, last: NonZeroU8) -> Self {
+        assert!(
+            first.get() <= last.get(),
+            "first > last in VerseRange::const_new",
+        );
+        Self { first, last }
     }
 
     pub const fn new_single_verse(verse: NonZeroU8) -> Self {
@@ -56,6 +65,12 @@ impl VerseRange {
 
     pub fn is_single_verse(&self) -> bool {
         self.first == self.last
+    }
+}
+
+impl Default for VerseRange {
+    fn default() -> Self {
+        Self::new_single_verse(nz_u8!(1))
     }
 }
 

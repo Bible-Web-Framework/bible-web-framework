@@ -412,6 +412,7 @@ dependencies = [
  "lehmer",
  "miette",
  "monostate",
+ "multiset",
  "notify-debouncer-full",
  "parking_lot",
  "permutate",
@@ -2483,6 +2484,12 @@ dependencies = [
  "quote",
  "syn 2.0.108",
 ]
+
+[[package]]
+name = "multiset"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce8738c9ddd350996cb8b8b718192851df960803764bcdaa3afb44a63b1ddb5c"
 
 [[package]]
 name = "notify"

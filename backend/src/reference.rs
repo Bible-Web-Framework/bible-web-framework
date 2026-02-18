@@ -13,7 +13,7 @@ use strum::VariantArray;
 use subslice_offset::SubsliceOffset;
 use thiserror::Error;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BibleReference {
     pub book: Book,
     #[serde(flatten)]
@@ -184,6 +184,15 @@ impl BookReference {
     }
 }
 
+impl Default for BookReference {
+    fn default() -> Self {
+        Self {
+            chapter: nz_u8!(1),
+            verses: VerseRange::default(),
+        }
+    }
+}
+
 impl Debug for BookReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{:?}:{:?}", self.chapter, self.verses))
@@ -279,7 +288,7 @@ fn parse_reference_part(
             ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
                 valid_otherwise: parse_book_reference(
-                    Book::Genesis,
+                    Book::default(),
                     state,
                     reference,
                     remainder,
@@ -417,11 +426,10 @@ macro_rules! reference_value {
             book: $crate::book_data::Book::$book,
             reference: $crate::reference::BookReference {
                 chapter: $crate::nz_u8!($chapter),
-                verses: $crate::verse_range::VerseRange::new(
+                verses: $crate::verse_range::VerseRange::const_new(
                     $crate::nz_u8!($verse_start),
                     $crate::nz_u8!($verse_end),
-                )
-                .expect("Invalid verse range as expected value in test"),
+                ),
             },
         }
     };

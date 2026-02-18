@@ -1,7 +1,7 @@
 use crate::api::{ApiError, ApiResult};
 use crate::bible_data::MultiBibleData;
 use crate::book_data::Book;
-use crate::search::{SearchResponse, SearchResponseType, search_bible};
+use crate::search::{SearchResponse, search_bible};
 use actix_web::{HttpResponse, get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
@@ -56,8 +56,13 @@ pub async fn search(
 ) -> ApiResult<web::Json<SearchResponse>> {
     let query = query.into_inner();
     let bible = bibles.get_or_api_error(bible.into_inner())?;
-    let results = search_bible(query.term, query.start, query.count, &bible);
-    if query.generate_footnotes && results.response_type == SearchResponseType::ScripturePassages {}
+    let results = search_bible(
+        query.term,
+        query.start,
+        query.count,
+        query.generate_footnotes,
+        &bible,
+    );
     Ok(web::Json(results))
 }
 

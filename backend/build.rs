@@ -123,9 +123,10 @@ fn main() {
     }
 
     let mut book_names = r#"
-        #[derive(Debug, Hash, Ord, PartialOrd, VariantArray, EnumSetType)]
+        #[derive(Default, Debug, Hash, Ord, PartialOrd, VariantArray, EnumSetType)]
         #[enumset(serialize_repr = "list")]
         pub enum Book {
+            #[default]
     "#
     .to_string();
 

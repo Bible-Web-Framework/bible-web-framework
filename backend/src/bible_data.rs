@@ -61,7 +61,7 @@ pub struct BibleConfig {
     pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
-    pub footnotes: PrefixTree<String, RangeInclusiveMap<BibleReference, FootnotesConfig>>,
+    pub footnotes: FootnotesTree,
 }
 
 #[derive(Debug, Default)]
@@ -70,7 +70,9 @@ pub struct SearchConfig {
     pub ignored_words: Option<fst::Set<Box<[u8]>>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+pub type FootnotesTree = PrefixTree<String, RangeInclusiveMap<BibleReference, FootnotesConfig>>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FootnotesConfig {
     pub footnote: UsjContent,
 }
