@@ -43,12 +43,20 @@ impl UsfmParser {
         let mut missing_walker = syntax_tree.walk();
         'walk_loop: loop {
             let node = missing_walker.node();
-            if node.is_error() || node.is_missing() {
+            if node.is_missing() {
                 let mut sexp = node.to_sexp();
                 sexp.remove(0);
                 sexp.remove(sexp.len() - 1);
                 diagnostics.push(
                     MietteDiagnostic::new(sexp)
+                        .with_label(LabeledSpan::new_with_span(None, node.byte_range())),
+                );
+            } else if node.is_error()
+                && node.child_count() == 0
+                && node.end_byte() > node.start_byte()
+            {
+                diagnostics.push(
+                    MietteDiagnostic::new(format!("Unexpected {:?}", &usfm[node.byte_range()]))
                         .with_label(LabeledSpan::new_with_span(None, node.byte_range())),
                 );
             } else if missing_walker.goto_first_child() {
