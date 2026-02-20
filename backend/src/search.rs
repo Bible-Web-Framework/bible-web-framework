@@ -1,13 +1,16 @@
 use crate::bible_data::{BibleData, FootnotesConfig, FootnotesTree};
 use crate::book_data::Book;
 use crate::index::BibleIndex;
-use crate::reference::{BibleReference, ParseReferenceError, parse_references};
-use crate::usj::{UsjContent, UsjRoot};
-use charabia::Tokenize;
+use crate::reference::{BibleReference, BookReference, ParseReferenceError, parse_references};
+use crate::usj::{ParaContent, UsjContent, UsjRoot, is_title_marker};
+use crate::verse_range::VerseRange;
+use charabia::{SeparatorKind, Tokenize, Tokenizer};
 use dashmap::DashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use smallvec::{SmallVec, smallvec};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::num::NonZeroU8;
 use std::ops::Range;
 use std::time::Instant;
 
@@ -74,7 +77,7 @@ pub fn search_bible(
             references: results,
         }
     } else {
-        let references = references
+        let mut references = references
             .into_iter()
             .map(|x| match x {
                 Ok(reference) => {
@@ -95,7 +98,24 @@ pub fn search_bible(
                 },
             })
             .collect_vec();
-        if generate_footnotes {}
+        if generate_footnotes {
+            let config = bible.config.read();
+            for reference in &mut references {
+                if let SearchResponseResult::ReferenceContent {
+                    reference,
+                    content: Some(content),
+                    ..
+                } = reference
+                {
+                    FootnoteGenerator::new(
+                        *reference,
+                        config.search.create_tokenizer(),
+                        &config.footnotes,
+                    )
+                    .generate_footnotes(content);
+                }
+            }
+        }
         SearchResponse {
             response_type: SearchResponseType::ScripturePassages,
             search_term: term,
@@ -179,7 +199,181 @@ fn search_for_terms(
     )
 }
 
-// fn generate_footnotes_recursive(usj: &UsjContent, finder: &mut PhraseFinder) {}
+struct FootnoteGenerator<'a> {
+    tokenizer: Tokenizer<'a>,
+    phrase_finder: PhraseFinder<'a>,
+    current_book: Book,
+    current_chapter: Option<NonZeroU8>,
+    current_verses: Option<VerseRange>,
+    current_path: SmallVec<[usize; 4]>,
+    last_text_path: Option<SmallVec<[usize; 4]>>,
+    insert_at_paths: Vec<(SmallVec<[usize; 4]>, UsjContent)>,
+}
+
+impl<'a> FootnoteGenerator<'a> {
+    fn new(
+        initial_reference: BibleReference,
+        tokenizer: Tokenizer<'a>,
+        footnotes: &'a FootnotesTree,
+    ) -> Self {
+        Self {
+            tokenizer,
+            phrase_finder: PhraseFinder::new(footnotes, initial_reference),
+            current_book: initial_reference.book,
+            current_chapter: Some(initial_reference.chapter),
+            current_verses: Some(initial_reference.verses),
+            current_path: smallvec![],
+            last_text_path: None,
+            insert_at_paths: vec![],
+        }
+    }
+}
+
+impl FootnoteGenerator<'_> {
+    fn generate_footnotes(mut self, usjs: &mut [UsjContent]) {
+        self.current_path.push(0);
+        for usj in usjs.iter_mut() {
+            self.generate_footnotes_recursive(usj);
+            *self.current_path.last_mut().unwrap() += 1;
+        }
+        self.current_path.pop();
+
+        for (path, footnote) in self.insert_at_paths.into_iter().rev() {
+            let mut current = &mut usjs[path[0]];
+            for &index in path.iter().skip(1).take(path.len() - 1) {
+                current = current.get_content_mut(index).unwrap().left().unwrap();
+            }
+            current.insert_usj_content(*path.last().unwrap(), footnote);
+        }
+    }
+
+    fn generate_footnotes_recursive(&mut self, usj: &mut UsjContent) {
+        let is_para = matches!(usj, UsjContent::Paragraph { .. });
+        match usj {
+            UsjContent::Root(UsjRoot { content, .. })
+            | UsjContent::Table { content, .. }
+            | UsjContent::TableRow { content, .. } => {
+                self.current_path.push(0);
+                for child in content {
+                    self.generate_footnotes_recursive(child);
+                    *self.current_path.last_mut().unwrap() += 1;
+                }
+                self.current_path.pop();
+            }
+
+            UsjContent::Paragraph {
+                marker, content, ..
+            }
+            | UsjContent::Character {
+                marker, content, ..
+            }
+            | UsjContent::Milestone {
+                marker, content, ..
+            }
+            | UsjContent::TableCell {
+                marker, content, ..
+            } => {
+                if is_para {
+                    self.end_section();
+                }
+                if !is_title_marker(marker) {
+                    self.current_path.push(0);
+                    let mut i = 0;
+                    while i < content.len() {
+                        let child = &mut content[i];
+                        let new_children = match child {
+                            ParaContent::Usj(usj) => {
+                                self.generate_footnotes_recursive(usj);
+                                None
+                            }
+                            ParaContent::Plain(text) => self.expand_text_section(text),
+                        };
+                        if let Some(to_add) = new_children {
+                            let new_elements = to_add.len();
+                            content.splice(i..=i, to_add);
+                            i += new_elements;
+                        } else {
+                            i += 1;
+                        }
+                        *self.current_path.last_mut().unwrap() = i - 1;
+                        self.last_text_path = Some(self.current_path.clone());
+                        *self.current_path.last_mut().unwrap() += 1;
+                    }
+                    self.current_path.pop();
+                }
+            }
+
+            UsjContent::Chapter { number, .. } => {
+                self.current_chapter = Some(*number);
+                self.current_verses = None;
+                self.end_section();
+            }
+            UsjContent::Verse { number, .. } => {
+                self.current_verses = Some(*number);
+                self.end_section();
+            }
+
+            UsjContent::Book { .. }
+            | UsjContent::Note { .. }
+            | UsjContent::Sidebar { .. }
+            | UsjContent::Figure { .. }
+            | UsjContent::Reference { .. } => {}
+        }
+    }
+
+    fn end_section(&mut self) {
+        let footnote = if let Some(chapter) = self.current_chapter
+            && let Some(verses) = self.current_verses
+        {
+            self.phrase_finder.reset_to_location(BibleReference {
+                book: self.current_book,
+                reference: BookReference { chapter, verses },
+            })
+        } else {
+            self.phrase_finder.attempt_finish()
+        };
+        if let Some(footnote) = footnote {
+            self.insert_at_paths.push((
+                self.last_text_path.take().unwrap(),
+                footnote.footnote.clone(),
+            ));
+        }
+    }
+
+    fn expand_text_section(&mut self, text: &str) -> Option<Vec<ParaContent>> {
+        if self.current_chapter.is_none() || self.current_verses.is_none() {
+            return None;
+        }
+        let mut result: Option<Vec<ParaContent>> = None;
+        let mut text_index = 0;
+        for (token_index, token) in self.tokenizer.tokenize(text).enumerate() {
+            let footnote = if token.separator_kind() == Some(SeparatorKind::Hard) {
+                self.phrase_finder.attempt_finish()
+            } else {
+                self.phrase_finder.push(token.lemma.into_owned())
+            };
+            let Some(footnote) = footnote else {
+                continue;
+            };
+            if token_index == 0 {
+                self.insert_at_paths.push((
+                    self.last_text_path.take().unwrap(),
+                    footnote.footnote.clone(),
+                ));
+                continue;
+            }
+            let result = result.get_or_insert_default();
+            if token.byte_end > text_index {
+                result.push(ParaContent::Plain(
+                    text[text_index..token.byte_end].to_string(),
+                ));
+                text_index = token.byte_end;
+            }
+            result.push(ParaContent::Usj(footnote.footnote.clone()));
+        }
+        result
+    }
+}
 
 struct PhraseFinder<'a> {
     location: BibleReference,
@@ -188,19 +382,24 @@ struct PhraseFinder<'a> {
 }
 
 impl<'a> PhraseFinder<'a> {
-    fn new(tree: &'a FootnotesTree) -> Self {
+    fn new(tree: &'a FootnotesTree, initial_location: BibleReference) -> Self {
         Self {
-            location: BibleReference::default(),
+            location: initial_location,
             tree_stack: vec![tree],
             current_phrase: VecDeque::new(),
         }
     }
-}
 
-impl PhraseFinder<'_> {
-    fn reset_to_location(&mut self, location: BibleReference) {
-        self.location = location;
+    fn reset_to_location(&mut self, location: BibleReference) -> Option<&FootnotesConfig> {
+        let result = self
+            .tree_stack
+            .last()
+            .unwrap()
+            .value()
+            .and_then(|x| x.get(&self.location));
         self.reset();
+        self.location = location;
+        result
     }
 
     fn push(&mut self, mut lemma: String) -> Option<&FootnotesConfig> {
@@ -233,8 +432,7 @@ impl PhraseFinder<'_> {
             .unwrap()
             .value()
             .and_then(|x| x.get(&self.location));
-        self.tree_stack.truncate(1);
-        self.current_phrase.clear();
+        self.reset();
         result
     }
 
@@ -279,7 +477,6 @@ mod test {
     use multiset::HashMultiSet;
     use pretty_assertions::assert_eq;
     use rangemap::RangeInclusiveMap;
-    use std::borrow::Cow;
     use std::ops::RangeInclusive;
     use std::vec;
 
@@ -322,14 +519,14 @@ mod test {
         RangeInclusiveMap::from([(range, footnote_value(x))])
     }
 
-    fn tokens() -> vec::IntoIter<Cow<'static, str>> {
+    fn tokens() -> vec::IntoIter<String> {
         let mut builder = TokenizerBuilder::<Vec<u8>>::new();
         builder.allow_list(&[Language::Lat]);
         builder
             .into_tokenizer()
             .tokenize(LOREM_IPSUM)
             .filter(Token::is_word)
-            .map(|x| x.lemma)
+            .map(|x| x.lemma.into_owned())
             .collect_vec()
             .into_iter()
     }
@@ -378,10 +575,10 @@ mod test {
             );
         }
 
-        let mut finder = PhraseFinder::new(&footnotes_config);
+        let mut finder = PhraseFinder::new(&footnotes_config, BibleReference::default());
         finder.reset_to_location(BibleReference::default());
         for (index, token) in tokens().enumerate() {
-            if let Some(footnote) = finder.push(token.into_owned()) {
+            if let Some(footnote) = finder.push(token) {
                 match index {
                     11 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_ALPHA),
                     14 | 31 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_ECHO),
@@ -429,7 +626,7 @@ mod test {
             ),
         ]);
 
-        let mut finder = PhraseFinder::new(&footnotes_config);
+        let mut finder = PhraseFinder::new(&footnotes_config, BibleReference::default());
 
         // "one" should exist, "two" should not
         finder.reset_to_location(REF_ALPHA);

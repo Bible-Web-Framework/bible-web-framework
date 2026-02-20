@@ -252,6 +252,25 @@ impl UsjContent {
         true
     }
 
+    pub fn insert_usj_content(&mut self, index: usize, new_content: UsjContent) -> bool {
+        match self {
+            UsjContent::Root(UsjRoot { content, .. })
+            | UsjContent::Table { content, .. }
+            | UsjContent::TableRow { content, .. } => content.insert(index, new_content),
+
+            UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
+            | UsjContent::Milestone { content, .. }
+            | UsjContent::Note { content, .. }
+            | UsjContent::TableCell { content, .. } => {
+                content.insert(index, ParaContent::Usj(new_content))
+            }
+
+            _ => return false,
+        }
+        true
+    }
+
     pub fn get_content(&self, index: usize) -> Option<Either<&UsjContent, &str>> {
         Some(match self {
             UsjContent::Root(UsjRoot { content, .. })
@@ -273,6 +292,39 @@ impl UsjContent {
             | UsjContent::Reference { content, .. } => {
                 if index == 0 {
                     Either::Right(content.as_ref()?)
+                } else {
+                    return None;
+                }
+            }
+
+            _ => return None,
+        })
+    }
+
+    pub fn get_content_mut(
+        &mut self,
+        index: usize,
+    ) -> Option<Either<&mut UsjContent, &mut String>> {
+        Some(match self {
+            UsjContent::Root(UsjRoot { content, .. })
+            | UsjContent::Table { content, .. }
+            | UsjContent::TableRow { content, .. }
+            | UsjContent::Sidebar { content, .. } => Either::Left(content.get_mut(index)?),
+
+            UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
+            | UsjContent::Milestone { content, .. }
+            | UsjContent::Note { content, .. }
+            | UsjContent::TableCell { content, .. } => match content.get_mut(index)? {
+                ParaContent::Usj(usj) => Either::Left(usj),
+                ParaContent::Plain(text) => Either::Right(text),
+            },
+
+            UsjContent::Book { content, .. }
+            | UsjContent::Figure { content, .. }
+            | UsjContent::Reference { content, .. } => {
+                if index == 0 {
+                    Either::Right(content.as_mut()?)
                 } else {
                     return None;
                 }
@@ -308,10 +360,14 @@ impl UsjContent {
     }
 
     pub fn is_title_para(&self) -> bool {
-        const REGEX: ere::Regex<2> =
-            compile_regex!("^(mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?)$");
-        matches!(&self, Self::Paragraph { marker, .. } if REGEX.test(marker))
+        matches!(&self, Self::Paragraph { marker, .. } if is_title_marker(marker))
     }
+}
+
+pub fn is_title_marker(marker: &str) -> bool {
+    const REGEX: ere::Regex<2> =
+        compile_regex!("^(mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?)$");
+    REGEX.test(marker)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]

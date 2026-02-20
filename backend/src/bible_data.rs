@@ -708,7 +708,7 @@ impl BibleConfig {
 }
 
 impl SearchConfig {
-    fn create_tokenizer(&self) -> Tokenizer<'_> {
+    pub fn create_tokenizer(&self) -> Tokenizer<'_> {
         let mut builder = TokenizerBuilder::new();
         if let Some(languages) = &self.languages {
             builder.allow_list(languages);
