@@ -207,7 +207,8 @@ struct FootnoteGenerator<'a> {
     current_verses: Option<VerseRange>,
     current_path: SmallVec<[usize; 4]>,
     last_text_path: Option<SmallVec<[usize; 4]>>,
-    insert_at_paths: Vec<(SmallVec<[usize; 4]>, UsjContent)>,
+    insert_at_paths: Vec<(SmallVec<[usize; 4]>, &'a UsjContent)>,
+    found_footnotes: HashSet<(Vec<String>, &'a UsjContent)>,
 }
 
 impl<'a> FootnoteGenerator<'a> {
@@ -225,6 +226,7 @@ impl<'a> FootnoteGenerator<'a> {
             current_path: smallvec![],
             last_text_path: None,
             insert_at_paths: vec![],
+            found_footnotes: HashSet::new(),
         }
     }
 }
@@ -243,7 +245,7 @@ impl FootnoteGenerator<'_> {
             for &index in path.iter().skip(1).take(path.len() - 1) {
                 current = current.get_content_mut(index).unwrap().left().unwrap();
             }
-            current.insert_usj_content(*path.last().unwrap(), footnote);
+            current.insert_usj_content(*path.last().unwrap(), footnote.clone());
         }
     }
 
@@ -332,11 +334,11 @@ impl FootnoteGenerator<'_> {
         } else {
             self.phrase_finder.attempt_finish()
         };
-        if let Some(footnote) = footnote {
-            self.insert_at_paths.push((
-                self.last_text_path.take().unwrap(),
-                footnote.footnote.clone(),
-            ));
+        if let Some((phrase, footnote)) = footnote
+            && self.found_footnotes.insert((phrase, &footnote.footnote))
+        {
+            self.insert_at_paths
+                .push((self.last_text_path.take().unwrap(), &footnote.footnote));
         }
     }
 
@@ -352,14 +354,15 @@ impl FootnoteGenerator<'_> {
             } else {
                 self.phrase_finder.push(token.lemma.into_owned())
             };
-            let Some(footnote) = footnote else {
+            let Some((phrase, footnote)) = footnote else {
                 continue;
             };
+            if !self.found_footnotes.insert((phrase, &footnote.footnote)) {
+                continue;
+            }
             if token_index == 0 {
-                self.insert_at_paths.push((
-                    self.last_text_path.take().unwrap(),
-                    footnote.footnote.clone(),
-                ));
+                self.insert_at_paths
+                    .push((self.last_text_path.take().unwrap(), &footnote.footnote));
                 continue;
             }
             let result = result.get_or_insert_default();
@@ -390,19 +393,22 @@ impl<'a> PhraseFinder<'a> {
         }
     }
 
-    fn reset_to_location(&mut self, location: BibleReference) -> Option<&FootnotesConfig> {
+    fn reset_to_location(
+        &mut self,
+        location: BibleReference,
+    ) -> Option<(Vec<String>, &'a FootnotesConfig)> {
         let result = self
             .tree_stack
             .last()
             .unwrap()
             .value()
             .and_then(|x| x.get(&self.location));
-        self.reset();
+        let phrase = self.reset();
         self.location = location;
-        result
+        result.map(|f| (phrase, f))
     }
 
-    fn push(&mut self, mut lemma: String) -> Option<&FootnotesConfig> {
+    fn push(&mut self, mut lemma: String) -> Option<(Vec<String>, &'a FootnotesConfig)> {
         lemma = self.continue_phrase(lemma)?;
         let mut result = None;
         if let Some(value) = self.tree_stack.last().unwrap().value() {
@@ -420,25 +426,25 @@ impl<'a> PhraseFinder<'a> {
                 break;
             }
         }
-        self.reset();
+        let phrase = self.reset();
         self.continue_phrase(lemma);
-        result
+        result.map(|f| (phrase, f))
     }
 
-    fn attempt_finish(&mut self) -> Option<&FootnotesConfig> {
+    fn attempt_finish(&mut self) -> Option<(Vec<String>, &'a FootnotesConfig)> {
         let result = self
             .tree_stack
             .last()
             .unwrap()
             .value()
             .and_then(|x| x.get(&self.location));
-        self.reset();
-        result
+        let phrase = self.reset();
+        result.map(|f| (phrase, f))
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self) -> Vec<String> {
         self.tree_stack.truncate(1);
-        self.current_phrase.clear();
+        self.current_phrase.drain(..).collect()
     }
 
     fn continue_phrase(&mut self, lemma: String) -> Option<String> {
@@ -565,10 +571,12 @@ mod test {
         ]);
         fn assert_footnote(
             remaining_footnotes: &mut HashMultiSet<FootnotesConfig>,
-            footnote: &FootnotesConfig,
-            expected: &str,
+            (phrase, footnote): (Vec<String>, &FootnotesConfig),
+            expected_footnote: &str,
+            expected_phrase: &[&str],
         ) {
-            assert_eq!(footnote, &footnote_value(expected));
+            assert_eq!(footnote, &footnote_value(expected_footnote));
+            assert_eq!(phrase.as_slice(), expected_phrase);
             assert!(
                 remaining_footnotes.remove(footnote),
                 "{footnote:?} found more than expected",
@@ -580,18 +588,50 @@ mod test {
         for (index, token) in tokens().enumerate() {
             if let Some(footnote) = finder.push(token) {
                 match index {
-                    11 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_ALPHA),
-                    14 | 31 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_ECHO),
-                    21 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_FOXTROT),
-                    24 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_BRAVO),
-                    25 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_CHARLIE),
-                    27 => assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_HOTEL),
+                    11 => assert_footnote(
+                        &mut remaining_footnotes,
+                        footnote,
+                        FOOTNOTE_ALPHA,
+                        &["eiusmod"],
+                    ),
+                    14 | 31 => {
+                        assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_ECHO, &["ut"])
+                    }
+                    21 => assert_footnote(
+                        &mut remaining_footnotes,
+                        footnote,
+                        FOOTNOTE_FOXTROT,
+                        &["ut", "enim"],
+                    ),
+                    24 => assert_footnote(
+                        &mut remaining_footnotes,
+                        footnote,
+                        FOOTNOTE_BRAVO,
+                        &["minim", "veniam"],
+                    ),
+                    25 => assert_footnote(
+                        &mut remaining_footnotes,
+                        footnote,
+                        FOOTNOTE_CHARLIE,
+                        &["quis"],
+                    ),
+                    27 => assert_footnote(
+                        &mut remaining_footnotes,
+                        footnote,
+                        FOOTNOTE_HOTEL,
+                        &["nostrud", "exercitation"],
+                    ),
                     _ => panic!("Found unknown at index {index}: {footnote:?}"),
                 }
             }
         }
         if let Some(footnote) = finder.attempt_finish() {
-            assert_footnote(&mut remaining_footnotes, footnote, FOOTNOTE_DELTA);
+            assert_footnote(
+                &mut remaining_footnotes,
+                footnote,
+                FOOTNOTE_DELTA,
+                &["laborum"],
+            );
         }
 
         assert!(
@@ -633,7 +673,7 @@ mod test {
         assert_eq!(finder.push("one".into()), None);
         assert_eq!(
             finder.push("two".into()),
-            Some(&footnote_value(FOOTNOTE_ALPHA)),
+            Some((vec!["one".into()], &footnote_value(FOOTNOTE_ALPHA))),
         );
         assert_eq!(finder.attempt_finish(), None);
 
@@ -643,7 +683,7 @@ mod test {
         assert_eq!(finder.push("two".into()), None);
         assert_eq!(
             finder.attempt_finish(),
-            Some(&footnote_value(FOOTNOTE_BRAVO)),
+            Some((vec!["two".into()], &footnote_value(FOOTNOTE_BRAVO))),
         );
 
         // "three" and "three four" should both exist
@@ -651,12 +691,15 @@ mod test {
         assert_eq!(finder.push("three".into()), None);
         assert_eq!(
             finder.push("three".into()),
-            Some(&footnote_value(FOOTNOTE_CHARLIE)),
+            Some((vec!["three".into()], &footnote_value(FOOTNOTE_CHARLIE))),
         );
         assert_eq!(finder.push("four".into()), None);
         assert_eq!(
             finder.attempt_finish(),
-            Some(&footnote_value(FOOTNOTE_DELTA)),
+            Some((
+                vec!["three".into(), "four".into()],
+                &footnote_value(FOOTNOTE_DELTA),
+            )),
         );
 
         // "three" should exist, but "three four" should still shadow and prevent "three" from
@@ -665,7 +708,7 @@ mod test {
         assert_eq!(finder.push("three".into()), None);
         assert_eq!(
             finder.push("three".into()),
-            Some(&footnote_value(FOOTNOTE_CHARLIE)),
+            Some((vec!["three".into()], &footnote_value(FOOTNOTE_CHARLIE))),
         );
         assert_eq!(finder.push("four".into()), None);
         assert_eq!(finder.attempt_finish(), None);
