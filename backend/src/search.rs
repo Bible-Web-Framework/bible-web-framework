@@ -352,6 +352,9 @@ impl FootnoteGenerator<'_> {
             let footnote = if token.separator_kind() == Some(SeparatorKind::Hard) {
                 self.phrase_finder.attempt_finish()
             } else {
+                if token.is_separator() {
+                    continue;
+                }
                 self.phrase_finder.push(token.lemma.into_owned())
             };
             let Some((phrase, footnote)) = footnote else {
@@ -367,12 +370,20 @@ impl FootnoteGenerator<'_> {
             }
             let result = result.get_or_insert_default();
             if token.byte_end > text_index {
-                result.push(ParaContent::Plain(
-                    text[text_index..token.byte_end].to_string(),
-                ));
-                text_index = token.byte_end;
+                let substr = &text[text_index..token.byte_start];
+                if text_index > 0 {
+                    result.push(ParaContent::Plain(format!(" {substr}")));
+                } else {
+                    result.push(ParaContent::Plain(substr.to_string()));
+                }
+                text_index = token.byte_start;
             }
             result.push(ParaContent::Usj(footnote.footnote.clone()));
+        }
+        if let Some(result) = &mut result
+            && text_index < text.len()
+        {
+            result.push(ParaContent::Plain(format!(" {}", &text[text_index..])));
         }
         result
     }
