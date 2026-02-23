@@ -6,6 +6,7 @@ import type { ParaContent } from '~/usj'
 const props = defineProps<{
   contents: ParaContent[]
   highlights?: HighlightsMap
+  ignoredContentTypes?: string[]
 }>()
 
 const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }> = ({
@@ -40,6 +41,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
     <RenderWithHighlight v-if="typeof content === 'string'" :text="content" suffix=" " />
+    <template v-else-if="ignoredContentTypes?.includes(content.type)"></template>
     <span v-else-if="content.type === 'chapter'" class="c">{{ content.number }}</span>
     <span v-else-if="content.type === 'verse'" class="v">{{ content.number }}</span>
     <template v-else-if="content.type === 'para'">
@@ -51,6 +53,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           v-if="content.content"
           :contents="content.content"
           :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
         />
       </p>
       <p v-else-if="content.marker === 'm'" class="m">
@@ -58,6 +61,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           v-if="content.content"
           :contents="content.content"
           :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
         />
       </p>
       <!-- #endregion -->
@@ -73,16 +77,24 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- #region Notes -->
       <!-- #region Footnotes -->
       <span v-if="content.marker === 'fr'" class="fr">
-        <UsjContentsRenderer :contents="content.content" :highlights="highlights" />
+        <UsjContentsRenderer
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+        />
       </span>
       <span v-else-if="content.marker === 'ft'" class="ft">
-        <UsjContentsRenderer :contents="content.content" :highlights="highlights" />
+        <UsjContentsRenderer
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+        />
       </span>
       <!-- #endregion -->
       <!-- #endregion -->
     </template>
     <!-- TODO: Implement Milestones -->
-    <template v-else-if="content.type === 'note' && !highlights">
+    <template v-else-if="content.type === 'note'">
       <!-- #region Footnotes -->
       <a
         v-if="content.marker === 'f' && content.caller !== '-'"

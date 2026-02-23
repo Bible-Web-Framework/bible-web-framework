@@ -99,7 +99,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
           },
           [element.caller],
         ),
-        h(UsjContentsRenderer, { contents: element.content }),
+        h(UsjContentsRenderer, { contents: element.content, ignoredContentTypes: ['note'] }),
       ]),
     )
     return false
@@ -191,6 +191,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
                 <UsjContentsRenderer
                   :contents="reference.content"
                   :highlights="reference.highlights"
+                  :ignored-content-types="['note', 'chapter', 'verse']"
                 />
               </td>
             </template>
