@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { FunctionalComponent, VNode } from 'vue'
-import type { ApiV1 } from '~/bwfApi'
+import type { ApiV1, SearchResponseResult } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import { normalizeNoteCallers, walkUsj, type ParaContent } from '~/usj'
 
@@ -72,6 +72,14 @@ const newQuery = ref(query.value)
 function search() {
   setQueryParam('q', newQuery.value)
   query.value = newQuery.value
+}
+
+function gotoSearchResult(result: SearchResponseResult) {
+  if ('invalid_reference' in result) {
+    return
+  }
+  newQuery.value = `${result.translated_book_name} ${result.reference.chapter}:${result.reference.verses}`
+  search()
 }
 
 watch(bible, () => setQueryParam('bible', bible.value))
@@ -177,7 +185,11 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
           {{ searchResults.total_results }} results found for '{{ searchResults.search_term }}':
         </h2>
         <table>
-          <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
+          <tr
+            v-for="(reference, referenceIndex) in searchResults.references"
+            :key="referenceIndex"
+            @click="gotoSearchResult(reference)"
+          >
             <td v-if="'invalid_reference' in reference" class="error" colspan="2">
               {{ reference.details }}
             </td>
