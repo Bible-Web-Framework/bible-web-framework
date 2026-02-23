@@ -49,7 +49,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- TODO: Implement Titles and Sections -->
       <!-- #region Body Paragraphs -->
       <p
-        v-if="['p', 'm', 'po', 'cls', 'pr', 'pc'].includes(content.marker)"
+        v-if="
+          ['p', 'm', 'po', 'cls', 'pr', 'pc', 'pm', 'pmo', 'pmc', 'pmr'].includes(content.marker)
+        "
         :class="content.marker"
       >
         <UsjContentsRenderer
