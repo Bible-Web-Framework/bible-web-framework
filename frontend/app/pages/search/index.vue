@@ -10,12 +10,24 @@ const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
 })
 
 const route = useRoute()
-const bible = ref((route.query.bible || biblesData.value?.default_bible || '').toString())
-const query = ref((route.query.q || '').toString())
-const page = ref(Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1))
-const resultsPerPage = ref(
-  Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),
-)
+const router = useRouter()
+
+const bible = computed({
+  get: () => (route.query.bible || biblesData.value?.default_bible || '').toString(),
+  set: (bible) => router.push({ query: { ...route.query, bible } }),
+})
+const query = computed({
+  get: () => (route.query.q || '').toString(),
+  set: (q) => router.push({ query: { ...route.query, q } }),
+})
+const page = computed({
+  get: () => Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1),
+  set: (page) => router.push({ query: { ...route.query, page } }),
+})
+const resultsPerPage = computed({
+  get: () => Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),
+  set: (count) => router.push({ query: { ...route.query, count } }),
+})
 
 const loadingIndicator = useLoadingIndicator()
 const { data: searchData } = await useAsyncData(
@@ -62,15 +74,8 @@ const pageCount = computed(() => {
   return Math.ceil(searchResults.value.total_results / resultsPerPage.value)
 })
 
-function setQueryParam(name: string, value: string) {
-  const url = new URL(window.location.href)
-  url.searchParams.set(name, value)
-  window.history.pushState(null, '', url)
-}
-
 const newQuery = ref(query.value)
 function search() {
-  setQueryParam('q', newQuery.value)
   query.value = newQuery.value
 }
 
@@ -82,10 +87,8 @@ function gotoSearchResult(result: SearchResponseResult) {
   search()
 }
 
-watch(bible, () => setQueryParam('bible', bible.value))
-watch(page, () => setQueryParam('page', page.value.toString()))
+watch(query, () => (newQuery.value = query.value))
 watch(resultsPerPage, (newCount, oldCount) => {
-  setQueryParam('count', newCount.toString())
   const oldStart = (page.value - 1) * oldCount
   page.value = Math.floor(oldStart / newCount) + 1
 })
