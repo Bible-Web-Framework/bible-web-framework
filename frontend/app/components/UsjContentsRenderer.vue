@@ -48,15 +48,10 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- TODO: Implement \ip when an example is found -->
       <!-- TODO: Implement Titles and Sections -->
       <!-- #region Body Paragraphs -->
-      <p v-if="content.marker === 'p'" class="p">
-        <UsjContentsRenderer
-          v-if="content.content"
-          :contents="content.content"
-          :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
-        />
-      </p>
-      <p v-else-if="content.marker === 'm'" class="m">
+      <p
+        v-if="['p', 'm', 'po', 'cls', 'pr', 'pc'].includes(content.marker)"
+        :class="content.marker"
+      >
         <UsjContentsRenderer
           v-if="content.content"
           :contents="content.content"
@@ -76,14 +71,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- TODO: Implement Tables -->
       <!-- #region Notes -->
       <!-- #region Footnotes -->
-      <span v-if="content.marker === 'fr'" class="fr">
-        <UsjContentsRenderer
-          :contents="content.content"
-          :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
-        />
-      </span>
-      <span v-else-if="content.marker === 'ft'" class="ft">
+      <span v-if="['fr', 'ft'].includes(content.marker)" :class="content.marker">
         <UsjContentsRenderer
           :contents="content.content"
           :highlights="highlights"
