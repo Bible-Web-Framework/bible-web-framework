@@ -18,9 +18,9 @@
         "vue-router": "^5.0.2"
     },
     "devDependencies": {
-        "@nuxt/eslint": "^1.13.0",
-        "@types/node": "^25.2.3",
-        "eslint": "^10.0.0",
+        "@nuxt/eslint": "^1.15.1",
+        "@types/node": "^25.3.0",
+        "eslint": "^10.0.1",
         "json-stringify-pretty-compact": "^4.0.0",
         "typescript": "^5.9.3"
     }

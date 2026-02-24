@@ -32,7 +32,7 @@ pub enum ReindexType {
 pub struct BibleIndex {
     pub log_marker: Option<String>,
     interner: Interner,
-    references_and_names_by_word: HashMap<InternerSymbol, (BookReferenceMap, Option<String>)>,
+    references_and_names_by_word: HashMap<InternerSymbol, (BookReferenceMap, Option<Box<str>>)>,
     words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
 }
 
@@ -202,7 +202,7 @@ impl BibleIndex {
 type ReferenceLocationVec = Vec<(BookReference, TextLocation)>;
 
 pub struct BookIndexer {
-    results: HashMap<String, (Option<String>, ReferenceLocationVec)>,
+    results: HashMap<Box<str>, (Option<Box<str>>, ReferenceLocationVec)>,
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
     current_path: SmallVec<[usize; 4]>,
@@ -281,9 +281,12 @@ impl BookIndexer {
             }
             let name =
                 Some(&text[token.byte_start..token.byte_end]).take_if(|x| *x != token.lemma());
-            let (name_result, result) = self.results.entry(token.lemma.into_owned()).or_default();
+            let (name_result, result) = self
+                .results
+                .entry(token.lemma.into_owned().into_boxed_str())
+                .or_default();
             if let Some(name) = name {
-                name_result.get_or_insert_with(|| name.to_string());
+                name_result.get_or_insert_with(|| name.to_string().into_boxed_str());
             }
             result.push((
                 reference,

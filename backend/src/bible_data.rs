@@ -748,7 +748,7 @@ mod unresolved {
     use crate::usj::UsjContent;
     use crate::utils::{FootnoteAsUsfm, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
-    use charabia::{Language, Normalize, Token};
+    use charabia::{Language, Normalize, StrDetection, Token};
     use itertools::Itertools;
     use permutate::Permutator;
     use serde::Deserialize;
@@ -868,27 +868,36 @@ mod unresolved {
     impl From<SearchConfig> for super::SearchConfig {
         fn from(val: SearchConfig) -> Self {
             super::SearchConfig {
-                languages: val.languages.map(Vec::into_boxed_slice),
                 ignored_words: val.ignored_words.map(|words| {
                     fst::Set::from_iter(
                         words
                             .into_iter()
-                            .sorted_unstable()
                             .map(|x| {
+                                let mut detect = StrDetection::new(&x, val.languages.as_deref());
+                                let script = detect.script();
+                                let mut language = detect.language();
+                                if language == Some(Language::Pes) {
+                                    // Bypass PersianNormalizer, as it happens after Classifier
+                                    language = None;
+                                }
                                 Token {
                                     lemma: Cow::Owned(x),
+                                    script,
+                                    language,
                                     ..Default::default()
                                 }
                                 .normalize(&NormalizerOption::default())
                                 .lemma
                                 .into_owned()
                             })
+                            .sorted_unstable()
                             .dedup(),
                     )
                     .unwrap()
                     .map_data(Vec::into_boxed_slice)
                     .unwrap()
                 }),
+                languages: val.languages.map(Vec::into_boxed_slice),
             }
         }
     }

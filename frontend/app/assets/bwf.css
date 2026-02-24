@@ -14,6 +14,10 @@
 
   + p {
     display: inline;
+
+    :first-child.v {
+      display: none;
+    }
   }
 }
 
@@ -27,8 +31,29 @@
 
 /* #region Paragraphs */
 /* #region Body Paragraphs */
-.p {
+.p,
+.pm {
   text-indent: 1em;
+}
+
+.cls,
+.pr,
+.pmr {
+  text-align: end;
+}
+
+.pc {
+  text-align: center;
+}
+
+.pm,
+.pmo,
+.pmc {
+  margin-inline-start: 1em;
+}
+
+.pmr {
+  margin-inline-end: 1em;
 }
 /* #endregion */
 /* #endregion */
