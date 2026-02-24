@@ -859,6 +859,7 @@ mod unresolved {
                                 .collect(),
                         )
                     })
+                    .filter(|(key, _)| !key.is_empty())
                     .collect(),
                 search,
             }

@@ -242,7 +242,7 @@ impl FootnoteGenerator<'_> {
 
         for (path, footnote) in self.insert_at_paths.into_iter().rev() {
             let mut current = &mut usjs[path[0]];
-            for &index in path.iter().skip(1).take(path.len() - 1) {
+            for &index in path.iter().skip(1).take(path.len() - 2) {
                 current = current.get_content_mut(index).unwrap().left().unwrap();
             }
             current.insert_usj_content(*path.last().unwrap(), footnote.clone());
