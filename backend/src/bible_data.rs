@@ -732,7 +732,7 @@ mod unresolved {
     use crate::book_data::Book;
     use crate::utils::LanguageAsCode;
     use charabia::normalizer::NormalizerOption;
-    use charabia::{Language, Normalize, Token};
+    use charabia::{Language, Normalize, StrDetection, Token};
     use itertools::Itertools;
     use permutate::Permutator;
     use serde::Deserialize;
@@ -804,25 +804,34 @@ mod unresolved {
     impl From<SearchConfig> for super::SearchConfig {
         fn from(val: SearchConfig) -> Self {
             super::SearchConfig {
-                languages: val.languages,
                 ignored_words: val.ignored_words.map(|words| {
                     fst::Set::from_iter(
                         words
                             .into_iter()
-                            .sorted_unstable()
                             .map(|x| {
+                                let mut detect = StrDetection::new(&x, val.languages.as_deref());
+                                let script = detect.script();
+                                let mut language = detect.language();
+                                if language == Some(Language::Pes) {
+                                    // Bypass PersianNormalizer, as it happens after Classifier
+                                    language = None;
+                                }
                                 Token {
                                     lemma: Cow::Owned(x),
+                                    script,
+                                    language,
                                     ..Default::default()
                                 }
                                 .normalize(&NormalizerOption::default())
                                 .lemma
                                 .into_owned()
                             })
+                            .sorted_unstable()
                             .dedup(),
                     )
                     .unwrap()
                 }),
+                languages: val.languages,
             }
         }
     }
