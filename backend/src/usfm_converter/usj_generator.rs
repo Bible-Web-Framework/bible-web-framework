@@ -269,7 +269,7 @@ fn convert_node_para(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into
         cursor.goto_parent();
         return;
     }
-    let para = match node.kind() {
+    let mut para = match node.kind() {
         "paragraph" => {
             if !cursor.goto_first_child() {
                 return generator.diagnostic(node, Severity::Warning, "Empty \\p");
@@ -318,6 +318,9 @@ fn convert_node_para(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into
             );
         }
     };
+    if let UsjContent::Paragraph { content, .. } = &mut para {
+        content.shrink_to_fit();
+    }
     generator.try_push_usj(cursor, into, "Unexpected \\p under", para);
 }
 
@@ -372,6 +375,9 @@ fn convert_node_generic(
         }
     }
     cursor.goto_parent();
+    if let UsjContent::Paragraph { content, .. } = &mut para {
+        content.shrink_to_fit();
+    }
 
     generator.try_push_usj(
         cursor,
@@ -388,6 +394,9 @@ fn convert_node_table(
 ) {
     let mut table = UsjContent::Table { content: vec![] };
     for_each_child(cursor, |c| generator.convert_node(c, &mut table));
+    if let UsjContent::Table { content, .. } = &mut table {
+        content.shrink_to_fit();
+    }
     generator.try_push_usj(cursor, into, "Unexpected table under", table);
 }
 
@@ -400,6 +409,9 @@ fn convert_node_tr(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: 
         while cursor.goto_next_sibling() {
             generator.convert_node(cursor, &mut row);
         }
+    }
+    if let UsjContent::TableRow { content, .. } = &mut row {
+        content.shrink_to_fit();
     }
     generator.try_push_usj(cursor, into, "Unexpected \\tr under", row);
 }
@@ -430,6 +442,9 @@ fn convert_node_table_cell(
     while cursor.goto_next_sibling() {
         generator.convert_node(cursor, &mut cell);
     }
+    if let UsjContent::TableCell { content, .. } = &mut cell {
+        content.shrink_to_fit();
+    }
     generator.try_push_usj(
         cursor,
         into,
@@ -457,7 +472,7 @@ fn convert_node_milestone(
             |x| x.1.trim().trim_start_matches('\\'),
         );
 
-    let milestone = UsjContent::Milestone {
+    let mut milestone = UsjContent::Milestone {
         marker: style.to_string(),
         content: vec![],
         attributes: AttributesMap::new(),
@@ -465,10 +480,13 @@ fn convert_node_milestone(
 
     for_each_child(cursor, |cursor| {
         if cursor.node().kind().ends_with("Attribute") {
-            generator.convert_node(cursor, into);
+            generator.convert_node(cursor, &mut milestone);
         }
     });
 
+    if let UsjContent::Milestone { content, .. } = &mut milestone {
+        content.shrink_to_fit();
+    }
     generator.try_push_usj(
         cursor,
         into,
@@ -488,6 +506,9 @@ fn convert_node_sidebar(
         content: vec![],
     };
     for_each_middle_child(cursor, |c| generator.convert_node(c, &mut sidebar));
+    if let UsjContent::Sidebar { content, .. } = &mut sidebar {
+        content.shrink_to_fit();
+    }
     generator.try_push_usj(cursor, into, "Unexpected \\esb under", sidebar);
 }
 
@@ -577,6 +598,9 @@ fn convert_node_notes(
     for_each_middle(cursor, |c| generator.convert_node(c, &mut note));
 
     cursor.goto_parent();
+    if let UsjContent::Note { content, .. } = &mut note {
+        content.shrink_to_fit();
+    }
     generator.try_push_usj(
         cursor,
         into,
