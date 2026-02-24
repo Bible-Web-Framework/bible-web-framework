@@ -54,9 +54,16 @@ serde_cow = "0.1.2"
 dashmap = { version = "6.1.0", features = ["rayon"] }
 walkdir = "2.5.0"
 parking_lot = "0.12.5"
+constcat = "0.6.1"
+enumset = { version = "1.1.10", features = ["serde"] }
+strum = { version = "0.27.2", features = ["derive"] }
+rangemap = { version = "1.7.1", features = ["serde"] }
 
 [dev-dependencies]
 censor = "0.3.0"
+cool_asserts = "2.0.4"
+multiset = "0.0.5"
+pretty_assertions = "1.4.1"
 
 [build-dependencies]
 phf_codegen = "0.13.1"

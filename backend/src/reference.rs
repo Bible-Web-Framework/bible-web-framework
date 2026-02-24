@@ -3,18 +3,34 @@ use crate::book_data::BookParseOptions;
 use crate::nz_u8;
 use crate::utils::with_normalized_str;
 use crate::verse_range::VerseRange;
+use rangemap::StepLite;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
-use std::ops::Deref;
+use std::ops::{Deref, RangeInclusive};
+use std::str::FromStr;
+use strum::VariantArray;
 use subslice_offset::SubsliceOffset;
 use thiserror::Error;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BibleReference {
     pub book: Book,
     #[serde(flatten)]
     pub reference: BookReference,
+}
+
+impl BibleReference {
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
+        let split = self.reference.split_to_range();
+        Self {
+            book: self.book,
+            reference: *split.start(),
+        }..=Self {
+            book: self.book,
+            reference: *split.end(),
+        }
+    }
 }
 
 impl Deref for BibleReference {
@@ -44,15 +60,142 @@ impl Display for BibleReference {
     }
 }
 
+impl StepLite for BibleReference {
+    fn add_one(&self) -> Self {
+        assert!(
+            self.verses.is_single_verse(),
+            "{self} is a verse range, not a single verse, cannot add_one",
+        );
+        assert!(
+            self.book.chapter_count().is_some(),
+            "Cannot call add_one on non-book reference {self}",
+        );
+        if self.verses.first() < self.book.verse_count(self.chapter).unwrap() {
+            Self {
+                book: self.book,
+                reference: BookReference {
+                    chapter: self.chapter,
+                    verses: VerseRange::new_single_verse(self.verses.first().saturating_add(1)),
+                },
+            }
+        } else if self.chapter < self.book.chapter_count().unwrap() {
+            Self {
+                book: self.book,
+                reference: BookReference {
+                    chapter: self.chapter.saturating_add(1),
+                    verses: VerseRange::new_single_verse(nz_u8!(1)),
+                },
+            }
+        } else if self.book < Book::LetterToTheLaodiceans {
+            Self {
+                book: Book::VARIANTS[self.book as usize + 1],
+                reference: BookReference {
+                    chapter: nz_u8!(1),
+                    verses: VerseRange::new_single_verse(nz_u8!(1)),
+                },
+            }
+        } else {
+            #[cfg(debug_assertions)]
+            panic!("Cannot add_one to {self}, as it would go into FrontMatter");
+            #[cfg(not(debug_assertions))]
+            *self
+        }
+    }
+
+    fn sub_one(&self) -> Self {
+        assert!(
+            self.verses.is_single_verse(),
+            "{self:?} is a verse range, not a single verse, cannot sub_one",
+        );
+        assert!(
+            self.book.chapter_count().is_some(),
+            "Cannot call sub_one on non-book reference {self}",
+        );
+        if self.verses.first_u8() > 1 {
+            Self {
+                book: self.book,
+                reference: BookReference {
+                    chapter: self.chapter,
+                    verses: VerseRange::new_single_verse(
+                        NonZeroU8::new(self.verses.first_u8() - 1).unwrap(),
+                    ),
+                },
+            }
+        } else if self.chapter.get() > 1 {
+            let new_chapter = NonZeroU8::new(self.chapter.get() - 1).unwrap();
+            Self {
+                book: self.book,
+                reference: BookReference {
+                    chapter: new_chapter,
+                    verses: VerseRange::new_single_verse(
+                        self.book.verse_count(new_chapter).unwrap(),
+                    ),
+                },
+            }
+        } else if self.book > Book::Genesis {
+            let new_book = Book::VARIANTS[self.book as usize - 1];
+            let new_chapter = new_book.chapter_count().unwrap();
+            Self {
+                book: new_book,
+                reference: BookReference {
+                    chapter: new_chapter,
+                    verses: VerseRange::new_single_verse(
+                        new_book.verse_count(new_chapter).unwrap(),
+                    ),
+                },
+            }
+        } else {
+            #[cfg(debug_assertions)]
+            panic!("Cannot sub_one from {self}, as it would go out of bounds");
+            #[cfg(not(debug_assertions))]
+            *self
+        }
+    }
+}
+
+impl FromStr for BibleReference {
+    type Err = ParseReferenceError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_reference_part(s, &mut ParseState::default(), &())
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BookReference {
     pub chapter: NonZeroU8,
     pub verses: VerseRange,
 }
 
+impl BookReference {
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
+        let split = self.verses.split_to_range();
+        Self {
+            chapter: self.chapter,
+            verses: *split.start(),
+        }..=Self {
+            chapter: self.chapter,
+            verses: *split.end(),
+        }
+    }
+
+    pub fn is_single_verse(&self) -> bool {
+        self.verses.is_single_verse()
+    }
+}
+
+impl Default for BookReference {
+    fn default() -> Self {
+        Self {
+            chapter: nz_u8!(1),
+            verses: VerseRange::default(),
+        }
+    }
+}
+
 impl Debug for BookReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}:{:?}", self.chapter, self.verses,))
+        f.write_fmt(format_args!("{:?}:{:?}", self.chapter, self.verses))
     }
 }
 
@@ -145,7 +288,7 @@ fn parse_reference_part(
             ParseReferenceError::UnknownBook {
                 book: book_str.to_string(),
                 valid_otherwise: parse_book_reference(
-                    Book::Genesis,
+                    Book::default(),
                     state,
                     reference,
                     remainder,
@@ -274,16 +417,19 @@ fn parse_book_reference(
 #[cfg(test)]
 #[macro_export]
 macro_rules! reference_value {
+    ($book:ident $chapter:literal:$verse:literal) => {
+        $crate::reference_value!($book $chapter:$verse-$verse)
+    };
+
     ($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal) => {
         $crate::reference::BibleReference {
             book: $crate::book_data::Book::$book,
             reference: $crate::reference::BookReference {
                 chapter: $crate::nz_u8!($chapter),
-                verses: $crate::verse_range::VerseRange::new(
+                verses: $crate::verse_range::VerseRange::const_new(
                     $crate::nz_u8!($verse_start),
                     $crate::nz_u8!($verse_end),
-                )
-                .expect("Invalid verse range as expected value in test"),
+                ),
             },
         }
     };
@@ -295,13 +441,16 @@ mod tests {
     use super::parse_references;
     use crate::book_data::Book::*;
     use crate::nz_u8;
+    use cool_asserts::assert_panics;
+    use pretty_assertions::assert_eq;
+    use rangemap::StepLite;
     use std::borrow::Cow;
     use std::collections::HashMap;
     use unicase::UniCase;
 
     macro_rules! reference_result {
-        (Ok($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal)) => {
-            Ok(reference_value!($book $chapter:$verse_start-$verse_end))
+        (Ok($book:ident $chapter:literal:$verse_start:literal$(-$verse_end:literal)?)) => {
+            Ok(reference_value!($book $chapter:$verse_start$(-$verse_end)?))
         };
 
         (Err($error:expr)) => {
@@ -439,5 +588,70 @@ mod tests {
         );
         assert_parse!("John", Err(MissingChapter));
         assert_parse!("John;Acts", Err(MissingChapter), Err(MissingChapter));
+    }
+
+    #[test]
+    fn test_reference_increment() {
+        assert_panics!(reference_value!(Genesis 1:1-2).add_one(), |msg| assert_eq!(
+            msg,
+            "Genesis 1:1-2 is a verse range, not a single verse, cannot add_one"
+        ));
+        assert_panics!(
+            reference_value!(FrontMatter 1:1-1).add_one(),
+            |msg| assert_eq!(
+                msg,
+                "Cannot call add_one on non-book reference FrontMatter 1:1"
+            )
+        );
+        assert_eq!(
+            reference_value!(Genesis 1:1).add_one(),
+            reference_value!(Genesis 1:2),
+        );
+        assert_eq!(
+            reference_value!(Genesis 1:31).add_one(),
+            reference_value!(Genesis 2:1),
+        );
+        assert_eq!(
+            reference_value!(Genesis 50:26).add_one(),
+            reference_value!(Exodus 1:1),
+        );
+        assert_panics!(
+            reference_value!(LetterToTheLaodiceans 1:20).add_one(),
+            |msg| assert_eq!(
+                msg,
+                "Cannot add_one to LetterToTheLaodiceans 1:20, as it would go into FrontMatter"
+            )
+        );
+    }
+
+    #[test]
+    fn test_reference_decrement() {
+        assert_panics!(reference_value!(Genesis 1:1-2).sub_one(), |msg| assert_eq!(
+            msg,
+            "Genesis 1:1-2 is a verse range, not a single verse, cannot sub_one"
+        ));
+        assert_panics!(
+            reference_value!(FrontMatter 1:1-1).sub_one(),
+            |msg| assert_eq!(
+                msg,
+                "Cannot call sub_one on non-book reference FrontMatter 1:1"
+            )
+        );
+        assert_eq!(
+            reference_value!(Genesis 1:2).sub_one(),
+            reference_value!(Genesis 1:1),
+        );
+        assert_eq!(
+            reference_value!(Genesis 2:1).sub_one(),
+            reference_value!(Genesis 1:31),
+        );
+        assert_eq!(
+            reference_value!(Exodus 1:1).sub_one(),
+            reference_value!(Genesis 50:26),
+        );
+        assert_panics!(reference_value!(Genesis 1:1).sub_one(), |msg| assert_eq!(
+            msg,
+            "Cannot sub_one from Genesis 1:1, as it would go out of bounds"
+        ));
     }
 }

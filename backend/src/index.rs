@@ -6,7 +6,7 @@ use charabia::Tokenizer;
 use dashmap::DashMap;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, LinkedList};
 use std::num::NonZeroU8;
@@ -214,7 +214,7 @@ impl BookIndexer {
             results: HashMap::new(),
             current_chapter: None,
             current_verses: None,
-            current_path: SmallVec::new(),
+            current_path: smallvec![],
         }
     }
 
@@ -232,6 +232,7 @@ impl BookIndexer {
             }
 
             UsjContent::Paragraph { content, .. }
+            | UsjContent::Character { content, .. }
             | UsjContent::Milestone { content, .. }
             | UsjContent::TableCell { content, .. } => {
                 if !usj.is_title_para() {
@@ -242,13 +243,6 @@ impl BookIndexer {
                 }
             }
 
-            UsjContent::Character { content, .. } => {
-                if let Some(content) = content {
-                    self.current_path.push(0);
-                    self.index_text(content, tokenizer);
-                    self.current_path.remove(self.current_path.len() - 1);
-                }
-            }
             UsjContent::Chapter { number, .. } => {
                 self.current_chapter = Some(*number);
                 self.current_verses = None;
@@ -269,7 +263,7 @@ impl BookIndexer {
             action(self, child);
             *self.current_path.last_mut().unwrap() += 1;
         }
-        self.current_path.remove(self.current_path.len() - 1);
+        self.current_path.pop();
     }
 
     fn index_text(&mut self, text: &str, tokenizer: &Tokenizer) {
@@ -314,8 +308,8 @@ pub struct TextLocation {
 impl TextLocation {
     pub fn resolve_text_section<'a>(&self, content: &'a UsjContent) -> Option<&'a str> {
         let mut current = content;
-        for index in self.usj_path.iter().take(self.usj_path.len() - 1) {
-            current = current.get_content(*index)?.left()?;
+        for &index in self.usj_path.iter().take(self.usj_path.len() - 1) {
+            current = current.get_content(index)?.left()?;
         }
         current.get_content(*self.usj_path.last()?)?.right()
     }

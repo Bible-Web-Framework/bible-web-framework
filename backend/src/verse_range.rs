@@ -1,3 +1,4 @@
+use crate::nz_u8;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
@@ -17,6 +18,21 @@ impl VerseRange {
             return Err((first, last));
         }
         Ok(Self { first, last })
+    }
+
+    pub const fn const_new(first: NonZeroU8, last: NonZeroU8) -> Self {
+        assert!(
+            first.get() <= last.get(),
+            "first > last in VerseRange::const_new",
+        );
+        Self { first, last }
+    }
+
+    pub const fn new_single_verse(verse: NonZeroU8) -> Self {
+        Self {
+            first: verse,
+            last: verse,
+        }
     }
 
     pub fn first(&self) -> NonZeroU8 {
@@ -41,6 +57,20 @@ impl VerseRange {
 
     pub fn contains(&self, verse: NonZeroU8) -> bool {
         self.range().contains(&verse)
+    }
+
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
+        Self::new_single_verse(self.first)..=Self::new_single_verse(self.last)
+    }
+
+    pub fn is_single_verse(&self) -> bool {
+        self.first == self.last
+    }
+}
+
+impl Default for VerseRange {
+    fn default() -> Self {
+        Self::new_single_verse(nz_u8!(1))
     }
 }
 
@@ -85,7 +115,7 @@ impl Debug for VerseRange {
 
 impl Display for VerseRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.first == self.last {
+        if self.is_single_verse() {
             f.write_fmt(format_args!("{}", self.first))
         } else {
             f.write_fmt(format_args!("{}-{}", self.first, self.last))

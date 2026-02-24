@@ -1,9 +1,10 @@
 use crate::api::{ApiError, ApiResult};
 use crate::book_data::{AdditionalAliases, Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
+use crate::reference::BibleReference;
 use crate::usfm_converter::FatalUsfmError;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
-use crate::utils::ExclusiveMutex;
+use crate::utils::{ExclusiveMutex, PrefixTree};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
@@ -17,6 +18,7 @@ use notify_debouncer_full::notify::event::{
     CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
 };
 use parking_lot::RwLock;
+use rangemap::RangeInclusiveMap;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use smallvec::smallvec;
 use std::borrow::Cow;
@@ -59,12 +61,20 @@ pub struct BibleConfig {
     pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
+    pub footnotes: FootnotesTree,
 }
 
 #[derive(Debug, Default)]
 pub struct SearchConfig {
-    pub languages: Option<Vec<Language>>,
-    pub ignored_words: Option<fst::Set<Vec<u8>>>,
+    pub languages: Option<Box<[Language]>>,
+    pub ignored_words: Option<fst::Set<Box<[u8]>>>,
+}
+
+pub type FootnotesTree = PrefixTree<String, RangeInclusiveMap<BibleReference, FootnotesConfig>>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FootnotesConfig {
+    pub footnote: UsjContent,
 }
 
 impl MultiBibleData {
@@ -698,7 +708,7 @@ impl BibleConfig {
 }
 
 impl SearchConfig {
-    fn create_tokenizer(&self) -> Tokenizer<'_> {
+    pub fn create_tokenizer(&self) -> Tokenizer<'_> {
         let mut builder = TokenizerBuilder::new();
         if let Some(languages) = &self.languages {
             builder.allow_list(languages);
@@ -724,21 +734,29 @@ pub enum BibleDataError {
     Json(#[from] serde_json::Error),
     #[error("Error parsing USFM: {0}")]
     Usfm(#[from] FatalUsfmError),
+    #[error("Injected footnote has multiple ({0}) paragraph elements")]
+    InjectedFootnoteLength(usize),
+    #[error("Injected footnote is not a note (was a {0})")]
+    InjectedFootnoteNotNote(String),
 }
 
 pub type ConfigResult<T> = Result<T, BibleDataError>;
 
 mod unresolved {
     use crate::book_data::Book;
-    use crate::utils::LanguageAsCode;
+    use crate::reference::BibleReference;
+    use crate::usj::UsjContent;
+    use crate::utils::{FootnoteAsUsfm, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
     use charabia::{Language, Normalize, StrDetection, Token};
     use itertools::Itertools;
     use permutate::Permutator;
     use serde::Deserialize;
-    use serde_with::serde_as;
+    use serde_with::{DisplayFromStr, serde_as};
     use std::borrow::Cow;
     use std::collections::HashMap;
+    use std::ops::RangeInclusive;
+    use std::{iter, mem};
     use unicase::UniCase;
 
     #[derive(Debug, Deserialize)]
@@ -749,16 +767,8 @@ mod unresolved {
         book_aliases: AliasesConfig,
         #[serde(default)]
         search: SearchConfig,
-    }
-
-    #[serde_as]
-    #[derive(Debug, Default, Deserialize)]
-    pub struct SearchConfig {
-        #[serde_as(as = "Option<Vec<LanguageAsCode>>")]
         #[serde(default)]
-        pub languages: Option<Vec<Language>>,
-        #[serde(default)]
-        pub ignored_words: Option<Vec<String>>,
+        footnotes: HashMap<String, Vec<FootnotesConfig>>,
     }
 
     #[derive(Debug, Default, Deserialize)]
@@ -766,6 +776,35 @@ mod unresolved {
         #[serde(default)]
         common: HashMap<String, Vec<String>>,
         books: HashMap<Book, Vec<BookAlias>>,
+    }
+
+    #[serde_as]
+    #[derive(Debug, Default, Deserialize)]
+    struct SearchConfig {
+        #[serde_as(as = "Option<Vec<LanguageAsCode>>")]
+        #[serde(default)]
+        languages: Option<Vec<Language>>,
+        #[serde(default)]
+        ignored_words: Option<Vec<String>>,
+    }
+
+    #[serde_as]
+    #[derive(Debug, Deserialize)]
+    struct FootnotesConfig {
+        bible_ranges: Vec<BibleRange>,
+        #[serde_as(as = "FootnoteAsUsfm")]
+        footnote: UsjContent,
+    }
+
+    #[serde_as]
+    #[derive(Copy, Clone, Debug, Deserialize)]
+    #[serde(untagged)]
+    enum BibleRange {
+        Simple(#[serde_as(as = "DisplayFromStr")] BibleReference),
+        MultiChapter(
+            #[serde_as(as = "DisplayFromStr")] BibleReference,
+            #[serde_as(as = "DisplayFromStr")] BibleReference,
+        ),
     }
 
     #[derive(Debug, Deserialize)]
@@ -793,10 +832,36 @@ mod unresolved {
                 }
             }
 
+            let search = super::SearchConfig::from(val.search);
+            let tokenizer = search.create_tokenizer();
+
             super::BibleConfig {
                 display_name: val.display_name,
                 book_aliases,
-                search: val.search.into(),
+                footnotes: val
+                    .footnotes
+                    .into_iter()
+                    .map(|(key, footnotes)| {
+                        (
+                            tokenizer
+                                .tokenize(&key)
+                                .map(|t| t.lemma.into_owned())
+                                .collect_vec(),
+                            footnotes
+                                .into_iter()
+                                .flat_map(|mut footnote| {
+                                    let ranges_count = footnote.bible_ranges.len();
+                                    mem::take(&mut footnote.bible_ranges)
+                                        .into_iter()
+                                        .map(Into::into)
+                                        .zip(iter::repeat_n(footnote.into(), ranges_count))
+                                })
+                                .collect(),
+                        )
+                    })
+                    .filter(|(key, _)| !key.is_empty())
+                    .collect(),
+                search,
             }
         }
     }
@@ -830,8 +895,29 @@ mod unresolved {
                             .dedup(),
                     )
                     .unwrap()
+                    .map_data(Vec::into_boxed_slice)
+                    .unwrap()
                 }),
-                languages: val.languages,
+                languages: val.languages.map(Vec::into_boxed_slice),
+            }
+        }
+    }
+
+    impl From<FootnotesConfig> for super::FootnotesConfig {
+        fn from(value: FootnotesConfig) -> Self {
+            super::FootnotesConfig {
+                footnote: value.footnote,
+            }
+        }
+    }
+
+    impl From<BibleRange> for RangeInclusive<BibleReference> {
+        fn from(value: BibleRange) -> Self {
+            match value {
+                BibleRange::Simple(reference) => reference.split_to_range(),
+                BibleRange::MultiChapter(start, end) => {
+                    *start.split_to_range().start()..=*end.split_to_range().end()
+                }
             }
         }
     }

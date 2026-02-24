@@ -1,3 +1,4 @@
+use crate::book_category::{APOCRYPHA_BOOKS, NEW_TESTAMENT_BOOKS, OLD_TESTAMENT_BOOKS};
 use crate::book_data::Book;
 use crate::reference::{BibleReference, BookReference};
 use crate::verse_range::VerseRange;
@@ -5,6 +6,7 @@ use itertools::Itertools;
 use lehmer::Lehmer;
 use rustrict::{Censor, Type};
 use std::num::NonZeroU8;
+use strum::VariantArray;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -103,140 +105,80 @@ fn mul_add_with_offset(
     mul_add(accum, base - offset, value - offset)
 }
 
-macro_rules! make_book_types {
-    (
-        OLD_TESTAMENT = [$($old_testament:expr,)+],
-        NEW_TESTAMENT = [$($new_testament:expr,)+],
-        APOCRYPHA = [$($apocrypha:expr,)+],
-    ) => {
-        const OLD_TESTAMENT: &[Book] = &[$($old_testament,)+];
-        const NEW_TESTAMENT: &[Book] = &[$($new_testament,)+];
-        const APOCRYPHA: &[Book] = &[$($apocrypha,)+];
-
-        const BOOK_TYPES: &[&[Book]] = &[
-            &[$($old_testament,)+], // 0
-            &[$($new_testament,)+], // 1
-            &[$($old_testament,)+ $($new_testament,)+], // 2
-            &[$($apocrypha,)+], // 3
-            &[$($old_testament,)+ $($apocrypha,)+], // 4
-            &[$($old_testament,)+ $($new_testament,)+ $($apocrypha,)+], // 5
-        ];
-    };
+#[derive(Copy, Clone)]
+struct BookType {
+    len: Carrier,
+    into_carrier: fn(Book) -> Carrier,
+    from_carrier: fn(Carrier) -> Book,
 }
 
-make_book_types!(
-    OLD_TESTAMENT = [
-        Book::Genesis,
-        Book::Exodus,
-        Book::Leviticus,
-        Book::Numbers,
-        Book::Deuteronomy,
-        Book::Joshua,
-        Book::Judges,
-        Book::Ruth,
-        Book::FirstSamuel,
-        Book::SecondSamuel,
-        Book::FirstKings,
-        Book::SecondKings,
-        Book::FirstChronicles,
-        Book::SecondChronicles,
-        Book::Ezra,
-        Book::Nehemiah,
-        Book::Esther,
-        Book::Job,
-        Book::Psalms,
-        Book::Proverbs,
-        Book::Ecclesiastes,
-        Book::SongOfSolomon,
-        Book::Isaiah,
-        Book::Jeremiah,
-        Book::Lamentations,
-        Book::Ezekiel,
-        Book::Daniel,
-        Book::Hosea,
-        Book::Joel,
-        Book::Amos,
-        Book::Obadiah,
-        Book::Jonah,
-        Book::Micah,
-        Book::Nahum,
-        Book::Habakkuk,
-        Book::Zephaniah,
-        Book::Haggai,
-        Book::Zechariah,
-        Book::Malachi,
-    ],
-    NEW_TESTAMENT = [
-        Book::Matthew,
-        Book::Mark,
-        Book::Luke,
-        Book::John,
-        Book::Acts,
-        Book::Romans,
-        Book::FirstCorinthians,
-        Book::SecondCorinthians,
-        Book::Galatians,
-        Book::Ephesians,
-        Book::Philippians,
-        Book::Colossians,
-        Book::FirstThessalonians,
-        Book::SecondThessalonians,
-        Book::FirstTimothy,
-        Book::SecondTimothy,
-        Book::Titus,
-        Book::Philemon,
-        Book::Hebrews,
-        Book::James,
-        Book::FirstPeter,
-        Book::SecondPeter,
-        Book::FirstJohn,
-        Book::SecondJohn,
-        Book::ThirdJohn,
-        Book::Jude,
-        Book::Revelation,
-    ],
-    APOCRYPHA = [
-        Book::Tobit,
-        Book::Judith,
-        Book::EstherGreek,
-        Book::WisdomOfSolomon,
-        Book::Sirach,
-        Book::Baruch,
-        Book::LetterOfJeremiah,
-        Book::SongOfTheThreeYoungMen,
-        Book::Susanna,
-        Book::BelAndTheDragon,
-        Book::FirstMaccabees,
-        Book::SecondMaccabees,
-        Book::ThirdMaccabees,
-        Book::FourthMaccabees,
-        Book::FirstEsdras,
-        Book::SecondEsdras,
-        Book::PrayerOfManasseh,
-        Book::PsalmOneFiftyOne,
-        Book::Odes,
-        Book::PsalmsOfSolomon,
-        Book::EzraApocalypse,
-        Book::FifthEzra,
-        Book::SixthEzra,
-        Book::DanielGreek,
-        Book::PsalmOneFiftyTwoThroughOneFiftyFive,
-        Book::SecondBaruch,
-        Book::LetterOfBaruch,
-        Book::Jubilees,
-        Book::Enoch,
-        Book::Reproof,
-        Book::FourthBaruch,
-        Book::LetterToTheLaodiceans,
-    ],
-);
+const FIRST_NEW_TESTAMENT: Book = Book::Matthew;
+const FIRST_NEW_TESTAMENT_ID: Carrier = FIRST_NEW_TESTAMENT as Carrier;
+const FIRST_APOCRYPHA: Book = Book::Tobit;
+const FIRST_APOCRYPHA_ID: Carrier = FIRST_APOCRYPHA as Carrier;
+const FIRST_SPECIAL: Book = Book::FrontMatter;
+const FIRST_SPECIAL_ID: Carrier = FIRST_SPECIAL as Carrier;
+const BOOK_TYPES: &[BookType] = &[
+    // 0: OT
+    BookType {
+        len: FIRST_NEW_TESTAMENT_ID,
+        into_carrier: |b| b as Carrier,
+        from_carrier: |c| Book::VARIANTS[c as usize],
+    },
+    // 1: NT
+    BookType {
+        len: FIRST_APOCRYPHA_ID - FIRST_NEW_TESTAMENT_ID,
+        into_carrier: |b| b as Carrier - FIRST_NEW_TESTAMENT_ID,
+        from_carrier: |c| Book::VARIANTS[(c + FIRST_NEW_TESTAMENT_ID) as usize],
+    },
+    // 2: OT + NT
+    BookType {
+        len: FIRST_APOCRYPHA_ID,
+        into_carrier: |b| b as Carrier,
+        from_carrier: |c| Book::VARIANTS[c as usize],
+    },
+    // 3: AP
+    BookType {
+        len: FIRST_SPECIAL_ID - FIRST_APOCRYPHA_ID,
+        into_carrier: |b| b as Carrier - FIRST_APOCRYPHA_ID,
+        from_carrier: |c| Book::VARIANTS[(c + FIRST_APOCRYPHA_ID) as usize],
+    },
+    // 4: OT + AP
+    BookType {
+        len: FIRST_NEW_TESTAMENT_ID + (FIRST_SPECIAL_ID - FIRST_APOCRYPHA_ID),
+        into_carrier: |b| {
+            if b >= FIRST_APOCRYPHA {
+                b as Carrier - FIRST_APOCRYPHA_ID + FIRST_NEW_TESTAMENT_ID
+            } else {
+                b as Carrier
+            }
+        },
+        from_carrier: |c| {
+            if c >= FIRST_NEW_TESTAMENT_ID {
+                Book::VARIANTS[(c - FIRST_NEW_TESTAMENT_ID + FIRST_APOCRYPHA_ID) as usize]
+            } else {
+                Book::VARIANTS[c as usize]
+            }
+        },
+    },
+    // 5: OT + NT + AP
+    BookType {
+        len: FIRST_SPECIAL_ID,
+        into_carrier: |b| b as Carrier,
+        from_carrier: |c| Book::VARIANTS[c as usize],
+    },
+];
 
 pub fn encode_references_to_num(
     references: &[BibleReference],
 ) -> Result<Carrier, ReferenceEncodingError> {
-    let has_ot = references.iter().any(|x| OLD_TESTAMENT.contains(&x.book));
-    let has_nt = references.iter().any(|x| NEW_TESTAMENT.contains(&x.book));
-    let has_ap = references.iter().any(|x| APOCRYPHA.contains(&x.book));
+    let has_ot = references
+        .iter()
+        .any(|x| OLD_TESTAMENT_BOOKS.contains(x.book));
+    let has_nt = references
+        .iter()
+        .any(|x| NEW_TESTAMENT_BOOKS.contains(x.book));
+    let has_ap = references.iter().any(|x| APOCRYPHA_BOOKS.contains(x.book));
     let book_type_id = if has_ap {
         if has_nt {
             5
@@ -254,7 +196,7 @@ pub fn encode_references_to_num(
     };
     let book_type = BOOK_TYPES[book_type_id];
 
-    let book_base = book_type.len() as Carrier + 1;
+    let book_base = book_type.len + 1;
 
     let mut references_ordered = references
         .iter()
@@ -284,10 +226,7 @@ pub fn encode_references_to_num(
 
         if ordered_index > 0 {
             let (previous_reference, _) = references_ordered[ordered_index - 1];
-            book_offset = book_type
-                .iter()
-                .position(|&x| x == previous_reference.book)
-                .unwrap() as Carrier;
+            book_offset = (book_type.into_carrier)(previous_reference.book);
             if reference.book == previous_reference.book {
                 chapter_offset = previous_reference.chapter.get() as Carrier;
                 if reference.chapter == previous_reference.chapter {
@@ -325,12 +264,9 @@ pub fn encode_references_to_num(
         result = mul_add_with_offset(
             result,
             book_base,
-            book_type
-                .iter()
-                .position(|&x| x == reference.book)
-                .expect("chapter_count lookup should've already bailed") as Carrier
-                + 1,
-            //  ^^^ Have to add 1 here, otherwise books like Genesis are 0 and non-decodable
+            (book_type.into_carrier)(reference.book) + 1,
+            //    Have to add 1 here, otherwise books like ^^^
+            //             Genesis are 0 and non-decodable
             book_offset,
         )?;
     }
@@ -349,7 +285,7 @@ pub fn decode_references_from_num(
     (refs, book_type_id) = div_mod(refs, BOOK_TYPES.len() as Carrier);
     let book_type = BOOK_TYPES[book_type_id as usize];
 
-    let book_base = book_type.len() as Carrier + 1;
+    let book_base = book_type.len + 1;
 
     let mut lehmer_product = 1;
     let mut book_offset = 0;
@@ -361,7 +297,7 @@ pub fn decode_references_from_num(
         if book_id == 0 {
             return Err(ReferenceEncodingError::NonExhaustedReference);
         }
-        let book = book_type[(book_id - 1) as usize];
+        let book = (book_type.from_carrier)(book_id - 1);
 
         if book_id - 1 != book_offset {
             book_offset = book_id - 1;
@@ -448,6 +384,7 @@ mod tests {
     };
     use crate::reference_value;
     use itertools::Itertools;
+    use pretty_assertions::assert_eq;
     use unicase::UniCase;
 
     fn encode_references(references: &[BibleReference]) -> Result<String, ReferenceEncodingError> {

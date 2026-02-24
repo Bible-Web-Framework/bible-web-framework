@@ -185,7 +185,7 @@ fn convert_node_verse(
             format!(
                 "{} {}:{verse_num}",
                 // Ugly fallbacks, but they're what we have available
-                generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
+                generator.current_book.unwrap_or_default().usfm_id(),
                 generator.current_chapter.unwrap_or(nz_u8!(1))
             )
         },
@@ -197,7 +197,7 @@ fn convert_node_id(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into: 
     let captures = ID_QUERY.captures(cursor.node(), generator.source);
     let Ok(Some(book)) = generator.parse_from_query(&captures, "book-code", "book code") else {
         // Just pick some arbitrary fallback
-        generator.current_book = Some(Book::Genesis);
+        generator.current_book = Some(Book::default());
         return;
     };
     let desc = captures
@@ -251,7 +251,7 @@ fn convert_node_chapter(
                 format!(
                     // Ugly fallback, but it's what we have available
                     "{} {chapter_num}",
-                    generator.current_book.unwrap_or(Book::Genesis).usfm_id(),
+                    generator.current_book.unwrap_or_default().usfm_id(),
                 )
             },
         };
@@ -626,7 +626,7 @@ fn convert_node_char(generator: &mut UsjGenerator, cursor: &mut TreeCursor, into
 
     let mut character = UsjContent::Character {
         marker: base_style.trim_start_matches(['\\', '+']).to_string(),
-        content: None,
+        content: vec![],
         attributes: AttributesMap::new(),
     };
 

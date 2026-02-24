@@ -96,7 +96,7 @@ watch(resultsPerPage, (newCount, oldCount) => {
 const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
   const notes: VNode[] = []
   walkUsj(contents, (element) => {
-    if (element.type !== 'note') {
+    if (typeof element === 'string' || element.type !== 'note') {
       return true
     }
     notes.push(

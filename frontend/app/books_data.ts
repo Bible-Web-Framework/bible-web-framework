@@ -1652,7 +1652,7 @@ export type books = {
   "OtherMatter": "OTH",
   "IntroductionMatter": "INT",
   "Concordance": "CNC",
-  "Glossary": {"usfm_id": "GLO", "verse_counts": []},
+  "Glossary": "GLO",
   "TopicalIndex": "TDX",
   "NamesIndex": "NDX",
   "ExtraMaterialA": "XXA",

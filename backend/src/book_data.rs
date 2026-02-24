@@ -1,4 +1,5 @@
 use crate::utils::with_normalized_str;
+use enumset::EnumSetType;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -6,49 +7,11 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::num::NonZeroU8;
 use std::str::FromStr;
+use strum::VariantArray;
 use thiserror::Error;
 use unicase::UniCase;
 
 include!(concat!(env!("OUT_DIR"), "/book.rs"));
-
-/// A map from NFKC-normalized case-folded strings with no spaces. `None` is treated as an empty
-/// map.
-pub type AdditionalAliases<'a> = &'a HashMap<UniCase<Cow<'a, str>>, Book>;
-
-pub trait BookParseOptions {
-    fn additional_aliases(&self) -> Option<AdditionalAliases<'_>> {
-        None
-    }
-
-    fn book_allowed(&self, book: Book) -> bool {
-        let _ = book;
-        true
-    }
-}
-
-impl BookParseOptions for () {}
-
-impl<'a> BookParseOptions for AdditionalAliases<'a> {
-    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
-        Some(self)
-    }
-}
-
-impl<F: Fn(Book) -> bool> BookParseOptions for F {
-    fn book_allowed(&self, book: Book) -> bool {
-        self(book)
-    }
-}
-
-impl<'a, F: Fn(Book) -> bool> BookParseOptions for (AdditionalAliases<'a>, F) {
-    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
-        Some(self.0)
-    }
-
-    fn book_allowed(&self, book: Book) -> bool {
-        (self.1)(book)
-    }
-}
 
 impl Book {
     pub const fn chapter_count(&self) -> Option<NonZeroU8> {
@@ -165,10 +128,50 @@ impl Display for Book {
     }
 }
 
+/// A map from NFKC-normalized case-folded strings with no spaces. `None` is treated as an empty
+/// map.
+pub type AdditionalAliases<'a> = &'a HashMap<UniCase<Cow<'a, str>>, Book>;
+
+pub trait BookParseOptions {
+    fn additional_aliases(&self) -> Option<AdditionalAliases<'_>> {
+        None
+    }
+
+    fn book_allowed(&self, book: Book) -> bool {
+        let _ = book;
+        true
+    }
+}
+
+impl BookParseOptions for () {}
+
+impl<'a> BookParseOptions for AdditionalAliases<'a> {
+    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
+        Some(self)
+    }
+}
+
+impl<F: Fn(Book) -> bool> BookParseOptions for F {
+    fn book_allowed(&self, book: Book) -> bool {
+        self(book)
+    }
+}
+
+impl<'a, F: Fn(Book) -> bool> BookParseOptions for (AdditionalAliases<'a>, F) {
+    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
+        Some(self.0)
+    }
+
+    fn book_allowed(&self, book: Book) -> bool {
+        (self.1)(book)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::book_data::Book;
     use crate::nz_u8;
+    use pretty_assertions::assert_eq;
     use std::num::NonZeroU8;
 
     fn assert_parse(name: &str, book: Book) {

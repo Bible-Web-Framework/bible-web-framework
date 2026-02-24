@@ -6,6 +6,7 @@ use actix_web::{HttpResponse, get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use unicase::UniCase;
 use validator::Validate;
 
@@ -25,12 +26,26 @@ pub async fn book(
     Ok(HttpResponse::Ok().json(&*usj))
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize, Validate)]
+#[serde(rename_all = "kebab-case")]
 pub struct SearchQueryParams {
     term: String,
-    start: Option<usize>,
+    #[serde(default)]
+    start: usize,
     #[validate(range(max = 250))]
-    count: Option<usize>,
+    #[serde(default = "default_result_count")]
+    count: usize,
+    #[serde(default = "default_generated_footnotes")]
+    generate_footnotes: bool,
+}
+
+fn default_result_count() -> usize {
+    50
+}
+
+fn default_generated_footnotes() -> bool {
+    true
 }
 
 #[get("/search")]
@@ -41,12 +56,14 @@ pub async fn search(
 ) -> ApiResult<web::Json<SearchResponse>> {
     let query = query.into_inner();
     let bible = bibles.get_or_api_error(bible.into_inner())?;
-    Ok(web::Json(search_bible(
+    let results = search_bible(
         query.term,
-        query.start.unwrap_or(0),
-        query.count.unwrap_or(50),
+        query.start,
+        query.count,
+        query.generate_footnotes,
         &bible,
-    )))
+    );
+    Ok(web::Json(results))
 }
 
 #[get("/index")]
