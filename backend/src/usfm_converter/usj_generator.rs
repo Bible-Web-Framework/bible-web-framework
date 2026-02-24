@@ -474,7 +474,6 @@ fn convert_node_milestone(
 
     let mut milestone = UsjContent::Milestone {
         marker: style.to_string(),
-        content: vec![],
         attributes: AttributesMap::new(),
     };
 
@@ -484,9 +483,6 @@ fn convert_node_milestone(
         }
     });
 
-    if let UsjContent::Milestone { content, .. } = &mut milestone {
-        content.shrink_to_fit();
-    }
     generator.try_push_usj(
         cursor,
         into,

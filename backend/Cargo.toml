@@ -58,6 +58,7 @@ constcat = "0.6.1"
 enumset = { version = "1.1.10", features = ["serde"] }
 strum = { version = "0.27.2", features = ["derive"] }
 rangemap = { version = "1.7.1", features = ["serde"] }
+usfm3 = "0.1.5"
 
 [dev-dependencies]
 censor = "0.3.0"

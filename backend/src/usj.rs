@@ -1,13 +1,14 @@
 use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
-use crate::serde_display_and_parse;
 use crate::usfm_converter::UsfmParser;
 use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
+use crate::{nz_u8, serde_display_and_parse};
 use either::Either;
 use ere::compile_regex;
-use miette::MietteDiagnostic;
-use monostate::MustBe;
+use itertools::Itertools;
+use miette::{LabeledSpan, MietteDiagnostic, Severity};
+use monostate::{MustBe, MustBeStr};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
 use std::collections::BTreeMap;
@@ -15,6 +16,9 @@ use std::fmt::{Display, Formatter};
 use std::io::BufRead;
 use std::num::NonZeroU8;
 use std::slice::SliceIndex;
+use std::str::FromStr;
+use usfm3::ast::{Attribute, Node};
+use usfm3::diagnostics::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UsjBookInfo {
@@ -35,7 +39,7 @@ impl Display for UsjBookInfo {
 #[serde_as]
 #[skip_serializing_none]
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum UsjContent {
     #[serde(rename = "USJ")]
     Root(UsjRoot),
@@ -86,8 +90,6 @@ pub enum UsjContent {
     #[serde(rename = "ms")]
     Milestone {
         marker: String,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
-        content: Vec<ParaContent>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -137,6 +139,9 @@ pub enum UsjContent {
         #[serde(flatten)]
         attributes: AttributesMap,
     },
+
+    OptBreak,
+    // TODO: \periph
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -146,17 +151,21 @@ pub enum ParaContent {
     Plain(String),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TableCellAlignment {
+    #[default]
     Start,
     Center,
     End,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+serde_display_and_parse!(TableCellAlignment);
+
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum NoteCaller {
     #[serde(rename = "+")]
+    #[default]
     Generated,
     #[serde(rename = "-")]
     None,
@@ -202,6 +211,7 @@ impl UsjContent {
             Self::Sidebar { marker, .. } => Some(get_value(marker)),
             Self::Figure { marker, .. } => Some(get_value(marker)),
             Self::Reference { .. } => None,
+            Self::OptBreak => None,
         }
     }
 
@@ -218,7 +228,6 @@ impl UsjContent {
         match self {
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
 
@@ -243,7 +252,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
 
@@ -260,7 +268,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => {
                 content.insert(index, ParaContent::Usj(new_content))
@@ -280,7 +287,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => match content.get(index)? {
                 ParaContent::Usj(usj) => Either::Left(usj),
@@ -313,7 +319,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => match content.get_mut(index)? {
                 ParaContent::Usj(usj) => Either::Left(usj),
@@ -596,6 +601,28 @@ impl UsjRoot {
     }
 }
 
+// impl TryFrom<Document> for UsjContent {
+//     type Error = MietteDiagnostic;
+//
+//     fn try_from(value: Document) -> Result<Self, Self::Error> {
+//         UsjContent::Root(UsjRoot {
+//             version: "3.1".to_string(),
+//             content: value.content.into_iter().map(Into::into).collect(),
+//         })
+//     }
+// }
+//
+// impl TryFrom<Node> for UsjContent {
+//     fn from(value: Node) -> Self {
+//         match value {
+//             Node::Book { marker, code, content, span } => UsjContent::Book {
+//                 marker: MustBeStr,
+//                 code: code.into(),
+//             }
+//         }
+//     }
+// }
+
 pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, BibleDataError> {
     Ok(serde_json::from_reader(reader)?)
 }
@@ -619,6 +646,346 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
         source: parser.usfm,
         diagnostics: all_diags,
     })
+}
+
+fn usj_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (UsjContent, Option<Span>) {
+    match para_from_usfm(node, diags) {
+        (ParaContent::Usj(usj), span) => (usj, span),
+        (ParaContent::Plain(text), span) => {
+            diags.push(MietteDiagnostic::new("Unexpected plain-text"));
+            (
+                UsjContent::Paragraph {
+                    marker: "p".to_string(),
+                    content: vec![ParaContent::Plain(text)],
+                },
+                span,
+            )
+        }
+    }
+}
+
+fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent, Option<Span>) {
+    match node {
+        Node::Book {
+            marker,
+            code,
+            content,
+            span,
+        } => {
+            #[allow(clippy::question_mark)]
+            const PROPER_BOOK_REGEX: ere::Regex = compile_regex!("^[A-Z0-9][A-Z][A-Z]$");
+            if !marker.is_ascii() {
+                diags.push(
+                    MietteDiagnostic::new("Non-standard USFM book code")
+                        .with_severity(Severity::Warning)
+                        .with_label(LabeledSpan::at(span.clone(), "Should be ASCII")),
+                );
+            } else if !PROPER_BOOK_REGEX.test(&marker) {
+                diags.push(
+                    MietteDiagnostic::new("Non-standard USFM book code")
+                        .with_severity(Severity::Warning)
+                        .with_label(LabeledSpan::at(
+                            span.clone(),
+                            format!(
+                                "Should be 3-characters uppercase ({})",
+                                &marker.to_ascii_uppercase()[..3]
+                            ),
+                        )),
+                );
+            }
+            (
+                ParaContent::Usj(UsjContent::Book {
+                    marker: MustBeStr,
+                    code: parse_string(code, span.clone(), "book code", diags),
+                    content: option_string_from_usfm(content, diags),
+                }),
+                Some(span),
+            )
+        }
+        Node::Chapter {
+            marker: _,
+            number,
+            sid,
+            altnumber,
+            pubnumber,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Chapter {
+                marker: MustBeStr,
+                number: parse_string_with_default(
+                    number,
+                    nz_u8!(1),
+                    span.clone(),
+                    "chapter number",
+                    diags,
+                ),
+                alt_number: altnumber.map(|n| {
+                    parse_string_with_default(
+                        n,
+                        nz_u8!(1),
+                        span.clone(),
+                        "alternate chapter number",
+                        diags,
+                    )
+                }),
+                pub_number: pubnumber,
+                sid: sid.expect("Chapter sid not specified"),
+            }),
+            Some(span),
+        ),
+        Node::Verse {
+            marker: _,
+            number,
+            sid,
+            altnumber,
+            pubnumber,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Verse {
+                marker: MustBeStr,
+                number: parse_string(number, span.clone(), "verse number", diags),
+                alt_number: altnumber
+                    .map(|n| parse_string(n, span.clone(), "alternate verse number", diags)),
+                pub_number: pubnumber,
+                sid: sid.expect("Verse sid not specified"),
+            }),
+            Some(span),
+        ),
+        Node::Para {
+            marker,
+            content,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Paragraph {
+                marker,
+                content: paras_from_usfm(content, diags),
+            }),
+            Some(span),
+        ),
+        Node::Char {
+            marker,
+            content,
+            attributes,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Character {
+                marker,
+                content: paras_from_usfm(content, diags),
+                attributes: parse_attributes(attributes),
+            }),
+            Some(span),
+        ),
+        Node::Note {
+            marker,
+            caller,
+            category,
+            content,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Note {
+                marker,
+                content: paras_from_usfm(content, diags),
+                caller: parse_string(caller, span.clone(), "note caller", diags),
+                category,
+            }),
+            Some(span),
+        ),
+        Node::Milestone {
+            marker,
+            attributes,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Milestone {
+                marker,
+                attributes: parse_attributes(attributes),
+            }),
+            Some(span),
+        ),
+        Node::Figure {
+            marker: _,
+            content,
+            attributes,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Figure {
+                marker: MustBeStr,
+                content: option_string_from_usfm(content, diags),
+                attributes: parse_attributes(attributes),
+            }),
+            Some(span),
+        ),
+        Node::Sidebar {
+            marker: _,
+            category,
+            content,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Sidebar {
+                marker: MustBeStr,
+                content: usjs_from_usfm(content, diags),
+                category,
+            }),
+            Some(span),
+        ),
+        Node::Periph { content, span, .. } => {
+            // TODO: \periph
+            diags.push(
+                MietteDiagnostic::new("\\periph not yet implemented, treating as \\p")
+                    .with_severity(Severity::Advice)
+                    .with_label(LabeledSpan::new_with_span(None, span.clone())),
+            );
+            (
+                ParaContent::Usj(UsjContent::Paragraph {
+                    marker: "p".to_string(),
+                    content: paras_from_usfm(content, diags),
+                }),
+                Some(span),
+            )
+        }
+        Node::Table { content, span } => (
+            ParaContent::Usj(UsjContent::Table {
+                content: usjs_from_usfm(content, diags),
+            }),
+            Some(span),
+        ),
+        Node::TableRow {
+            marker: _,
+            content,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::TableRow {
+                marker: MustBeStr,
+                content: usjs_from_usfm(content, diags),
+            }),
+            Some(span),
+        ),
+        Node::TableCell {
+            marker,
+            align,
+            content,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::TableCell {
+                marker,
+                content: paras_from_usfm(content, diags),
+                align: parse_string(align, span.clone(), "table cell alignment", diags),
+            }),
+            Some(span),
+        ),
+        Node::Ref {
+            content,
+            attributes,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Reference {
+                content: option_string_from_usfm(content, diags),
+                attributes: parse_attributes(attributes),
+            }),
+            Some(span),
+        ),
+        Node::Unknown { content, span, .. } => {
+            diags.push(
+                MietteDiagnostic::new("Custom markers are not yet supported, treating as \\p")
+                    .with_severity(Severity::Advice)
+                    .with_label(LabeledSpan::new_with_span(None, span.clone())),
+            );
+            (
+                ParaContent::Usj(UsjContent::Paragraph {
+                    marker: "p".to_string(),
+                    content: paras_from_usfm(content, diags),
+                }),
+                Some(span),
+            )
+        }
+        Node::OptBreak => (ParaContent::Usj(UsjContent::OptBreak), None),
+        Node::Text(text) => (ParaContent::Plain(text), None),
+    }
+}
+
+fn paras_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) -> Vec<ParaContent> {
+    nodes
+        .into_iter()
+        .map(|node| para_from_usfm(node, diags).0)
+        .collect()
+}
+
+fn usjs_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) -> Vec<UsjContent> {
+    nodes
+        .into_iter()
+        .map(|node| usj_from_usfm(node, diags).0)
+        .collect()
+}
+
+fn option_string_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) -> Option<String> {
+    let mut paras = nodes
+        .into_iter()
+        .map(|node| para_from_usfm(node, diags))
+        .collect_vec()
+        .into_iter();
+    let (para, span) = paras.next()?;
+    let result = match para {
+        ParaContent::Usj(_) if span.is_some() => {
+            diags.push(
+                MietteDiagnostic::new("Unexpected non-string content")
+                    .with_label(LabeledSpan::new_with_span(None, span.unwrap())),
+            );
+            None
+        }
+        ParaContent::Usj(_) => {
+            diags.push(MietteDiagnostic::new("Unexpected non-string content"));
+            None
+        }
+        ParaContent::Plain(text) => Some(text),
+    };
+    let mut spans = paras.peekable();
+    if spans.peek().is_some() {
+        diags.push(
+            MietteDiagnostic::new("Unexpected trailing data")
+                .with_severity(Severity::Warning)
+                .and_labels(
+                    spans.filter_map(|(_, span)| span.map(|s| LabeledSpan::new_with_span(None, s))),
+                ),
+        )
+    }
+    result
+}
+
+fn parse_string<T>(str: String, span: Span, what: &str, diags: &mut Vec<MietteDiagnostic>) -> T
+where
+    T: FromStr + Default,
+    T::Err: ToString,
+{
+    parse_string_with_default(str, T::default(), span, what, diags)
+}
+
+fn parse_string_with_default<T>(
+    str: String,
+    fallback: T,
+    span: Span,
+    what: &str,
+    diags: &mut Vec<MietteDiagnostic>,
+) -> T
+where
+    T: FromStr,
+    T::Err: ToString,
+{
+    match str.parse() {
+        Ok(value) => value,
+        Err(err) => {
+            diags.push(
+                MietteDiagnostic::new(format!("Invalid {what}"))
+                    .with_label(LabeledSpan::at(span, err.to_string())),
+            );
+            fallback
+        }
+    }
+}
+
+fn parse_attributes(attributes: Vec<Attribute>) -> AttributesMap {
+    attributes
+        .into_iter()
+        .map(|attr| (attr.key, attr.value))
+        .collect()
 }
 
 pub fn load_footnote_from_usfm(footnote: &str) -> Result<LoadedUsjFromUsfm, BibleDataError> {

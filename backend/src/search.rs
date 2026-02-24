@@ -269,9 +269,6 @@ impl FootnoteGenerator<'_> {
             | UsjContent::Character {
                 marker, content, ..
             }
-            | UsjContent::Milestone {
-                marker, content, ..
-            }
             | UsjContent::TableCell {
                 marker, content, ..
             } => {
@@ -315,11 +312,7 @@ impl FootnoteGenerator<'_> {
                 self.end_section();
             }
 
-            UsjContent::Book { .. }
-            | UsjContent::Note { .. }
-            | UsjContent::Sidebar { .. }
-            | UsjContent::Figure { .. }
-            | UsjContent::Reference { .. } => {}
+            _ => {}
         }
     }
 
