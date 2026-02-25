@@ -1,13 +1,13 @@
 use crate::bible_data::BibleDataError;
 use crate::nz_u8;
-use crate::usfm_converter::UsfmParser;
-use crate::usj::{AttributesMap, ParaContent, UsjContent};
+use crate::usj::{AttributesMap, ParaContent, UsjContent, UsjRoot};
 use ere::compile_regex;
 use itertools::Itertools;
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
 use std::str::FromStr;
 use usfm3::ast::{Attribute, Node};
+use usfm3::builder::parse;
 use usfm3::diagnostics::Span;
 
 #[derive(Debug)]
@@ -18,16 +18,32 @@ pub struct LoadedUsjFromUsfm {
 }
 
 pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDataError> {
-    let parser = UsfmParser::new(content)?;
+    let parse_results = parse(&content);
+    let mut diags = vec![];
 
-    let (usj, conversion_diags) = parser.to_usj();
-    let mut all_diags = parser.diagnostics;
-    all_diags.extend(conversion_diags);
+    for diag in parse_results.diagnostics.into_inner().into_iter() {
+        diags.push(
+            MietteDiagnostic::new(diag.message)
+                .with_severity(match diag.severity {
+                    usfm3::diagnostics::Severity::Info => Severity::Advice,
+                    usfm3::diagnostics::Severity::Warning => Severity::Warning,
+                    usfm3::diagnostics::Severity::Error => Severity::Error,
+                })
+                .with_label(LabeledSpan::new_with_span(None, diag.span))
+                .with_code(format!(
+                    "usfm3::diagnostic::DiagnosticCode::{:?}",
+                    diag.code
+                )),
+        );
+    }
 
     Ok(LoadedUsjFromUsfm {
-        usj,
-        source: parser.usfm,
-        diagnostics: all_diags,
+        usj: UsjContent::Root(UsjRoot {
+            version: "3.1".to_string(),
+            content: usjs_from_usfm(parse_results.document.content, &mut diags),
+        }),
+        source: content,
+        diagnostics: diags,
     })
 }
 
@@ -72,20 +88,20 @@ fn usj_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (UsjContent, 
 fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent, Option<Span>) {
     match node {
         Node::Book {
-            marker,
+            marker: _,
             code,
             content,
             span,
         } => {
             #[allow(clippy::question_mark)]
             const PROPER_BOOK_REGEX: ere::Regex = compile_regex!("^[A-Z0-9][A-Z][A-Z]$");
-            if !marker.is_ascii() {
+            if !code.is_ascii() {
                 diags.push(
                     MietteDiagnostic::new("Non-standard USFM book code")
                         .with_severity(Severity::Warning)
                         .with_label(LabeledSpan::at(span.clone(), "Should be ASCII")),
                 );
-            } else if !PROPER_BOOK_REGEX.test(&marker) {
+            } else if !PROPER_BOOK_REGEX.test(&code) {
                 diags.push(
                     MietteDiagnostic::new("Non-standard USFM book code")
                         .with_severity(Severity::Warning)
@@ -93,7 +109,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
                             span.clone(),
                             format!(
                                 "Should be 3-characters uppercase ({})",
-                                &marker.to_ascii_uppercase()[..3]
+                                &code.to_ascii_uppercase()[..3]
                             ),
                         )),
                 );
