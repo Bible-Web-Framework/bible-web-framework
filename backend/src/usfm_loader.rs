@@ -93,7 +93,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             content,
             span,
         } => {
-            #[allow(clippy::question_mark)]
+            #[expect(clippy::question_mark)]
             const PROPER_BOOK_REGEX: ere::Regex = compile_regex!("^[A-Z0-9][A-Z][A-Z]$");
             if !code.is_ascii() {
                 diags.push(
