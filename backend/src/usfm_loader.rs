@@ -414,11 +414,13 @@ mod test {
     use crate::bible_data::BibleDataError;
     use crate::usfm_loader::load_footnote_from_usfm;
     use crate::usj::{AttributesMap, NoteCaller, ParaContent, UsjContent};
+    use pretty_assertions::assert_eq;
     use std::error::Error;
 
     #[test]
     fn test_load_footnote() -> Result<(), Box<dyn Error>> {
-        let usfm = "\\f +\\ft Test footnote \\nd Lord\\nd*\\f*";
+        // TODO: Remove + when jcuenod/usfm3#1 is fixed
+        let usfm = "\\f +\\ft Test footnote \\+nd Lord\\nd*\\f*";
         let usj = UsjContent::Note {
             marker: "f".to_string(),
             caller: NoteCaller::Generated,
