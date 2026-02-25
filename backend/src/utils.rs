@@ -1,4 +1,5 @@
-use crate::usj::{UsjContent, load_footnote_from_usfm};
+use crate::usfm_loader::load_footnote_from_usfm;
+use crate::usj::UsjContent;
 use charabia::Language;
 use itertools::Itertools;
 use serde::de::{Error, Unexpected};

@@ -25,6 +25,7 @@ mod reference;
 mod reference_encoding;
 mod search;
 mod usfm_converter;
+mod usfm_loader;
 mod usj;
 mod utils;
 mod verse_range;
