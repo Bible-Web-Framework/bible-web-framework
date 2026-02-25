@@ -440,12 +440,12 @@ mod test {
         };
 
         let converted_usj = load_footnote_from_usfm(usfm)?;
+        assert_eq!(converted_usj.usj, usj);
         assert!(
             converted_usj.diagnostics.is_empty(),
             "{:#?}",
-            converted_usj.diagnostics
+            converted_usj.diagnostics,
         );
-        assert_eq!(converted_usj.usj, usj);
 
         Ok(())
     }
