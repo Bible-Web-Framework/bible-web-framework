@@ -25,8 +25,6 @@ unicase = "2.9.0"
 ere = "0.2.4"
 bimap = "0.6.3"
 notify-debouncer-full = "0.7.0"
-tree-sitter = "0.26.5"
-tree-sitter-usfm3 = "3.0.0-alpha.1"
 subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/issues/126769 becomes stable (probably Rust 1.93.0)
 miette = { version = "7.6.0", features = ["fancy"] }
 itertools = "0.14.0"
