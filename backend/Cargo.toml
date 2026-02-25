@@ -13,7 +13,6 @@ dotenvy = "0.15.7"
 thiserror = "2.0.18"
 tracing = "0.1.44"
 tracing-subscriber = { version = "=0.3.19", features = ["env-filter"] } # TODO: Remove version lock when https://github.com/tokio-rs/tracing/issues/3369 is fixed
-tokio = "1.49.0"
 actix-web = "4.13.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
@@ -35,7 +34,6 @@ either = "1.15.0"
 string-interner = "0.19.0"
 serde-tuple-vec-map = "1.0.1"
 lehmer = "3.0.0"
-actix-extensible-rate-limit = "0.4.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 serde_sqlite_jsonb = "0.2.1"
 actix-cors = "0.7.1"
@@ -46,13 +44,11 @@ permutate = "0.3.2"
 fst = "0.4.7"
 toml = "1.0.3"
 zip = "8.1.0"
-io-enum = "1.2.0"
 sync_file = "0.3.2"
 serde_cow = "0.1.2"
 dashmap = { version = "6.1.0", features = ["rayon"] }
 walkdir = "2.5.0"
 parking_lot = "0.12.5"
-constcat = "0.6.1"
 enumset = { version = "1.1.10", features = ["serde"] }
 strum = { version = "0.27.2", features = ["derive"] }
 rangemap = { version = "1.7.1", features = ["serde"] }
@@ -66,7 +62,6 @@ pretty_assertions = "1.4.1"
 
 [build-dependencies]
 phf_codegen = "0.13.1"
-phf_shared = { version = "0.13.1", features = ["unicase"] }
 serde_json = "1.0.149"
 serde = { version = "1.0.228", features = ["derive"] }
 hashlink = { version = "0.11.0", features = ["serde_impl"] }

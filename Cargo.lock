@@ -35,19 +35,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-extensible-rate-limit"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65f69685bde52e3c1d9ec47aa42ae4eca7f27c04661774423b68b26a06757181"
-dependencies = [
- "actix-web",
- "dashmap",
- "futures",
- "log",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "actix-http"
 version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -398,13 +385,11 @@ name = "bible-web-framework-backend"
 version = "0.1.0"
 dependencies = [
  "actix-cors",
- "actix-extensible-rate-limit",
  "actix-web",
  "actix-web-validator",
  "bimap",
  "censor",
  "charabia",
- "constcat",
  "cool_asserts",
  "dashmap",
  "dotenvy",
@@ -413,7 +398,6 @@ dependencies = [
  "ere",
  "fst",
  "hashlink 0.11.0",
- "io-enum",
  "itertools 0.14.0",
  "lehmer",
  "miette",
@@ -424,7 +408,6 @@ dependencies = [
  "permutate",
  "phf",
  "phf_codegen",
- "phf_shared",
  "pretty_assertions",
  "rangemap",
  "rayon",
@@ -442,7 +425,6 @@ dependencies = [
  "subslice-offset",
  "sync_file",
  "thiserror 2.0.18",
- "tokio",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -665,12 +647,6 @@ name = "constant_time_eq"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
-
-[[package]]
-name = "constcat"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "136d3e02915a2cea4d74caa8681e2d44b1c3254bdbf17d11d41d587ff858832c"
 
 [[package]]
 name = "cookie"
@@ -973,17 +949,6 @@ dependencies = [
  "quote",
  "syn 2.0.108",
  "unicode-xid",
-]
-
-[[package]]
-name = "derive_utils"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccfae181bab5ab6c5478b2ccb69e4c68a02f8c3ec72f6616bfec9dbc599d2ee0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.108",
 ]
 
 [[package]]
@@ -1956,15 +1921,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "io-enum"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d197db2f7ebf90507296df3aebaf65d69f5dce8559d8dbd82776a6cadab61bbf"
-dependencies = [
- "derive_utils",
 ]
 
 [[package]]
