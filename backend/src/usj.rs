@@ -5,7 +5,6 @@ use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
 use either::Either;
 use ere::compile_regex;
-use itertools::Itertools;
 use monostate::MustBe;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
@@ -219,42 +218,6 @@ impl UsjContent {
         })
     }
 
-    pub fn push_text_content(&mut self, text: String) -> bool {
-        match self {
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::Note { content, .. }
-            | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
-
-            UsjContent::Book { content, .. }
-            | UsjContent::Figure { content, .. }
-            | UsjContent::Reference { content, .. }
-                if content.is_none() =>
-            {
-                *content = Some(text)
-            }
-
-            _ => return false,
-        }
-        true
-    }
-
-    pub fn push_usj_content(&mut self, new_content: UsjContent) -> bool {
-        match self {
-            UsjContent::Root(UsjRoot { content, .. })
-            | UsjContent::Table { content, .. }
-            | UsjContent::TableRow { content, .. } => content.push(new_content),
-
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::Note { content, .. }
-            | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
-
-            _ => return false,
-        }
-        true
-    }
-
     pub fn insert_usj_content(&mut self, index: usize, new_content: UsjContent) -> bool {
         match self {
             UsjContent::Root(UsjRoot { content, .. })
@@ -332,23 +295,6 @@ impl UsjContent {
 
             _ => return None,
         })
-    }
-
-    pub fn attributes_mut(&mut self) -> Option<&mut AttributesMap> {
-        match self {
-            Self::Character { attributes, .. }
-            | Self::Milestone { attributes, .. }
-            | Self::Figure { attributes, .. }
-            | Self::Reference { attributes, .. } => Some(attributes),
-            _ => None,
-        }
-    }
-
-    pub fn category_mut(&mut self) -> Option<&mut Option<String>> {
-        match self {
-            Self::Note { category, .. } | Self::Sidebar { category, .. } => Some(category),
-            _ => None,
-        }
     }
 
     fn as_para_content(&self) -> Option<&Vec<ParaContent>> {
