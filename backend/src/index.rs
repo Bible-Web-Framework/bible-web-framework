@@ -233,7 +233,6 @@ impl BookIndexer {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::TableCell { content, .. } => {
                 if !usj.is_title_para() {
                     self.for_with_path(content, |this, child| match child {
@@ -249,11 +248,7 @@ impl BookIndexer {
             }
             UsjContent::Verse { number, .. } => self.current_verses = Some(*number),
 
-            UsjContent::Book { .. }
-            | UsjContent::Note { .. }
-            | UsjContent::Sidebar { .. }
-            | UsjContent::Figure { .. }
-            | UsjContent::Reference { .. } => {}
+            _ => {}
         }
     }
 

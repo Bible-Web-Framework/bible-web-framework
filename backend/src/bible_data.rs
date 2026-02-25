@@ -2,8 +2,8 @@ use crate::api::{ApiError, ApiResult};
 use crate::book_data::{AdditionalAliases, Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
 use crate::reference::BibleReference;
-use crate::usfm_converter::FatalUsfmError;
-use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj, load_usj_from_usfm};
+use crate::usfm_loader::load_usj_from_usfm;
+use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj};
 use crate::utils::{ExclusiveMutex, PrefixTree};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
@@ -732,8 +732,6 @@ pub enum BibleDataError {
     Toml(#[from] toml::de::Error),
     #[error("Error parsing USJ: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("Error parsing USFM: {0}")]
-    Usfm(#[from] FatalUsfmError),
     #[error("Injected footnote has multiple ({0}) paragraph elements")]
     InjectedFootnoteLength(usize),
     #[error("Injected footnote is not a note (was a {0})")]

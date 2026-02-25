@@ -1,6 +1,8 @@
-use crate::usj::{UsjContent, load_footnote_from_usfm};
+use crate::usfm_loader::load_footnote_from_usfm;
+use crate::usj::UsjContent;
 use charabia::Language;
 use itertools::Itertools;
+use miette::{Diagnostic, Severity};
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_cow::CowStr;
@@ -173,7 +175,11 @@ impl<'de> DeserializeAs<'de, UsjContent> for FootnoteAsUsfm {
     {
         let footnote = <CowStr>::deserialize(deserializer)?.0;
         let loaded = load_footnote_from_usfm(&footnote).map_err(Error::custom)?;
-        if !loaded.diagnostics.is_empty() {
+        if loaded
+            .diagnostics
+            .iter()
+            .any(|x| x.severity() == Some(Severity::Error))
+        {
             let mut error = String::from("Invalid footnote:");
             for diag in loaded.diagnostics {
                 let _ = write!(error, "\n  - {}", diag.message);

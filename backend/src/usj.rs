@@ -1,12 +1,10 @@
 use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
-use crate::usfm_converter::UsfmParser;
 use crate::utils::option_as_vec;
 use crate::verse_range::VerseRange;
 use either::Either;
 use ere::compile_regex;
-use miette::MietteDiagnostic;
 use monostate::MustBe;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
@@ -35,7 +33,7 @@ impl Display for UsjBookInfo {
 #[serde_as]
 #[skip_serializing_none]
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum UsjContent {
     #[serde(rename = "USJ")]
     Root(UsjRoot),
@@ -86,8 +84,6 @@ pub enum UsjContent {
     #[serde(rename = "ms")]
     Milestone {
         marker: String,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
-        content: Vec<ParaContent>,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
@@ -137,6 +133,9 @@ pub enum UsjContent {
         #[serde(flatten)]
         attributes: AttributesMap,
     },
+
+    OptBreak,
+    // TODO: \periph
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -146,17 +145,21 @@ pub enum ParaContent {
     Plain(String),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TableCellAlignment {
+    #[default]
     Start,
     Center,
     End,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+serde_display_and_parse!(TableCellAlignment);
+
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum NoteCaller {
     #[serde(rename = "+")]
+    #[default]
     Generated,
     #[serde(rename = "-")]
     None,
@@ -202,6 +205,7 @@ impl UsjContent {
             Self::Sidebar { marker, .. } => Some(get_value(marker)),
             Self::Figure { marker, .. } => Some(get_value(marker)),
             Self::Reference { .. } => None,
+            Self::OptBreak => None,
         }
     }
 
@@ -214,44 +218,6 @@ impl UsjContent {
         })
     }
 
-    pub fn push_text_content(&mut self, text: String) -> bool {
-        match self {
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
-            | UsjContent::Note { content, .. }
-            | UsjContent::TableCell { content, .. } => content.push(ParaContent::Plain(text)),
-
-            UsjContent::Book { content, .. }
-            | UsjContent::Figure { content, .. }
-            | UsjContent::Reference { content, .. }
-                if content.is_none() =>
-            {
-                *content = Some(text)
-            }
-
-            _ => return false,
-        }
-        true
-    }
-
-    pub fn push_usj_content(&mut self, new_content: UsjContent) -> bool {
-        match self {
-            UsjContent::Root(UsjRoot { content, .. })
-            | UsjContent::Table { content, .. }
-            | UsjContent::TableRow { content, .. } => content.push(new_content),
-
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
-            | UsjContent::Note { content, .. }
-            | UsjContent::TableCell { content, .. } => content.push(ParaContent::Usj(new_content)),
-
-            _ => return false,
-        }
-        true
-    }
-
     pub fn insert_usj_content(&mut self, index: usize, new_content: UsjContent) -> bool {
         match self {
             UsjContent::Root(UsjRoot { content, .. })
@@ -260,7 +226,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => {
                 content.insert(index, ParaContent::Usj(new_content))
@@ -280,7 +245,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => match content.get(index)? {
                 ParaContent::Usj(usj) => Either::Left(usj),
@@ -313,7 +277,6 @@ impl UsjContent {
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
-            | UsjContent::Milestone { content, .. }
             | UsjContent::Note { content, .. }
             | UsjContent::TableCell { content, .. } => match content.get_mut(index)? {
                 ParaContent::Usj(usj) => Either::Left(usj),
@@ -332,23 +295,6 @@ impl UsjContent {
 
             _ => return None,
         })
-    }
-
-    pub fn attributes_mut(&mut self) -> Option<&mut AttributesMap> {
-        match self {
-            Self::Character { attributes, .. }
-            | Self::Milestone { attributes, .. }
-            | Self::Figure { attributes, .. }
-            | Self::Reference { attributes, .. } => Some(attributes),
-            _ => None,
-        }
-    }
-
-    pub fn category_mut(&mut self) -> Option<&mut Option<String>> {
-        match self {
-            Self::Note { category, .. } | Self::Sidebar { category, .. } => Some(category),
-            _ => None,
-        }
     }
 
     fn as_para_content(&self) -> Option<&Vec<ParaContent>> {
@@ -598,106 +544,4 @@ impl UsjRoot {
 
 pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, BibleDataError> {
     Ok(serde_json::from_reader(reader)?)
-}
-
-#[derive(Debug)]
-pub struct LoadedUsjFromUsfm {
-    pub usj: UsjContent,
-    pub source: String,
-    pub diagnostics: Vec<MietteDiagnostic>,
-}
-
-pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDataError> {
-    let parser = UsfmParser::new(content)?;
-
-    let (usj, conversion_diags) = parser.to_usj();
-    let mut all_diags = parser.diagnostics;
-    all_diags.extend(conversion_diags);
-
-    Ok(LoadedUsjFromUsfm {
-        usj,
-        source: parser.usfm,
-        diagnostics: all_diags,
-    })
-}
-
-pub fn load_footnote_from_usfm(footnote: &str) -> Result<LoadedUsjFromUsfm, BibleDataError> {
-    let mut base = load_usj_from_usfm(format!("\\id GEN\n\\c 1\n{footnote}"))?;
-    base.usj = match base.usj {
-        UsjContent::Root(root) => {
-            if root.content.len() > 3 {
-                return Err(BibleDataError::InjectedFootnoteLength(
-                    root.content.len() - 2,
-                ));
-            }
-            let element = root.content.into_iter().nth(2).unwrap();
-            if !matches!(element, UsjContent::Note { .. }) {
-                return Err(BibleDataError::InjectedFootnoteNotNote(
-                    element.marker_or_type().to_string(),
-                ));
-            }
-            element
-        }
-        _ => unreachable!(),
-    };
-    Ok(base)
-}
-
-#[cfg(test)]
-mod test {
-    use crate::bible_data::BibleDataError;
-    use crate::usj::{AttributesMap, NoteCaller, ParaContent, UsjContent, load_footnote_from_usfm};
-    use std::error::Error;
-
-    #[test]
-    fn test_load_footnote() -> Result<(), Box<dyn Error>> {
-        let usfm = "\\f +\\ft Test footnote \\nd Lord\\nd*\\f*";
-        let usj = UsjContent::Note {
-            marker: "f".to_string(),
-            caller: NoteCaller::Generated,
-            category: None,
-            content: vec![ParaContent::Usj(UsjContent::Character {
-                marker: "ft".to_string(),
-                content: vec![
-                    ParaContent::Plain("Test footnote ".to_string()),
-                    ParaContent::Usj(UsjContent::Character {
-                        marker: "nd".to_string(),
-                        content: vec![ParaContent::Plain("Lord".to_string())],
-                        attributes: AttributesMap::default(),
-                    }),
-                ],
-                attributes: AttributesMap::default(),
-            })],
-        };
-
-        let converted_usj = load_footnote_from_usfm(usfm)?;
-        assert!(
-            converted_usj.diagnostics.is_empty(),
-            "{:#?}",
-            converted_usj.diagnostics
-        );
-        assert_eq!(converted_usj.usj, usj);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_load_footnote_extra_data() {
-        let usfm = "\\f +\\ft Test footnote\\f*\n\\b\n\\p Hello";
-        let usj = load_footnote_from_usfm(usfm);
-        assert!(
-            matches!(&usj, Err(BibleDataError::InjectedFootnoteLength(3))),
-            "{usj:#?}",
-        );
-    }
-
-    #[test]
-    fn test_load_footnote_not_note() {
-        let usfm = "\\p Hello, world!";
-        let usj = load_footnote_from_usfm(usfm);
-        assert!(
-            matches!(&usj, Err(BibleDataError::InjectedFootnoteNotNote(marker)) if marker == "p"),
-            "{usj:#?}",
-        );
-    }
 }
