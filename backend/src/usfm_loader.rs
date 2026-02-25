@@ -150,7 +150,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
                     )
                 }),
                 pub_number: pubnumber,
-                sid: sid.expect("Chapter sid not specified"),
+                sid: sid.unwrap_or_default(),
             }),
             Some(span),
         ),
@@ -168,7 +168,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
                 alt_number: altnumber
                     .map(|n| parse_string(n, span.clone(), "alternate verse number", diags)),
                 pub_number: pubnumber,
-                sid: sid.expect("Verse sid not specified"),
+                sid: sid.unwrap_or_default(),
             }),
             Some(span),
         ),
