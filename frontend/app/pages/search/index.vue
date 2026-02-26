@@ -26,7 +26,11 @@ const page = computed({
 })
 const resultsPerPage = computed({
   get: () => Math.min(Math.max(Math.round(+(route.query.count || '50').toString() || 50), 1), 250),
-  set: (count) => router.push({ query: { ...route.query, count } }),
+  set: (count) => {
+    const oldCount = resultsPerPage.value
+    const oldStart = (page.value - 1) * oldCount
+    router.push({ query: { ...route.query, page: Math.floor(oldStart / count) + 1, count } })
+  },
 })
 
 const loadingIndicator = useLoadingIndicator()
@@ -76,7 +80,7 @@ const pageCount = computed(() => {
 
 const newQuery = ref(query.value)
 function search() {
-  query.value = newQuery.value
+  router.push({ query: { ...route.query, page: '1', q: newQuery.value } })
 }
 
 function gotoSearchResult(result: SearchResponseResult) {
@@ -88,10 +92,6 @@ function gotoSearchResult(result: SearchResponseResult) {
 }
 
 watch(query, () => (newQuery.value = query.value))
-watch(resultsPerPage, (newCount, oldCount) => {
-  const oldStart = (page.value - 1) * oldCount
-  page.value = Math.floor(oldStart / newCount) + 1
-})
 
 const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
   const notes: VNode[] = []
