@@ -51,11 +51,13 @@ p {
 .cls,
 .pr,
 .pmr,
-.lit {
+.lit,
+.qr {
   text-align: end;
 }
 
-.pc {
+.pc,
+.qc {
   text-align: center;
 }
 
@@ -66,7 +68,8 @@ p {
   margin-inline-start: 1em;
 }
 
-.pmr {
+.pmr,
+.qr {
   margin-inline-end: 1em;
 }
 
@@ -82,12 +85,16 @@ p {
   font-weight: bold;
 }
 
-:not(.q) + .q {
+:not(.poetry) + .poetry {
   margin-block-start: 1em;
 }
 
-.q + :not(.q) {
+.poetry:has(+ :not(.poetry)) {
   margin-block-end: 1em;
+}
+
+.qr {
+  font-style: italic;
 }
 /* #endregion */
 /* #endregion */
