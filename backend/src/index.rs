@@ -5,6 +5,7 @@ use crate::verse_range::VerseRange;
 use charabia::Tokenizer;
 use dashmap::DashMap;
 use itertools::Itertools;
+use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::{SmallVec, smallvec};
 use std::collections::hash_map::Entry;
@@ -195,6 +196,14 @@ impl BibleIndex {
                     start.elapsed(),
                 );
             }
+        }
+        if let Some(memory) = memory_stats() {
+            const MIB: usize = 1024 * 1024;
+            tracing::info!(
+                "Process memory usage: {} MiB ({} MiB physical)",
+                memory.virtual_mem / MIB,
+                memory.physical_mem / MIB,
+            );
         }
     }
 }
