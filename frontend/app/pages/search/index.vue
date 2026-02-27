@@ -33,7 +33,6 @@ const resultsPerPage = computed({
   },
 })
 
-const loadingIndicator = useLoadingIndicator()
 const { data: searchData } = await useAsyncData(
   'searchResults',
   async (_nuxtApp, { signal }) => {
@@ -45,12 +44,6 @@ const { data: searchData } = await useAsyncData(
         count: resultsPerPage.value,
       },
       signal,
-      onRequest: () => loadingIndicator.start(),
-      onRequestError: () => loadingIndicator.finish({ error: true }),
-      onResponse: () => {
-        loadingIndicator.finish()
-      },
-      onResponseError: () => loadingIndicator.finish({ error: true }),
     })
 
     let noteId = 0
