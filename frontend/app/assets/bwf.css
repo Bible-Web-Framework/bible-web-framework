@@ -20,9 +20,9 @@ p {
 /* #region Chapters and Verses */
 .c {
   font-size: 200%;
-  margin-right: 0.2em;
+  margin-inline-end: 0.2em;
 
-  + p {
+  + p:not(.q) {
     display: inline;
 
     :first-child.v {
@@ -62,7 +62,7 @@ p {
 .pm,
 .pmo,
 .pmc,
-[data-p-indent='1'] {
+[data-usj-indent='1'] {
   margin-inline-start: 1em;
 }
 
@@ -70,16 +70,24 @@ p {
   margin-inline-end: 1em;
 }
 
-[data-p-indent='2'] {
+[data-usj-indent='2'] {
   margin-inline-start: 2em;
 }
 
-[data-p-indent='3'] {
+[data-usj-indent='3'] {
   margin-inline-start: 3em;
 }
 
 .lit {
   font-weight: bold;
+}
+
+:not(.q) + .q {
+  margin-block-start: 1em;
+}
+
+.q + :not(.q) {
+  margin-block-end: 1em;
 }
 /* #endregion */
 /* #endregion */

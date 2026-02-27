@@ -49,7 +49,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     <template v-else-if="content.type === 'para'">
       <!-- TODO: Implement \ip when an example is found -->
       <!-- TODO: Implement Titles and Sections -->
-      <!-- #region Body Paragraphs -->
+      <!-- #region Body Paragraphs and Poetry -->
       <p
         v-if="
           ['p', 'm', 'po', 'cls', 'pr', 'pc', 'pm', 'pmo', 'pmc', 'pmr', 'lit'].includes(
@@ -66,9 +66,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         />
       </p>
       <p
-        v-else-if="/[pm]i[1-3]?/.test(content.marker)"
-        :class="['usj-content', content.marker.substring(0, 2)]"
-        :data-p-indent="content.marker[2] || 1"
+        v-else-if="/[pm]i[1-3]?|q[1-4]?/.test(content.marker)"
+        :class="['usj-content', content.marker.replace(/\d/, '')]"
+        :data-usj-indent="+content.marker.replace(/[^\d]/, '') || 1"
       >
         <UsjContentsRenderer
           v-if="content.content"
