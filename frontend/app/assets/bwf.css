@@ -55,6 +55,16 @@
 .pmr {
   margin-inline-end: 1em;
 }
+
+.pi[data-pi-indent='1'] {
+  margin-inline-start: 1em;
+}
+.pi[data-pi-indent='2'] {
+  margin-inline-start: 2em;
+}
+.pi[data-pi-indent='3'] {
+  margin-inline-start: 3em;
+}
 /* #endregion */
 /* #endregion */
 

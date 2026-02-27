@@ -61,6 +61,18 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :ignored-content-types="ignoredContentTypes"
         />
       </p>
+      <p
+        v-else-if="/pi[1-3]?/.test(content.marker)"
+        class="pi"
+        :data-pi-indent="content.marker[2] || 1"
+      >
+        <UsjContentsRenderer
+          v-if="content.content"
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+        />
+      </p>
       <!-- #endregion -->
     </template>
     <template v-else-if="content.type === 'char'">
