@@ -52,7 +52,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- #region Body Paragraphs -->
       <p
         v-if="
-          ['p', 'm', 'po', 'cls', 'pr', 'pc', 'pm', 'pmo', 'pmc', 'pmr'].includes(content.marker)
+          ['p', 'm', 'po', 'cls', 'pr', 'pc', 'pm', 'pmo', 'pmc', 'pmr', 'lit'].includes(
+            content.marker,
+          )
         "
         :class="['usj-content', content.marker]"
       >
@@ -64,9 +66,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         />
       </p>
       <p
-        v-else-if="/pi[1-3]?/.test(content.marker)"
-        class="usj-content pi"
-        :data-pi-indent="content.marker[2] || 1"
+        v-else-if="/[pm]i[1-3]?/.test(content.marker)"
+        :class="['usj-content', content.marker.substring(0, 2)]"
+        :data-p-indent="content.marker[2] || 1"
       >
         <UsjContentsRenderer
           v-if="content.content"
@@ -75,6 +77,8 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :ignored-content-types="ignoredContentTypes"
         />
       </p>
+      <!-- \nb is not implemented... do we even want to? -->
+      <br v-else-if="content.marker === 'b'" />
       <!-- #endregion -->
     </template>
     <template v-else-if="content.type === 'char'">

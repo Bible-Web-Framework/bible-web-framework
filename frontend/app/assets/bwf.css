@@ -42,13 +42,16 @@ p {
 /* #region Paragraphs */
 /* #region Body Paragraphs */
 .p,
-.pm {
+.pm,
+.pi {
+  /* TODO: Figure out a way to make this work on the first verse in a chapter */
   text-indent: 1em;
 }
 
 .cls,
 .pr,
-.pmr {
+.pmr,
+.lit {
   text-align: end;
 }
 
@@ -58,7 +61,8 @@ p {
 
 .pm,
 .pmo,
-.pmc {
+.pmc,
+[data-p-indent='1'] {
   margin-inline-start: 1em;
 }
 
@@ -66,14 +70,16 @@ p {
   margin-inline-end: 1em;
 }
 
-.pi[data-pi-indent='1'] {
-  margin-inline-start: 1em;
-}
-.pi[data-pi-indent='2'] {
+[data-p-indent='2'] {
   margin-inline-start: 2em;
 }
-.pi[data-pi-indent='3'] {
+
+[data-p-indent='3'] {
   margin-inline-start: 3em;
+}
+
+.lit {
+  font-weight: bold;
 }
 /* #endregion */
 /* #endregion */
