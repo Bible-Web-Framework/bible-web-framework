@@ -27,7 +27,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       result.push(text.substring(lastEnd, highlight.start))
     }
     result.push(
-      h('span', { class: 'search-highlight' }, [text.substring(highlight.start, highlight.end)]),
+      h('span', { class: 'usj-content search-highlight' }, [
+        text.substring(highlight.start, highlight.end),
+      ]),
     )
     lastEnd = highlight.end
   }
@@ -42,8 +44,8 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
     <RenderWithHighlight v-if="typeof content === 'string'" :text="content" suffix=" " />
     <template v-else-if="ignoredContentTypes?.includes(content.type)"></template>
-    <span v-else-if="content.type === 'chapter'" class="c">{{ content.number }}</span>
-    <span v-else-if="content.type === 'verse'" class="v">{{ content.number }}</span>
+    <span v-else-if="content.type === 'chapter'" class="usj-content c">{{ content.number }}</span>
+    <span v-else-if="content.type === 'verse'" class="usj-content v">{{ content.number }}</span>
     <template v-else-if="content.type === 'para'">
       <!-- TODO: Implement \ip when an example is found -->
       <!-- TODO: Implement Titles and Sections -->
@@ -52,7 +54,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         v-if="
           ['p', 'm', 'po', 'cls', 'pr', 'pc', 'pm', 'pmo', 'pmc', 'pmr'].includes(content.marker)
         "
-        :class="content.marker"
+        :class="['usj-content', content.marker]"
       >
         <UsjContentsRenderer
           v-if="content.content"
@@ -63,7 +65,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       </p>
       <p
         v-else-if="/pi[1-3]?/.test(content.marker)"
-        class="pi"
+        class="usj-content pi"
         :data-pi-indent="content.marker[2] || 1"
       >
         <UsjContentsRenderer
@@ -85,7 +87,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- TODO: Implement Tables -->
       <!-- #region Notes -->
       <!-- #region Footnotes -->
-      <span v-if="['fr', 'ft'].includes(content.marker)" :class="content.marker">
+      <span v-if="['fr', 'ft'].includes(content.marker)" :class="['usj-content', content.marker]">
         <UsjContentsRenderer
           :contents="content.content"
           :highlights="highlights"
@@ -100,7 +102,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <!-- #region Footnotes -->
       <a
         v-if="content.marker === 'f' && content.caller !== '-'"
-        class="note-source f"
+        class="usj-content note-source f"
         :name="`note-source-${content.caller}`"
         :href="`#note-contents-${content.caller}`"
         >{{ content.caller }}</a
