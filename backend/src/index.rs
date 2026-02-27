@@ -200,9 +200,9 @@ impl BibleIndex {
         if let Some(memory) = memory_stats() {
             const MIB: usize = 1024 * 1024;
             tracing::info!(
-                "Process memory usage: {} MiB ({} MiB physical)",
-                memory.virtual_mem / MIB,
+                "Process memory usage: physical {} MiB | virtual: {} MiB",
                 memory.physical_mem / MIB,
+                memory.virtual_mem / MIB,
             );
         }
     }
