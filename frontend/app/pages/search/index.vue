@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { FunctionalComponent, VNode } from 'vue'
-import type { ApiV1, SearchResponseResult } from '~/bwfApi'
+import type { ApiV1 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import { normalizeNoteCallers, walkUsj, type ParaContent } from '~/usj'
 
@@ -74,14 +74,6 @@ const pageCount = computed(() => {
 const newQuery = ref(query.value)
 function search() {
   router.push({ query: { ...route.query, page: '1', q: newQuery.value } })
-}
-
-function gotoSearchResult(result: SearchResponseResult) {
-  if ('invalid_reference' in result) {
-    return
-  }
-  newQuery.value = `${result.translated_book_name} ${result.reference.chapter}:${result.reference.verses}`
-  search()
 }
 
 watch(query, () => (newQuery.value = query.value))
@@ -181,19 +173,22 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
           {{ searchResults.total_results }} results found for '{{ searchResults.search_term }}':
         </h2>
         <table>
-          <tr
-            v-for="(reference, referenceIndex) in searchResults.references"
-            :key="referenceIndex"
-            @click="gotoSearchResult(reference)"
-          >
+          <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
             <td v-if="'invalid_reference' in reference" class="error" colspan="2">
               {{ reference.details }}
             </td>
             <template v-else>
               <td>
-                {{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{
-                  reference.reference.verses
-                }}
+                <NuxtLink
+                  :to="{
+                    query: {
+                      q: `${reference.translated_book_name} ${reference.reference.chapter}:${reference.reference.verses}`,
+                    },
+                  }"
+                  >{{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{
+                    reference.reference.verses
+                  }}</NuxtLink
+                >
               </td>
               <td v-if="reference.content">
                 <UsjContentsRenderer
