@@ -389,7 +389,7 @@ impl UsjRoot {
                     .0
                 })
             })
-            .or_else(|| self.find_chapter_start(chapter.saturating_add(1)));
+            .or_else(|| self.find_next_chapter_start(start.0 + 1));
 
         let mut result = self.slice_para(start, end);
         if let Some(label) = base_chapter_label {
@@ -423,6 +423,15 @@ impl UsjRoot {
             .iter()
             .position(|x| matches!(&x, UsjContent::Chapter { number, .. } if *number == chapter))?;
         Some((chapter_index, 0))
+    }
+
+    fn find_next_chapter_start(&self, start_index: usize) -> Option<ParaIndex> {
+        self.content
+            .iter()
+            .enumerate()
+            .skip(start_index)
+            .find(|(_, x)| matches!(x, UsjContent::Chapter { .. }))
+            .map(|(idx, _)| (idx, 0))
     }
 
     fn next_para_index(&self, index: ParaIndex) -> Option<ParaIndex> {
