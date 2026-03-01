@@ -9,12 +9,12 @@
   font-weight: bold;
 }
 
-p {
-  margin-block: 0.25em;
-}
-
 .usj-content {
   font-family: 'Inter', 'sans-serif';
+}
+
+p.usj-content {
+  margin-block: 0.25em;
 }
 
 /* #region Chapters and Verses */
