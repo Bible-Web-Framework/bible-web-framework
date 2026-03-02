@@ -432,7 +432,17 @@ impl BibleData {
 
         impl BookParseOptions for Options<'_> {
             fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
-                self.config.book_aliases.get(&str.to_cow()).copied()
+                self.config
+                    .book_aliases
+                    .get(&str.to_cow())
+                    .copied()
+                    .or_else(|| {
+                        self.books.iter().find_map(|usj| {
+                            (usj.unwrap_root().translated_book_name().map(UniCase::new)
+                                == Some(str))
+                            .then_some(*usj.key())
+                        })
+                    })
             }
 
             fn book_allowed(&self, book: Book) -> bool {

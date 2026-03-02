@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { FunctionalComponent, VNode } from 'vue'
+import type { LocationQuery } from 'vue-router'
 import type { ApiV1 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import { normalizeNoteCallers, walkUsj, type ParaContent } from '~/usj'
@@ -72,8 +73,13 @@ const pageCount = computed(() => {
 })
 
 const newQuery = ref(query.value)
+function newQueryParamsForSearch(q: string) {
+  const newQueryParams: LocationQuery = { ...route.query, q }
+  delete newQueryParams['page']
+  return newQueryParams
+}
 function search() {
-  router.push({ query: { ...route.query, page: '1', q: newQuery.value } })
+  router.push({ query: newQueryParamsForSearch(newQuery.value) })
 }
 
 watch(query, () => (newQuery.value = query.value))
@@ -181,9 +187,9 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
               <td>
                 <NuxtLink
                   :to="{
-                    query: {
-                      q: `${reference.translated_book_name} ${reference.reference.chapter}:${reference.reference.verses}`,
-                    },
+                    query: newQueryParamsForSearch(
+                      `${reference.translated_book_name} ${reference.reference.chapter}:${reference.reference.verses}`,
+                    ),
                   }"
                   >{{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{
                     reference.reference.verses
