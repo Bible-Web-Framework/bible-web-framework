@@ -3,12 +3,14 @@ use crate::usj::UsjContent;
 use charabia::Language;
 use itertools::Itertools;
 use miette::{Diagnostic, Severity};
-use serde::de::{Error, Unexpected};
+use serde::de::{Error, SeqAccess, Unexpected, Visitor};
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_cow::CowStr;
 use serde_with::{DeserializeAs, SerializeAs};
 use std::borrow::{Borrow, Cow};
-use std::fmt::Write;
+use std::fmt::{Formatter, Write};
+use std::marker::PhantomData;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
@@ -33,30 +35,31 @@ macro_rules! nz_u8 {
     };
 }
 
-// TODO: Migrate to serde_with
-pub mod option_as_vec {
-    use serde::de::{Error, SeqAccess, Visitor};
-    use serde::ser::SerializeSeq;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use std::fmt::Formatter;
-    use std::marker::PhantomData;
+pub struct OptionAsVec;
 
-    pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+impl<T> SerializeAs<Option<T>> for OptionAsVec
+where
+    T: Serialize,
+{
+    fn serialize_as<S>(source: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
     where
-        T: Serialize,
         S: Serializer,
     {
-        let iter = value.iter();
+        let iter = source.iter();
         let mut seq = serializer.serialize_seq(Some(iter.len()))?;
         for element in iter {
             seq.serialize_element(element)?;
         }
         seq.end()
     }
+}
 
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+impl<'de, T> DeserializeAs<'de, Option<T>> for OptionAsVec
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize_as<D>(deserializer: D) -> Result<Option<T>, D::Error>
     where
-        T: Deserialize<'de>,
         D: Deserializer<'de>,
     {
         struct VecVisitor<T>(PhantomData<T>);

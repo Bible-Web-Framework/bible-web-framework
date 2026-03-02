@@ -1,7 +1,7 @@
 use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
-use crate::utils::option_as_vec;
+use crate::utils::OptionAsVec;
 use crate::verse_range::VerseRange;
 use either::Either;
 use ere::compile_regex;
@@ -55,7 +55,7 @@ pub enum UsjContent {
 
     Book {
         marker: MustBe!("id"),
-        #[serde(with = "option_as_vec")]
+        #[serde_as(as = "OptionAsVec")]
         content: Option<String>,
         code: Book,
     },
@@ -120,7 +120,7 @@ pub enum UsjContent {
 
     Figure {
         marker: MustBe!("fig"),
-        #[serde(with = "option_as_vec")]
+        #[serde_as(as = "OptionAsVec")]
         content: Option<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
@@ -128,7 +128,7 @@ pub enum UsjContent {
 
     #[serde(rename = "ref")]
     Reference {
-        #[serde(with = "option_as_vec")]
+        #[serde_as(as = "OptionAsVec")]
         content: Option<String>,
         #[serde(flatten)]
         attributes: AttributesMap,
