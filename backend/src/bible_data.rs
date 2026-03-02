@@ -4,7 +4,8 @@ use crate::index::{BibleIndex, ReindexType};
 use crate::reference::BibleReference;
 use crate::usfm_loader::load_usj_from_usfm;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj};
-use crate::utils::{ExclusiveMutex, PrefixTree};
+use crate::utils::ExclusiveMutex;
+use crate::utils::prefix_tree::PrefixTree;
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
@@ -744,7 +745,7 @@ mod unresolved {
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::UsjContent;
-    use crate::utils::{FootnoteAsUsfm, LanguageAsCode};
+    use crate::utils::serde_as::{FootnoteAsUsfm, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
     use charabia::{Language, Normalize, StrDetection, Token};
     use itertools::Itertools;

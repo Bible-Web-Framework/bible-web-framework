@@ -1,7 +1,7 @@
 use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
-use crate::utils::OptionAsVec;
+use crate::utils::serde_as::OptionAsVec;
 use crate::verse_range::VerseRange;
 use either::Either;
 use ere::compile_regex;
