@@ -745,7 +745,7 @@ mod unresolved {
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::UsjContent;
-    use crate::utils::serde_as::{FootnoteAsUsfm, LanguageAsCode};
+    use crate::utils::serde_as::{FootnoteUsfmAsUsj, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
     use charabia::{Language, Normalize, StrDetection, Token};
     use itertools::Itertools;
@@ -791,7 +791,7 @@ mod unresolved {
     #[derive(Debug, Deserialize)]
     struct FootnotesConfig {
         bible_ranges: Vec<BibleRange>,
-        #[serde_as(as = "FootnoteAsUsfm")]
+        #[serde_as(as = "FootnoteUsfmAsUsj")]
         footnote: UsjContent,
     }
 

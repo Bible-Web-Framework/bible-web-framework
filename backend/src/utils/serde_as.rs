@@ -12,6 +12,10 @@ use std::marker::PhantomData;
 
 pub struct OptionAsVec;
 
+pub struct LanguageAsCode;
+
+pub struct FootnoteUsfmAsUsj;
+
 impl<T> SerializeAs<Option<T>> for OptionAsVec
 where
     T: Serialize,
@@ -63,8 +67,6 @@ where
     }
 }
 
-pub struct LanguageAsCode;
-
 impl SerializeAs<Language> for LanguageAsCode {
     fn serialize_as<S>(source: &Language, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -89,9 +91,7 @@ impl<'de> DeserializeAs<'de, Language> for LanguageAsCode {
     }
 }
 
-pub struct FootnoteAsUsfm;
-
-impl<'de> DeserializeAs<'de, UsjContent> for FootnoteAsUsfm {
+impl<'de> DeserializeAs<'de, UsjContent> for FootnoteUsfmAsUsj {
     fn deserialize_as<D>(deserializer: D) -> Result<UsjContent, D::Error>
     where
         D: Deserializer<'de>,
