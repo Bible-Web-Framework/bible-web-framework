@@ -1,11 +1,11 @@
 use crate::api::{ApiError, ApiResult};
-use crate::book_data::{AdditionalAliases, Book, BookParseOptions};
+use crate::book_data::{Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
 use crate::reference::BibleReference;
 use crate::usfm_loader::load_usj_from_usfm;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj};
-use crate::utils::ExclusiveMutex;
 use crate::utils::prefix_tree::PrefixTree;
+use crate::utils::{ExclusiveMutex, ToUnicaseCow};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
@@ -431,8 +431,8 @@ impl BibleData {
         }
 
         impl BookParseOptions for Options<'_> {
-            fn additional_aliases(&self) -> Option<AdditionalAliases<'_>> {
-                Some(&self.config.book_aliases)
+            fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
+                self.config.book_aliases.get(&str.to_cow()).copied()
             }
 
             fn book_allowed(&self, book: Book) -> bool {

@@ -4,6 +4,7 @@ pub mod serde_as;
 use std::borrow::Cow;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use unicase::UniCase;
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
 
 /// Returns a normalized version of `s`, or `None` if normalization was not needed. Normalized
@@ -71,5 +72,19 @@ pub struct PanicBarrierLock<'a>(&'a AtomicBool);
 impl Drop for PanicBarrierLock<'_> {
     fn drop(&mut self) {
         self.0.store(false, atomic::Ordering::Release);
+    }
+}
+
+pub trait ToUnicaseCow<'a> {
+    fn to_cow(self) -> UniCase<Cow<'a, str>>;
+}
+
+impl<'a> ToUnicaseCow<'a> for UniCase<&'a str> {
+    fn to_cow(self) -> UniCase<Cow<'a, str>> {
+        if self.is_ascii() {
+            UniCase::ascii(Cow::Borrowed(self.into_inner()))
+        } else {
+            UniCase::unicode(Cow::Borrowed(self.into_inner()))
+        }
     }
 }

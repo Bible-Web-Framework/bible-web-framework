@@ -1,4 +1,4 @@
-use crate::utils::normalize_str;
+use crate::utils::{ToUnicaseCow, normalize_str};
 use enumset::EnumSetType;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
@@ -35,8 +35,7 @@ impl Book {
         let book = normalize_str(book);
         let book = UniCase::new(&*book);
         options
-            .additional_aliases()
-            .and_then(|x| x.get(&to_unicase_cow(book)).copied())
+            .lookup_book(book)
             .or_else(|| BOOK_ALIASES.get(&book).copied())
             .take_if(|&mut x| options.book_allowed(x))
     }
@@ -51,14 +50,6 @@ impl FromStr for Book {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s, &()).ok_or_else(|| BookFromStrError(s.to_string()))
-    }
-}
-
-fn to_unicase_cow(unicase: UniCase<&str>) -> UniCase<Cow<'_, str>> {
-    if unicase.is_ascii() {
-        UniCase::ascii(Cow::Borrowed(unicase.into_inner()))
-    } else {
-        UniCase::unicode(Cow::Borrowed(unicase.into_inner()))
     }
 }
 
@@ -132,7 +123,8 @@ impl Display for Book {
 pub type AdditionalAliases<'a> = &'a HashMap<UniCase<Cow<'a, str>>, Book>;
 
 pub trait BookParseOptions {
-    fn additional_aliases(&self) -> Option<AdditionalAliases<'_>> {
+    fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
+        let _ = str;
         None
     }
 
@@ -145,8 +137,8 @@ pub trait BookParseOptions {
 impl BookParseOptions for () {}
 
 impl<'a> BookParseOptions for AdditionalAliases<'a> {
-    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
-        Some(self)
+    fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
+        self.get(&str.to_cow()).copied()
     }
 }
 
@@ -157,8 +149,8 @@ impl<F: Fn(Book) -> bool> BookParseOptions for F {
 }
 
 impl<'a, F: Fn(Book) -> bool> BookParseOptions for (AdditionalAliases<'a>, F) {
-    fn additional_aliases(&self) -> Option<AdditionalAliases<'a>> {
-        Some(self.0)
+    fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
+        self.0.get(&str.to_cow()).copied()
     }
 
     fn book_allowed(&self, book: Book) -> bool {
