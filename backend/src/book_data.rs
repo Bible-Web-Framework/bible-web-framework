@@ -1,4 +1,4 @@
-use crate::utils::with_normalized_str;
+use crate::utils::normalize_str;
 use enumset::EnumSetType;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
@@ -32,14 +32,13 @@ impl Book {
     }
 
     pub fn parse(book: &str, options: &impl BookParseOptions) -> Option<Self> {
-        with_normalized_str(book, |book| {
-            let book = UniCase::new(book);
-            options
-                .additional_aliases()
-                .and_then(|x| x.get(&to_unicase_cow(book)).copied())
-                .or_else(|| BOOK_ALIASES.get(&book).copied())
-                .take_if(|&mut x| options.book_allowed(x))
-        })
+        let book = normalize_str(book);
+        let book = UniCase::new(&*book);
+        options
+            .additional_aliases()
+            .and_then(|x| x.get(&to_unicase_cow(book)).copied())
+            .or_else(|| BOOK_ALIASES.get(&book).copied())
+            .take_if(|&mut x| options.book_allowed(x))
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::book_data::Book;
 use crate::book_data::BookParseOptions;
 use crate::nz_u8;
-use crate::utils::with_normalized_str;
+use crate::utils::normalize_str;
 use crate::verse_range::VerseRange;
 use rangemap::StepLite;
 use serde::{Deserialize, Serialize};
@@ -252,14 +252,12 @@ impl ParseReferenceError {
 pub type ReferenceResult = Result<BibleReference, ParseReferenceError>;
 
 pub fn parse_references(reference: &str, options: &impl BookParseOptions) -> Vec<ReferenceResult> {
-    with_normalized_str(reference, |reference| {
-        let mut state = ParseState::default();
-        reference
-            .split([';', ','])
-            .filter(|x| !x.is_empty())
-            .map(|x| parse_reference_part(x, &mut state, options))
-            .collect()
-    })
+    let mut state = ParseState::default();
+    normalize_str(reference)
+        .split([';', ','])
+        .filter(|x| !x.is_empty())
+        .map(|x| parse_reference_part(x, &mut state, options))
+        .collect()
 }
 
 #[derive(Default)]
