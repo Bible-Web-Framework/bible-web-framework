@@ -157,14 +157,17 @@ export type UsjContent =
       type: 'chapter'
       marker: 'c'
       number: `${number}`
-      altnumber: number | null
-      pubnumber: string | null
+      altnumber?: number
+      pubnumber?: string
       sid: string
     }
   | {
       type: 'verse'
       marker: 'v'
       number: VerseRange
+      altnumber?: number
+      pubnumber?: string
+      sid: string
     }
   | ({
       type: 'ms'
@@ -176,7 +179,7 @@ export type UsjContent =
       content: ParaContent[]
       marker: 'f' | 'fe' | 'ef' | 'x' | 'ex'
       caller: '+' | '-' | string
-      category: string | null
+      category?: string
     }
   | {
       type: 'table'
@@ -203,7 +206,7 @@ export type UsjContent =
       type: 'sidebar'
       marker: 'esb'
       content: UsjContent[]
-      category: string | null
+      category?: string
     }
   | ({
       type: 'figure'
