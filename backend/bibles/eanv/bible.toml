@@ -15,8 +15,8 @@ ignored_words = [
 
 [[footnotes.Allah]]
 bible_ranges = [["Genesis 1", "Revelation 22"]]
-footnote = "\\f +\\ft  This word shows up as \\nd Lord\\nd* in most English translations.\\f*"
+footnote = "\\f +\\ft This word shows up as \\nd Lord\\nd* in most English translations.\\f*"
 
 [[footnotes.Darkness]]
 bible_ranges = ["Genesis 1:3"]
-footnote = "\\f +\\ft  In the Greek, this is Windex.\\f*"
+footnote = "\\f +\\ft In the Greek, this is Windex.\\f*"

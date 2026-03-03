@@ -110,6 +110,10 @@ p.usj-content {
   vertical-align: 35%;
 }
 
+.note-contents > .f {
+  margin-inline-end: 0.25em;
+}
+
 .fr {
   font-weight: bold;
 }
