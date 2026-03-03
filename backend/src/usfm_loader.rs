@@ -8,7 +8,7 @@ use monostate::MustBeStr;
 use std::str::FromStr;
 use usfm3::ast::{Attribute, Node};
 use usfm3::builder::parse;
-use usfm3::diagnostics::Span;
+use usfm3::diagnostics::{DiagnosticCode, Span};
 
 #[derive(Debug)]
 pub struct LoadedUsjFromUsfm {
@@ -22,6 +22,10 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
     let mut diags = vec![];
 
     for diag in parse_results.diagnostics.into_inner().into_iter() {
+        if diag.code == DiagnosticCode::MissingNestingPrefix {
+            // https://github.com/jcuenod/usfm3/issues/1
+            continue;
+        }
         diags.push(
             MietteDiagnostic::new(diag.message)
                 .with_severity(match diag.severity {
