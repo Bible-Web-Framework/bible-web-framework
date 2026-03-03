@@ -22,7 +22,7 @@ p.usj-content {
   font-size: 200%;
   margin-inline-end: 0.2em;
 
-  + p:not(.q) {
+  + p:not(.poetry) {
     display: inline;
 
     :first-child.v {
@@ -57,7 +57,8 @@ p.usj-content {
 }
 
 .pc,
-.qc {
+.qc,
+.qa {
   text-align: center;
 }
 
@@ -93,7 +94,8 @@ p.usj-content {
   margin-block-end: 1em;
 }
 
-.qr {
+.qr,
+.qa {
   font-style: italic;
 }
 /* #endregion */
