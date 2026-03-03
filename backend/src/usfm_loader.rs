@@ -30,10 +30,7 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
                     usfm3::diagnostics::Severity::Error => Severity::Error,
                 })
                 .with_label(LabeledSpan::new_with_span(None, diag.span))
-                .with_code(format!(
-                    "usfm3::diagnostics::DiagnosticCode::{:?}",
-                    diag.code
-                )),
+                .with_code(format!("DiagnosticCode::{:?}", diag.code)),
         );
     }
 
