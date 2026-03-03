@@ -13,14 +13,10 @@ const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
 const route = useRoute()
 const router = useRouter()
 
-const bible = computed({
-  get: () => (route.query.bible || biblesData.value?.default_bible || '').toString(),
-  set: (bible) => router.push({ query: { ...route.query, bible } }),
-})
-const query = computed({
-  get: () => (route.query.q || '').toString(),
-  set: (q) => router.push({ query: { ...route.query, q } }),
-})
+const bible = computed(() =>
+  (route.query.bible || biblesData.value?.default_bible || '').toString(),
+)
+const query = computed(() => (route.query.q || '').toString())
 const page = computed({
   get: () => Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1),
   set: (page) => router.push({ query: { ...route.query, page } }),
@@ -73,16 +69,20 @@ const pageCount = computed(() => {
 })
 
 const newQuery = ref(query.value)
-function newQueryParamsForSearch(q: string) {
-  const newQueryParams: LocationQuery = { ...route.query, q }
+const newBible = ref(bible.value)
+function newQueryParamsForSearch(q: string, bible: string) {
+  const newQueryParams: LocationQuery = { ...route.query, q, bible }
   delete newQueryParams['page']
   return newQueryParams
 }
 function search() {
-  router.push({ query: newQueryParamsForSearch(newQuery.value) })
+  router.push({ query: newQueryParamsForSearch(newQuery.value, newBible.value) })
 }
 
-watch(query, () => (newQuery.value = query.value))
+watch([query, bible], () => {
+  newQuery.value = query.value
+  newBible.value = bible.value
+})
 
 const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
   const notes: VNode[] = []
@@ -114,15 +114,13 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
   <div>
     <h1>Search Page</h1>
 
-    <div>
-      <select v-if="biblesData" v-model="bible">
+    <div class="search-line">
+      <input v-model="newQuery" placeholder="Enter search term" @keyup.enter="search" />
+      <select v-if="biblesData" v-model="newBible" class="padded-bible-select">
         <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
           {{ info.display_name ?? id.toLocaleUpperCase() }}
         </option>
       </select>
-    </div>
-    <div>
-      <input v-model="newQuery" placeholder="Enter search term" @keyup.enter="search" />
       <button @click="search">Search</button>
     </div>
 
@@ -189,6 +187,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
                   :to="{
                     query: newQueryParamsForSearch(
                       `${reference.translated_book_name} ${reference.reference.chapter}:${reference.reference.verses}`,
+                      bible,
                     ),
                   }"
                   >{{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{
@@ -210,3 +209,13 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
     </div>
   </div>
 </template>
+
+<style scoped>
+.search-line {
+  margin-block-end: 0.5em;
+}
+
+.padded-bible-select {
+  margin-inline: 0.5em;
+}
+</style>
