@@ -72,8 +72,8 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         :class="{
           'usj-content': true,
           [content.marker]: true,
-          poetry: ['qr', 'qc', 'qa'].includes(content.marker),
-          'poetry-block': ['qr', 'qc', 'qa'].includes(content.marker),
+          poetry: content.marker.startsWith('q'),
+          'poetry-block': content.marker.startsWith('q'),
         }"
       >
         <UsjContentsRenderer
@@ -89,7 +89,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           'usj-content': true,
           [content.marker.replace(/\d/, '')]: true,
           poetry: content.marker.startsWith('q'),
-          'poetry-block': content.marker.startsWith('q') && !content.marker.startsWith('qm'),
+          'poetry-block': /^(q\d)$/.test(content.marker),
         }"
         :data-usj-indent="+content.marker.replace(/[^\d]/, '') || 1"
       >
