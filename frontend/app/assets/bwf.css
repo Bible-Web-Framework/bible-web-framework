@@ -82,20 +82,25 @@ p.usj-content {
   margin-inline-start: 3em;
 }
 
+[data-usj-indent='4'] {
+  margin-inline-start: 4em;
+}
+
 .lit {
   font-weight: bold;
 }
 
-:not(.poetry) + .poetry {
+:not(.poetry-block) + .poetry-block {
   margin-block-start: 1em;
 }
 
-.poetry:has(+ :not(.poetry)) {
+.poetry-block:has(+ :not(.poetry-block)) {
   margin-block-end: 1em;
 }
 
 .qr,
-.qa {
+.qa,
+.qm {
   font-style: italic;
 }
 /* #endregion */

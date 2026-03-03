@@ -73,6 +73,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           'usj-content': true,
           [content.marker]: true,
           poetry: ['qr', 'qc', 'qa'].includes(content.marker),
+          'poetry-block': ['qr', 'qc', 'qa'].includes(content.marker),
         }"
       >
         <UsjContentsRenderer
@@ -83,11 +84,12 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         />
       </p>
       <p
-        v-else-if="/^([pm]i[1-3]?|q[1-4]?)$/.test(content.marker)"
+        v-else-if="/^([pm]i[1-3]?|q[1-4]?|qm[1-3]?)$/.test(content.marker)"
         :class="{
           'usj-content': true,
           [content.marker.replace(/\d/, '')]: true,
           poetry: content.marker.startsWith('q'),
+          'poetry-block': content.marker.startsWith('q') && !content.marker.startsWith('qm'),
         }"
         :data-usj-indent="+content.marker.replace(/[^\d]/, '') || 1"
       >
