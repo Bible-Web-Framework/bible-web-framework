@@ -48,9 +48,16 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     <span v-else-if="content.type === 'verse'" class="usj-content v">{{ content.number }}</span>
     <template v-else-if="content.type === 'para'">
       <!-- TODO: Implement \ip when an example is found -->
-      <!-- TODO: Implement Titles and Sections -->
+      <h2 v-if="content.marker === 'cl'" class="usj-content cl">
+        <UsjContentsRenderer
+          v-if="content.content"
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+        />
+      </h2>
       <p
-        v-if="
+        v-else-if="
           [
             'p',
             'm',

@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import type { FunctionalComponent, VNode } from 'vue'
 import type { LocationQuery } from 'vue-router'
-import type { ApiV1 } from '~/bwfApi'
+import { formatBibleReference, type ApiV1 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
-import { normalizeNoteCallers, walkUsj, type ParaContent } from '~/usj'
+import { normalizeNoteCallers, walkUsj, type ParaContent, type UsjContent } from '~/usj'
 
 const config = useRuntimeConfig()
 const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
@@ -47,6 +47,40 @@ const { data: searchData } = await useAsyncData(
     for (const reference of response.references) {
       if ('content' in reference && reference.content) {
         noteId = normalizeNoteCallers(reference.content, noteId)
+      }
+    }
+
+    for (const reference of response.references) {
+      if (!('content' in reference) || !reference.content) {
+        continue
+      }
+      const chapterIndex = reference.content.findIndex((el) => el.type === 'chapter')
+      const chapter = reference.content[chapterIndex]!
+      if (chapterIndex === -1 || chapter.type !== 'chapter') {
+        continue
+      }
+      const isCl = (el: UsjContent) => el.type === 'para' && el.marker === 'cl'
+      const clIndexBefore = reference.content.findIndex((el, i) => i < chapterIndex && isCl(el))
+      const clIndexAfter = reference.content.findIndex((el, i) => i > chapterIndex && isCl(el))
+      if (clIndexAfter !== -1) {
+        const cl = reference.content.splice(clIndexAfter, 1)[0]!
+        if (clIndexBefore !== -1) {
+          reference.content.splice(clIndexBefore, 1, cl)
+        } else {
+          reference.content.splice(0, 0, cl)
+        }
+      } else if (clIndexBefore !== -1) {
+        const cl = reference.content[clIndexBefore]!
+        if (cl.type !== 'para') {
+          continue
+        }
+        cl.content = (cl.content ?? []).concat(` ${chapter.pubnumber ?? chapter.number}`)
+      } else {
+        reference.content.splice(0, 0, {
+          type: 'para',
+          marker: 'cl',
+          content: [`${reference.translated_book_name} ${chapter.pubnumber ?? chapter.number}`],
+        })
       }
     }
 
@@ -151,10 +185,11 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         >
           <hr v-if="referenceIndex > 0" />
           <template v-if="'content' in reference">
-            <UsjContentsRenderer v-if="reference.content" :contents="reference.content" />
+            <template v-if="reference.content">
+              <UsjContentsRenderer :contents="reference.content" />
+            </template>
             <p v-else class="error">
-              No scripture passage found for {{ reference.translated_book_name }}
-              {{ reference.reference.chapter }}:{{ reference.reference.verses }}
+              No scripture passage found for {{ formatBibleReference(reference) }}
             </p>
           </template>
           <td v-else class="error">{{ reference.details }}</td>
@@ -185,14 +220,9 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
               <td>
                 <NuxtLink
                   :to="{
-                    query: newQueryParamsForSearch(
-                      `${reference.translated_book_name} ${reference.reference.chapter}:${reference.reference.verses}`,
-                      bible,
-                    ),
+                    query: newQueryParamsForSearch(formatBibleReference(reference), bible),
                   }"
-                  >{{ reference.translated_book_name }} {{ reference.reference.chapter }}:{{
-                    reference.reference.verses
-                  }}</NuxtLink
+                  >{{ formatBibleReference(reference) }}</NuxtLink
                 >
               </td>
               <td v-if="reference.content">

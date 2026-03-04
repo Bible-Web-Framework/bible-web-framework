@@ -1,5 +1,6 @@
 use crate::usfm_loader::load_footnote_from_usfm;
 use crate::usj::UsjContent;
+use crate::verse_range::VerseRange;
 use charabia::Language;
 use miette::{Diagnostic, Severity};
 use serde::de::{Error, SeqAccess, Unexpected, Visitor};
@@ -9,12 +10,15 @@ use serde_cow::CowStr;
 use serde_with::{DeserializeAs, SerializeAs};
 use std::fmt::{Formatter, Write};
 use std::marker::PhantomData;
+use std::num::NonZeroU8;
 
 pub struct OptionAsVec;
 
 pub struct LanguageAsCode;
 
 pub struct FootnoteUsfmAsUsj;
+
+pub struct VerseRangeAsTuple;
 
 impl<T> SerializeAs<Option<T>> for OptionAsVec
 where
@@ -110,5 +114,29 @@ impl<'de> DeserializeAs<'de, UsjContent> for FootnoteUsfmAsUsj {
             return Err(Error::custom(error));
         }
         Ok(loaded.usj)
+    }
+}
+
+impl SerializeAs<VerseRange> for VerseRangeAsTuple {
+    fn serialize_as<S>(source: &VerseRange, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (source.first(), source.last()).serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, VerseRange> for VerseRangeAsTuple {
+    fn deserialize_as<D>(deserializer: D) -> Result<VerseRange, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (first, last) = <(NonZeroU8, NonZeroU8)>::deserialize(deserializer)?;
+        VerseRange::new(first, last).map_err(|_| {
+            D::Error::invalid_value(
+                Unexpected::Other(&format!("({first}, {last})")),
+                &"values to be in order",
+            )
+        })
     }
 }

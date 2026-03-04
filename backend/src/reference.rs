@@ -2,9 +2,11 @@ use crate::book_data::Book;
 use crate::book_data::BookParseOptions;
 use crate::nz_u8;
 use crate::utils::normalize_str;
+use crate::utils::serde_as::VerseRangeAsTuple;
 use crate::verse_range::VerseRange;
 use rangemap::StepLite;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
 use std::ops::{Deref, RangeInclusive};
@@ -161,9 +163,11 @@ impl FromStr for BibleReference {
     }
 }
 
+#[serde_as]
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BookReference {
     pub chapter: NonZeroU8,
+    #[serde_as(as = "VerseRangeAsTuple")]
     pub verses: VerseRange,
 }
 

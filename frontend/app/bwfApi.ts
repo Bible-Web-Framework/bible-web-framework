@@ -1,4 +1,4 @@
-import type { Book, UsjContent, UsjRoot, VerseRange } from './usj'
+import type { Book, UsjContent, UsjRoot } from './usj'
 
 /**
  * `/v1`
@@ -65,22 +65,24 @@ export type BibleSearchResponse = {
   references: SearchResponseResult[]
 }
 
-export type SearchResponseResult =
-  | {
-      reference: BibleReference
-      translated_book_name: string | null
-      content: UsjContent[] | null
-      highlights?: HighlightsMap
-    }
-  | {
-      invalid_reference: string
-      details: ParseReferenceError
-    }
+export type SearchResponseResult = ReferenceContent | InvalidReference
+
+export type ReferenceContent = {
+  reference: BibleReference
+  translated_book_name: string | null
+  content: UsjContent[] | null
+  highlights?: HighlightsMap
+}
+
+export type InvalidReference = {
+  invalid_reference: string
+  details: ParseReferenceError
+}
 
 export type BibleReference = {
   book: Book
   chapter: number
-  verses: VerseRange
+  verses: [number, number]
 }
 
 export type HighlightsMap = Record<string, GenericRange<number>[]>
@@ -125,4 +127,26 @@ export type ParseReferenceError =
 
 export type BibleIndexResponse = {
   words: Record<string, number>
+}
+
+export function formatBibleReference(content: ReferenceContent) {
+  const ref = content.reference
+  const [verseStart, verseEnd] = ref.verses
+  let result = `${content.translated_book_name} ${ref.chapter}:${verseStart}`
+  if (verseEnd !== verseStart) {
+    result += `-${verseEnd}`
+  }
+  return result
+}
+
+export function getChapterLabel(content: ReferenceContent) {
+  let label = content.translated_book_name ?? ''
+  for (const element of content.content ?? []) {
+    if (element.type === 'para' && element.marker === 'cl') {
+      label = element.content?.[0]?.toString() ?? ''
+    } else if (element.type === 'chapter') {
+      label += ` ${element.pubnumber ?? element.number}`
+    }
+  }
+  return label
 }
