@@ -95,7 +95,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         h(
           'a',
           {
-            class: 'f',
+            class: 'usj-content f',
             name: `note-contents-${element.caller}`,
             href: `#note-source-${element.caller}`,
           },

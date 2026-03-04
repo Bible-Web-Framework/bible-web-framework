@@ -49,7 +49,6 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     <template v-else-if="content.type === 'para'">
       <!-- TODO: Implement \ip when an example is found -->
       <!-- TODO: Implement Titles and Sections -->
-      <!-- #region Body Paragraphs and Poetry -->
       <p
         v-if="
           [
@@ -103,7 +102,6 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       </p>
       <!-- \nb is not implemented... do we even want to? -->
       <br v-else-if="content.marker === 'b'" />
-      <!-- #endregion -->
     </template>
     <template v-else-if="content.type === 'char'">
       <!-- TODO: Implement Text Features -->

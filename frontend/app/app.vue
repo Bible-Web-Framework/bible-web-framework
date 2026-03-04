@@ -5,6 +5,13 @@
       <NuxtLink to="/">Home</NuxtLink>
       <NuxtLink to="/search">Search</NuxtLink>
     </nav>
-    <NuxtPage />
+    <NuxtPage class="centered-body" />
   </NuxtLayout>
 </template>
+
+<style scoped>
+.centered-body {
+  max-width: 512px;
+  margin-inline: auto;
+}
+</style>
