@@ -9,7 +9,7 @@
   </NuxtLayout>
 </template>
 
-<style scoped>
+<style>
 .centered-body {
   max-width: 512px;
   margin-inline: auto;
