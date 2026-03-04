@@ -65,6 +65,7 @@ p.usj-content {
 .pm,
 .pmo,
 .pmc,
+.qd,
 [data-usj-indent='1'] {
   margin-inline-start: 1em;
 }
@@ -90,17 +91,18 @@ p.usj-content {
   font-weight: bold;
 }
 
-:not(.poetry-block) + .poetry-block {
+:not(.poetry-block, .poetry-block + br) + .poetry-block {
   margin-block-start: 1em;
 }
 
-.poetry-block:has(+ :not(.poetry-block)) {
+.poetry-block:has(:not(+ .poetry-block, + br + .poetry-block)) {
   margin-block-end: 1em;
 }
 
 .qr,
 .qa,
-.qm {
+.qm,
+.qd {
   font-style: italic;
 }
 /* #endregion */

@@ -67,13 +67,14 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
             'qr',
             'qc',
             'qa',
+            'qd',
           ].includes(content.marker)
         "
         :class="{
           'usj-content': true,
           [content.marker]: true,
           poetry: content.marker.startsWith('q'),
-          'poetry-block': content.marker.startsWith('q'),
+          'poetry-block': ['qr', 'qc', 'qa'].includes(content.marker),
         }"
       >
         <UsjContentsRenderer
