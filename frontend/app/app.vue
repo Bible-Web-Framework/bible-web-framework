@@ -11,7 +11,7 @@
 
 <style>
 .centered-body {
-  max-width: 512px;
+  max-width: 750px;
   margin-inline: auto;
 }
 </style>

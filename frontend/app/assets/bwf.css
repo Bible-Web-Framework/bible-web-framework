@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
-
 .search-highlight {
   font-weight: bold;
 }
@@ -9,18 +7,15 @@
   font-weight: bold;
 }
 
-.usj-content {
-  font-family: 'Inter', 'sans-serif';
-  font-size: 18px;
-}
-
 p.usj-content {
   margin-block: 0.25em;
+  line-height: 1.4;
 }
 
 /* #region Chapters and Verses */
 .c {
-  font-size: 200%;
+  font-size: 150%;
+  font-weight: bold;
   margin-inline-end: 0.2em;
 
   + p:not(.poetry) {
@@ -33,68 +28,141 @@ p.usj-content {
 }
 
 .v {
-  vertical-align: 35%;
-  font-size: 75%;
-  margin-right: 0.2em;
-  font-weight: bolder;
+  font-size: 66%;
+  vertical-align: text-top;
+  white-space: nowrap;
+  unicode-bidi: embed;
 }
 /* #endregion */
 
 /* #region Paragraphs */
 .cl {
-  font-size: 1.5em;
-  text-align: center;
   font-weight: bold;
+  font-size: 150%;
+  text-align: center;
+  margin-block-start: 4pt;
+  margin-block-end: 8pt;
 }
 
-.p,
-.pm,
-.pi {
-  /* TODO: Figure out a way to make this work on the first verse in a chapter */
+.p {
   text-indent: 1em;
 }
 
-.cls,
-.pr,
-.pmr,
-.lit,
+.po {
+  text-indent: 1em;
+  margin-block: 4pt;
+}
+
+.cls {
+  text-align: end;
+}
+
+.pr {
+  text-align: end;
+}
+
+.pc {
+  text-align: center;
+}
+
+.pm {
+  text-indent: 1em;
+  margin-inline: 2em;
+}
+
+.pmo {
+  margin-inline: 2em;
+}
+
+.pmc {
+  margin-inline: 2em;
+}
+
+.pmr {
+  text-align: end;
+  margin-inline: 2em;
+}
+
+.pi {
+  /* TODO: Figure out a way to make this work on the first verse in a chapter */
+  text-indent: 1em;
+  margin-inline-end: 2em;
+}
+
+.pi[data-usj-indent='1'] {
+  margin-inline-start: 2em;
+}
+
+.pi[data-usj-indent='2'] {
+  margin-inline-start: 4em;
+}
+
+.pi[data-usj-indent='3'] {
+  margin-inline-start: 6em;
+}
+
+.mi {
+  margin-inline: 2em;
+}
+
+.lit {
+  text-align: end;
+  font-weight: bold;
+}
+
+.q {
+  --poetry-outdent: -4em;
+  margin-inline: 6em;
+}
+
+.q[data-usj-indent='1'] {
+  text-indent: var(--poetry-outdent);
+}
+
+.q[data-usj-indent='2'] {
+  text-indent: calc(var(--poetry-outdent) + 1em);
+}
+
+.q[data-usj-indent='3'] {
+  text-indent: calc(var(--poetry-outdent) + 2em);
+}
+
+.q[data-usj-indent='4'] {
+  text-indent: calc(var(--poetry-outdent) + 3em);
+}
+
 .qr {
   text-align: end;
 }
 
-.pc,
-.qc,
-.qa {
+.qc {
   text-align: center;
 }
 
-.pm,
-.pmo,
-.pmc,
-.qd,
-[data-usj-indent='1'] {
-  margin-inline-start: 1em;
+.qa {
+  font-style: italic;
 }
 
-.pmr,
-.qr {
-  margin-inline-end: 1em;
+.qm {
+  --poetry-outdent: -6em;
+  margin-inline: 8em;
 }
 
-[data-usj-indent='2'] {
-  margin-inline-start: 2em;
+.qm[data-usj-indent='1'] {
+  text-indent: var(--poetry-outdent);
 }
 
-[data-usj-indent='3'] {
-  margin-inline-start: 3em;
+.qm[data-usj-indent='2'] {
+  text-indent: calc(var(--poetry-outdent) + 2em);
 }
 
-[data-usj-indent='4'] {
-  margin-inline-start: 4em;
+.qm[data-usj-indent='3'] {
+  text-indent: calc(var(--poetry-outdent) + 4em);
 }
 
-.lit {
-  font-weight: bold;
+.qd {
+  font-style: italic;
+  margin-inline: 2em;
 }
 
 :not(.poetry-block, .poetry-block + br) + .poetry-block {
@@ -104,26 +172,19 @@ p.usj-content {
 .poetry-block:has(:not(+ .poetry-block, + br + .poetry-block)) {
   margin-block-end: 1em;
 }
-
-.qr,
-.qa,
-.qm,
-.qd {
-  font-style: italic;
-}
 /* #endregion */
 
 /* #region Characters */
 /* #region Notes */
 /* #region Footnotes */
 .f {
-  font-size: 75%;
+  font-size: 66%;
   font-style: italic;
-  vertical-align: 35%;
+  vertical-align: text-top;
 }
 
 .note-contents > .f {
-  margin-inline-end: 0.4em;
+  margin-inline-end: 0.2em;
 }
 
 .fr {

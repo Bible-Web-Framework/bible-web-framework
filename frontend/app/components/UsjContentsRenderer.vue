@@ -87,11 +87,11 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         v-else-if="/^([pm]i[1-3]?|q[1-4]?|qm[1-3]?)$/.test(content.marker)"
         :class="{
           'usj-content': true,
-          [content.marker.replace(/\d/, '')]: true,
+          [content.marker.replace(/\d/g, '')]: true,
           poetry: content.marker.startsWith('q'),
           'poetry-block': /^(q\d)$/.test(content.marker),
         }"
-        :data-usj-indent="+content.marker.replace(/[^\d]/, '') || 1"
+        :data-usj-indent="+content.marker.replace(/[^\d]/g, '') || 1"
       >
         <UsjContentsRenderer
           v-if="content.content"
@@ -101,7 +101,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         />
       </p>
       <!-- \nb is not implemented... do we even want to? -->
-      <br v-else-if="content.marker === 'b'" />
+      <br v-else-if="content.marker === 'b'" class="usj-content b" />
     </template>
     <template v-else-if="content.type === 'char'">
       <!-- TODO: Implement Text Features -->

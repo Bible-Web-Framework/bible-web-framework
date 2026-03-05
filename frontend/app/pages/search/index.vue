@@ -185,9 +185,9 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         >
           <hr v-if="referenceIndex > 0" />
           <template v-if="'content' in reference">
-            <template v-if="reference.content">
+            <div v-if="reference.content" class="usj-container">
               <UsjContentsRenderer :contents="reference.content" />
-            </template>
+            </div>
             <p v-else class="error">
               No scripture passage found for {{ formatBibleReference(reference) }}
             </p>
@@ -196,15 +196,16 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         </template>
         <template v-if="searchData?.noteCount">
           <hr />
-          <template
+          <div
             v-for="(reference, referenceIndex) in searchResults.references"
             :key="referenceIndex"
+            class="usj-container"
           >
             <NotesRenderer
               v-if="'content' in reference && reference.content"
               :contents="reference.content"
             />
-          </template>
+          </div>
         </template>
       </template>
       <template v-else-if="searchResults.search_term">
@@ -225,7 +226,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
                   >{{ formatBibleReference(reference) }}</NuxtLink
                 >
               </td>
-              <td v-if="reference.content">
+              <td v-if="reference.content" class="usj-container">
                 <UsjContentsRenderer
                   :contents="reference.content"
                   :highlights="reference.highlights"
@@ -241,11 +242,18 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
 .search-line {
   margin-block-end: 0.5em;
 }
 
 .padded-bible-select {
   margin-inline: 0.5em;
+}
+
+.usj-container {
+  font-family: 'Inter', 'sans-serif';
+  font-size: 18px;
 }
 </style>
