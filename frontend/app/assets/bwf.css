@@ -181,6 +181,30 @@ p.usj-content {
 /* #endregion */
 
 /* #region Characters */
+/* #region Text Features */
+.add {
+  font-weight: bold;
+  font-style: italic;
+}
+
+.bk {
+  font-style: italic;
+}
+
+.dc {
+  font-style: italic;
+}
+
+.em {
+  font-style: italic;
+}
+
+.jmp {
+  color: #003380;
+  text-decoration: underline;
+}
+/* #endregion */
+
 /* #region Notes */
 /* #region Footnotes */
 .f {

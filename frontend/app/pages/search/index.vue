@@ -4,6 +4,7 @@ import type { LocationQuery } from 'vue-router'
 import { formatBibleReference, type ApiV1 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import { normalizeNoteCallers, walkUsj, type ParaContent, type UsjContent } from '~/usj'
+import { NuxtLink } from '#components'
 
 const config = useRuntimeConfig()
 const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
@@ -104,9 +105,12 @@ const pageCount = computed(() => {
 
 const newQuery = ref(query.value)
 const newBible = ref(bible.value)
-function newQueryParamsForSearch(q: string, bible: string) {
-  const newQueryParams: LocationQuery = { ...route.query, q, bible }
+function newQueryParamsForSearch(q: string, bible?: string) {
+  const newQueryParams: LocationQuery = { ...route.query, q }
   delete newQueryParams['page']
+  if (bible !== undefined) {
+    newQueryParams.bible = bible
+  }
   return newQueryParams
 }
 function search() {
@@ -127,7 +131,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
     notes.push(
       h('div', { class: 'note-contents' }, [
         h(
-          'a',
+          NuxtLink,
           {
             class: 'usj-content f',
             name: `note-contents-${element.caller}`,
@@ -221,7 +225,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
               <td>
                 <NuxtLink
                   :to="{
-                    query: newQueryParamsForSearch(formatBibleReference(reference), bible),
+                    query: newQueryParamsForSearch(formatBibleReference(reference)),
                   }"
                   >{{ formatBibleReference(reference) }}</NuxtLink
                 >

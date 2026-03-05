@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FunctionalComponent } from 'vue'
+import type { RouteLocationRaw } from 'vue-router'
 import type { HighlightsMap } from '~/bwfApi'
 import type { ParaContent } from '~/usj'
 
@@ -7,6 +8,7 @@ const props = defineProps<{
   contents: ParaContent[]
   highlights?: HighlightsMap
   ignoredContentTypes?: string[]
+  generateSearchQuery?: (q: string) => RouteLocationRaw
 }>()
 
 const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }> = ({
@@ -81,6 +83,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :contents="content.content"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
         />
       </p>
       <p
@@ -98,28 +101,45 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :contents="content.content"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
         />
       </p>
       <!-- \nb is not implemented... do we even want to? -->
       <br v-else-if="content.marker === 'b'" class="usj-content b" />
     </template>
     <template v-else-if="content.type === 'char'">
-      <span v-if="['fr', 'ft'].includes(content.marker)" :class="['usj-content', content.marker]">
+      <span
+        v-if="['add', 'bk', 'dc', 'em', 'fr', 'ft'].includes(content.marker)"
+        :class="['usj-content', content.marker]"
+      >
         <UsjContentsRenderer
           :contents="content.content"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
         />
       </span>
+      <NuxtLink
+        v-else-if="content.marker === 'jmp'"
+        :id="content.id"
+        :href="
+          (content.href &&
+            /[A-Z1-4]{3}(-[A-Z1-4]{3})? ?[a-z0-9\-:]*/.test(content.href) &&
+            generateSearchQuery?.(content.href)) ||
+          content.href
+        "
+        :title="content.title"
+        class="usj-content jmp"
+      ></NuxtLink>
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
-      <a
+      <NuxtLink
         v-if="content.marker === 'f' && content.caller !== '-'"
         class="usj-content note-source f"
         :name="`note-source-${content.caller}`"
         :href="`#note-contents-${content.caller}`"
-        >{{ content.caller }}</a
+        >{{ content.caller }}</NuxtLink
       >
     </template>
   </template>
