@@ -104,15 +104,6 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
       <br v-else-if="content.marker === 'b'" class="usj-content b" />
     </template>
     <template v-else-if="content.type === 'char'">
-      <!-- TODO: Implement Text Features -->
-      <!-- TODO: Implement Text Formatting -->
-      <!-- TODO: Implement Breaks -->
-      <!-- TODO: Implement Introductions -->
-      <!-- TODO: Implement Poetry -->
-      <!-- TODO: Implement Lists -->
-      <!-- TODO: Implement Tables -->
-      <!-- #region Notes -->
-      <!-- #region Footnotes -->
       <span v-if="['fr', 'ft'].includes(content.marker)" :class="['usj-content', content.marker]">
         <UsjContentsRenderer
           :contents="content.content"
@@ -120,12 +111,9 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :ignored-content-types="ignoredContentTypes"
         />
       </span>
-      <!-- #endregion -->
-      <!-- #endregion -->
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
-      <!-- #region Footnotes -->
       <a
         v-if="content.marker === 'f' && content.caller !== '-'"
         class="usj-content note-source f"
@@ -133,7 +121,6 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         :href="`#note-contents-${content.caller}`"
         >{{ content.caller }}</a
       >
-      <!-- #endregion -->
     </template>
   </template>
 </template>

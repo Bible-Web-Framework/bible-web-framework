@@ -36,6 +36,7 @@ p.usj-content {
 /* #endregion */
 
 /* #region Paragraphs */
+/* #region Titles and Sections */
 .cl {
   font-weight: bold;
   font-size: 150%;
@@ -43,7 +44,9 @@ p.usj-content {
   margin-block-start: 4pt;
   margin-block-end: 8pt;
 }
+/* #endregion */
 
+/* #region Body Paragraphs */
 .p {
   text-indent: 1em;
 }
@@ -109,7 +112,9 @@ p.usj-content {
   text-align: end;
   font-weight: bold;
 }
+/* #endregion */
 
+/* #region Poetry */
 .q {
   --poetry-outdent: -4em;
   margin-inline: 6em;
@@ -172,6 +177,7 @@ p.usj-content {
 .poetry-block:has(:not(+ .poetry-block, + br + .poetry-block)) {
   margin-block-end: 1em;
 }
+/* #endregion */
 /* #endregion */
 
 /* #region Characters */
