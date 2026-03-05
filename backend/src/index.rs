@@ -14,14 +14,14 @@ use std::num::NonZeroU8;
 use std::ops::Range;
 use std::time::Instant;
 use string_interner::StringInterner;
-use string_interner::backend::{Backend, StringBackend};
-use string_interner::symbol::SymbolU16;
+use string_interner::backend::StringBackend;
+use string_interner::symbol::SymbolU32;
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
 
-type InternerBackend = StringBackend<SymbolU16>;
+type InternerSymbol = SymbolU32;
+type InternerBackend = StringBackend<InternerSymbol>;
 type Interner = StringInterner<InternerBackend>;
-type InternerSymbol = <InternerBackend as Backend>::Symbol;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReindexType {
