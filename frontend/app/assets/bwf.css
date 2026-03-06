@@ -203,6 +203,14 @@ p.usj-content {
   color: #003380;
   text-decoration: underline;
 }
+
+.k {
+  font-weight: bold;
+}
+
+.nd {
+  font-variant: small-caps;
+}
 /* #endregion */
 
 /* #region Notes */

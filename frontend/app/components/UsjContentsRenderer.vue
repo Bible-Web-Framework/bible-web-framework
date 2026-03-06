@@ -109,7 +109,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     </template>
     <template v-else-if="content.type === 'char'">
       <span
-        v-if="['add', 'bk', 'dc', 'em', 'fr', 'ft'].includes(content.marker)"
+        v-if="['add', 'bk', 'dc', 'em', 'k', 'nd', 'fr', 'ft'].includes(content.marker)"
         :class="['usj-content', content.marker]"
       >
         <UsjContentsRenderer
