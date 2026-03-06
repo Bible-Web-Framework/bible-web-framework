@@ -206,6 +206,20 @@ p.usj-content {
 .nd {
   font-variant: small-caps;
 }
+
+.ord {
+  vertical-align: text-top;
+  font-size: 66%;
+}
+
+.pn {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.png {
+  text-decoration: underline;
+}
 /* #endregion */
 
 /* #region Notes */
