@@ -43,7 +43,7 @@ actix-web-validator = "7.0.0"
 permutate = "0.3.2"
 fst = "0.4.7"
 toml = "1.0.3"
-zip = "8.1.0"
+zip = "8.2.0"
 sync_file = "0.3.2"
 serde_cow = "0.1.2"
 dashmap = { version = "6.1.0", features = ["rayon"] }
