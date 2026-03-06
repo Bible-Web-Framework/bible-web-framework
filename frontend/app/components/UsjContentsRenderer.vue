@@ -44,7 +44,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
 
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
-    <RenderWithHighlight v-if="typeof content === 'string'" :text="content" suffix=" " />
+    <RenderWithHighlight v-if="typeof content === 'string'" :text="content" />
     <template v-else-if="ignoredContentTypes?.includes(content.type)"></template>
     <span v-else-if="content.type === 'chapter'" class="usj-content c">{{ content.number }}</span>
     <span v-else-if="content.type === 'verse'" class="usj-content v">{{ content.number }}</span>
@@ -121,8 +121,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
-        />
-      </span>
+      /></span>
       <NuxtLink
         v-else-if="content.marker === 'jmp'"
         :id="content.id"
@@ -134,7 +133,12 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         "
         :title="content.title"
         class="usj-content jmp"
-      ></NuxtLink>
+        ><UsjContentsRenderer
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
+      /></NuxtLink>
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
