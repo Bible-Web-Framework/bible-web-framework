@@ -145,6 +145,7 @@ p.usj-content {
 }
 
 .qa {
+  text-align: center;
   font-style: italic;
 }
 
@@ -183,7 +184,6 @@ p.usj-content {
 /* #region Characters */
 /* #region Text Features */
 .add {
-  font-weight: bold;
   font-style: italic;
 }
 
@@ -197,11 +197,6 @@ p.usj-content {
 
 .em {
   font-style: italic;
-}
-
-.jmp {
-  color: #003380;
-  text-decoration: underline;
 }
 
 .k {
