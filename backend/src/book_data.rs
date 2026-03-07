@@ -1,4 +1,5 @@
 use crate::utils::{ToUnicaseCow, normalize_str};
+use enum_map::Enum;
 use enumset::EnumSetType;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;

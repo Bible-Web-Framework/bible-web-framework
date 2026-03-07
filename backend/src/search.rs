@@ -5,7 +5,6 @@ use crate::reference::{BibleReference, BookReference, ParseReferenceError, parse
 use crate::usj::{ParaContent, UsjContent, UsjRoot, is_title_marker};
 use crate::verse_range::VerseRange;
 use charabia::{SeparatorKind, Tokenize, Tokenizer};
-use dashmap::DashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
@@ -36,6 +35,8 @@ pub enum SearchResponseResult {
     ReferenceContent {
         reference: BibleReference,
         translated_book_name: Option<String>,
+        previous_chapter: Option<ChapterReference>,
+        next_chapter: Option<ChapterReference>,
         content: Option<Vec<UsjContent>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         highlights: Option<HashMap<String, Vec<Range<usize>>>>,
@@ -44,6 +45,13 @@ pub enum SearchResponseResult {
         invalid_reference: String,
         details: ParseReferenceError,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChapterReference {
+    pub book: Book,
+    pub translated_book_name: Option<String>,
+    pub chapter: NonZeroU8,
 }
 
 pub fn search_bible(
@@ -63,7 +71,7 @@ pub fn search_bible(
             &term,
             search_start,
             search_max_count,
-            &bible.files,
+            bible,
             &bible.index.read(),
         );
         tracing::debug!(
@@ -86,6 +94,18 @@ pub fn search_bible(
                     SearchResponseResult::ReferenceContent {
                         reference,
                         translated_book_name: get_translated_book_name(usj),
+                        previous_chapter: get_nearby_book(
+                            bible,
+                            reference.book,
+                            reference.chapter,
+                            NearbyDir::Previous,
+                        ),
+                        next_chapter: get_nearby_book(
+                            bible,
+                            reference.book,
+                            reference.chapter,
+                            NearbyDir::Next,
+                        ),
                         content: usj.and_then(|usj| {
                             usj.find_reference(reference.chapter, reference.verses)
                         }),
@@ -125,16 +145,11 @@ pub fn search_bible(
     }
 }
 
-fn get_translated_book_name(usj: Option<&UsjRoot>) -> Option<String> {
-    usj.and_then(|x| x.translated_book_name())
-        .map(str::to_string)
-}
-
 fn search_for_terms(
     terms: &str,
     start: usize,
     max_count: usize,
-    usjs: &DashMap<Book, UsjContent>,
+    bible: &BibleData,
     index: &BibleIndex,
 ) -> (usize, Vec<SearchResponseResult>) {
     let mut result: BTreeMap<_, Vec<_>> = BTreeMap::new();
@@ -175,7 +190,7 @@ fn search_for_terms(
             .take(max_count)
             .map(|(reference, locations)| {
                 let mut highlights: HashMap<_, Vec<_>> = HashMap::new();
-                let usj = usjs.get(&reference.book);
+                let usj = bible.files.get(&reference.book);
                 if let Some(usj) = &usj {
                     for location in locations {
                         if let Some(text) = location.resolve_text_section(usj) {
@@ -190,6 +205,18 @@ fn search_for_terms(
                 SearchResponseResult::ReferenceContent {
                     reference,
                     translated_book_name: get_translated_book_name(usj),
+                    previous_chapter: get_nearby_book(
+                        bible,
+                        reference.book,
+                        reference.chapter,
+                        NearbyDir::Previous,
+                    ),
+                    next_chapter: get_nearby_book(
+                        bible,
+                        reference.book,
+                        reference.chapter,
+                        NearbyDir::Next,
+                    ),
                     content: usj
                         .and_then(|usj| usj.find_reference(reference.chapter, reference.verses)),
                     highlights: Some(highlights),
@@ -197,6 +224,70 @@ fn search_for_terms(
             })
             .collect(),
     )
+}
+
+fn get_translated_book_name(usj: Option<&UsjRoot>) -> Option<String> {
+    usj.and_then(|x| x.translated_book_name())
+        .map(str::to_string)
+}
+
+fn get_nearby_book(
+    bible: &BibleData,
+    mut current_book: Book,
+    current_chapter: NonZeroU8,
+    nearby_dir: NearbyDir,
+) -> Option<ChapterReference> {
+    let mut current_chapter_count = current_book.chapter_count()?.get();
+    let mut current_chapter = current_chapter.get();
+    let mut current_usj = bible.files.get(&current_book);
+    let book_order = bible.config.read().book_order;
+    loop {
+        match nearby_dir {
+            NearbyDir::Previous => {
+                if current_chapter > 1 {
+                    current_chapter -= 1;
+                } else if let Some(pred) = book_order.predecessor(current_book) {
+                    current_book = pred;
+                    current_chapter_count = pred.chapter_count().map_or(1, NonZeroU8::get);
+                    current_chapter = current_chapter_count;
+                    current_usj = bible.files.get(&current_book);
+                } else {
+                    return None;
+                }
+            }
+            NearbyDir::Next => {
+                if current_chapter < current_chapter_count {
+                    current_chapter += 1;
+                } else if let Some(succ) = book_order.successor(current_book) {
+                    current_book = succ;
+                    current_chapter_count = succ.chapter_count().map_or(1, NonZeroU8::get);
+                    current_chapter = 1;
+                    current_usj = bible.files.get(&current_book);
+                } else {
+                    return None;
+                }
+            }
+        }
+        let Some(current_usj) = &current_usj else {
+            current_chapter = 1;
+            current_chapter_count = 1;
+            continue;
+        };
+        if current_usj.unwrap_root().content.iter().any(
+            |x| matches!(x, UsjContent::Chapter { number, .. } if number.get() == current_chapter),
+        ) {
+            return Some(ChapterReference {
+                book: current_book,
+                translated_book_name: get_translated_book_name(current_usj.as_root()),
+                chapter: NonZeroU8::new(current_chapter).unwrap(),
+            });
+        }
+    }
+}
+
+enum NearbyDir {
+    Previous,
+    Next,
 }
 
 struct FootnoteGenerator<'a> {

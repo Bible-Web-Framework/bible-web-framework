@@ -4,6 +4,7 @@ use crate::index::{BibleIndex, ReindexType};
 use crate::reference::BibleReference;
 use crate::usfm_loader::load_usj_from_usfm;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj};
+use crate::utils::ordered_enum::EnumOrderMap;
 use crate::utils::prefix_tree::PrefixTree;
 use crate::utils::{ExclusiveMutex, ToUnicaseCow};
 use bimap::{BiMap, Overwritten};
@@ -61,6 +62,7 @@ pub struct BibleData {
 pub struct BibleConfig {
     pub display_name: Option<String>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
+    pub book_order: EnumOrderMap<Book>,
     pub search: SearchConfig,
     pub footnotes: FootnotesTree,
 }
@@ -491,7 +493,7 @@ impl BibleData {
                 }
                 drop(old_config);
 
-                *self.config.write() = Arc::new(new_config);
+                *self.config.write() = new_config;
                 Some(LoadComplete::Config { needs_reindex })
             }
             LoadAction::Book(usj) => {
@@ -564,11 +566,11 @@ impl BibleData {
             compile_regex!("^(a?png|avif|gif|jpe?g|jfif|pjp(eg)?|svg|webp)$");
 
         if filename == "bible.toml" {
-            return Ok(Some(LoadAction::Config(
+            return Ok(Some(LoadAction::Config(Arc::new(
                 reader
                     .map_err(Into::into)
                     .and_then(BibleConfig::from_reader)?,
-            )));
+            ))));
         }
 
         Ok(
@@ -700,7 +702,7 @@ impl BibleData {
 }
 
 enum LoadAction {
-    Config(BibleConfig),
+    Config(Arc<BibleConfig>),
     Book(UsjContent),
 }
 
@@ -755,6 +757,7 @@ mod unresolved {
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::UsjContent;
+    use crate::utils::ordered_enum::EnumOrderMap;
     use crate::utils::serde_as::{FootnoteUsfmAsUsj, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
     use charabia::{Language, Normalize, StrDetection, Token};
@@ -774,6 +777,7 @@ mod unresolved {
         display_name: Option<String>,
         #[serde(default)]
         book_aliases: AliasesConfig,
+        book_order: Option<EnumOrderMap<Book>>,
         #[serde(default)]
         search: SearchConfig,
         #[serde(default)]
@@ -847,6 +851,7 @@ mod unresolved {
             super::BibleConfig {
                 display_name: val.display_name,
                 book_aliases,
+                book_order: val.book_order.unwrap_or_default(),
                 footnotes: val
                     .footnotes
                     .into_iter()

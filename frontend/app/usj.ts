@@ -1,4 +1,4 @@
-import type { books } from './books_data.js'
+import { booksData, type BooksData } from './books_data.js'
 import { excelColumnName } from './utils.js'
 
 export type UsjRoot = {
@@ -221,8 +221,10 @@ export type UsjContent =
 export type ParaContent = UsjContent | string
 
 export type Book = {
-  [K in keyof books]: books[K] extends { usfm_id: infer T } ? T : books[K]
-}[keyof books]
+  [K in keyof BooksData['books']]: BooksData['books'][K] extends { usfm_id: infer T }
+    ? T
+    : BooksData['books'][K]
+}[keyof BooksData['books']]
 
 export type VerseRange = `${number}-${number}`
 
@@ -259,3 +261,9 @@ export function normalizeNoteCallers(elements: ParaContent[], startId: number = 
   })
   return startId
 }
+
+export const bookVerseCounts: Record<Book, number[]> = Object.fromEntries(
+  Object.values(booksData.books).map((b) =>
+    typeof b !== 'string' ? [b.usfm_id, b.verse_counts] : [b, []],
+  ),
+)

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { FunctionalComponent, VNode } from 'vue'
 import type { LocationQuery } from 'vue-router'
-import { formatBibleReference, type ApiV1 } from '~/bwfApi'
+import { formatBibleReference, formatChapterReference, isFullChapter, type ApiV1 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import { normalizeNoteCallers, walkUsj, type ParaContent, type UsjContent } from '~/usj'
 import { NuxtLink } from '#components'
@@ -189,9 +189,47 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         >
           <hr v-if="referenceIndex > 0" />
           <template v-if="'content' in reference">
-            <div v-if="reference.content" class="usj-container">
-              <UsjContentsRenderer :contents="reference.content" />
-            </div>
+            <template v-if="reference.content">
+              <div
+                v-if="
+                  isFullChapter(reference.reference) &&
+                  (reference.previous_chapter || reference.next_chapter)
+                "
+                class="sided-nav"
+              >
+                <NuxtLink
+                  v-if="reference.previous_chapter"
+                  :to="{
+                    query: newQueryParamsForSearch(
+                      formatChapterReference(reference.previous_chapter),
+                    ),
+                  }"
+                  >❮ {{ formatChapterReference(reference.previous_chapter) }}</NuxtLink
+                >
+                <div v-else />
+                <NuxtLink
+                  v-if="reference.next_chapter"
+                  :to="{
+                    query: newQueryParamsForSearch(formatChapterReference(reference.next_chapter)),
+                  }"
+                  >{{ formatChapterReference(reference.next_chapter) }} ❯</NuxtLink
+                >
+                <div v-else />
+              </div>
+              <div class="usj-container">
+                <UsjContentsRenderer :contents="reference.content" />
+              </div>
+              <div v-if="!isFullChapter(reference.reference)" class="center-nav">
+                <NuxtLink
+                  :to="{
+                    query: newQueryParamsForSearch(
+                      `${reference.translated_book_name} ${reference.reference.chapter}`,
+                    ),
+                  }"
+                  >View full chapter</NuxtLink
+                >
+              </div>
+            </template>
             <p v-else class="error">
               No scripture passage found for {{ formatBibleReference(reference) }}
             </p>
@@ -259,5 +297,14 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
 .usj-container {
   font-family: 'Inter', 'sans-serif';
   font-size: 18px;
+}
+
+.center-nav {
+  text-align: center;
+}
+
+.sided-nav {
+  display: flex;
+  justify-content: space-between;
 }
 </style>

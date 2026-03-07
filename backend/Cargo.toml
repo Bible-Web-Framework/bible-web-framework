@@ -54,6 +54,7 @@ strum = { version = "0.28.0", features = ["derive"] }
 rangemap = { version = "1.7.1", features = ["serde"] }
 usfm3 = "0.1.5"
 memory-stats = "1.2.0"
+enum-map = "2.7.3"
 
 [dev-dependencies]
 censor = "0.3.0"

@@ -1,4 +1,4 @@
-import type { Book, UsjContent, UsjRoot } from './usj'
+import { bookVerseCounts, type Book, type UsjContent, type UsjRoot } from './usj'
 
 /**
  * `/v1`
@@ -70,8 +70,16 @@ export type SearchResponseResult = ReferenceContent | InvalidReference
 export type ReferenceContent = {
   reference: BibleReference
   translated_book_name: string | null
+  previous_chapter: ChapterReference | null
+  next_chapter: ChapterReference | null
   content: UsjContent[] | null
   highlights?: HighlightsMap
+}
+
+export type ChapterReference = {
+  book: Book
+  translated_book_name: string
+  chapter: number
 }
 
 export type InvalidReference = {
@@ -132,11 +140,22 @@ export type BibleIndexResponse = {
 export function formatBibleReference(content: ReferenceContent) {
   const ref = content.reference
   const [verseStart, verseEnd] = ref.verses
-  let result = `${content.translated_book_name} ${ref.chapter}:${verseStart}`
-  if (verseEnd !== verseStart) {
-    result += `-${verseEnd}`
+  let result = `${content.translated_book_name} ${ref.chapter}`
+  if (!isFullChapter(ref)) {
+    result += `:${verseStart}`
+    if (verseEnd !== verseStart) {
+      result += `-${verseEnd}`
+    }
   }
   return result
+}
+
+export function isFullChapter(ref: BibleReference) {
+  return ref.verses[0] === 1 && ref.verses[1] === bookVerseCounts[ref.book][ref.chapter - 1]
+}
+
+export function formatChapterReference(reference: ChapterReference) {
+  return `${reference.translated_book_name} ${reference.chapter}`
 }
 
 export function getChapterLabel(content: ReferenceContent) {

@@ -1,3 +1,4 @@
+pub mod ordered_enum;
 pub mod prefix_tree;
 pub mod serde_as;
 
