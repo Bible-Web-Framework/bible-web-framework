@@ -41,6 +41,7 @@ use zip::result::ZipError;
 pub struct MultiBibleData {
     pub root_dir: PathBuf,
     pub default_bible: String,
+    pub disabled_bibles: HashSet<Cow<'static, str>>,
     pub bibles: DashMap<Cow<'static, str>, BibleData>,
     file_change_active: ExclusiveMutex,
 }
@@ -81,10 +82,15 @@ pub struct FootnotesConfig {
 }
 
 impl MultiBibleData {
-    pub fn load(bibles_dir: PathBuf, default_bible: String) -> ConfigResult<Self> {
+    pub fn load(
+        bibles_dir: PathBuf,
+        default_bible: String,
+        disabled_bibles: HashSet<Cow<'static, str>>,
+    ) -> ConfigResult<Self> {
         let result = Self {
             root_dir: bibles_dir,
             default_bible,
+            disabled_bibles,
             bibles: DashMap::new(),
             file_change_active: ExclusiveMutex::default(),
         };
@@ -148,9 +154,11 @@ impl MultiBibleData {
                 };
                 if is_file {
                     if trimmed_path.components().nth(1).is_none() {
-                        tracing::info!("Loading new bible from {}", path.display());
-                        let data = BibleData::load_from_zip(path.to_owned())?;
-                        self.bibles.insert(Cow::Owned(data.id.clone()), data);
+                        if !self.check_for_disabled_load(path) {
+                            tracing::info!("Loading new bible from {}", path.display());
+                            let data = BibleData::load_from_zip(path.to_owned())?;
+                            self.bibles.insert(Cow::Owned(data.id.clone()), data);
+                        }
                     } else {
                         let bible_id = get_root_bible_id(trimmed_path);
                         if let Some(bible) = self.bibles.get(&*bible_id)
@@ -177,7 +185,9 @@ impl MultiBibleData {
                             return Ok(());
                         }
                     }
-                } else if trimmed_path.components().nth(1).is_none() {
+                } else if trimmed_path.components().nth(1).is_none()
+                    && !self.check_for_disabled_load(path)
+                {
                     tracing::info!("Loading new bible from {}", path.display());
                     let data = BibleData::load_from_dir(path.to_owned())?;
                     self.bibles.insert(Cow::Owned(data.id.clone()), data);
@@ -250,7 +260,17 @@ impl MultiBibleData {
                         let new_id = get_root_bible_id(new_trimmed_path);
                         if let Some((_, bible)) = self.bibles.remove(&*old_id) {
                             tracing::info!("Detected rename of bible {old_id} to {new_id}");
-                            self.bibles.insert(Cow::Owned(new_id.into_owned()), bible);
+                            if self.disabled_bibles.contains(&new_id) {
+                                tracing::info!(
+                                    "Removing renamed bible {new_id} because it's disabled.",
+                                );
+                            } else {
+                                self.bibles.insert(Cow::Owned(new_id.into_owned()), bible);
+                            }
+                        } else {
+                            let mut paths = mem::take(&mut event.paths);
+                            paths.remove(0);
+                            return self.handle_rename_partial(RenameMode::To, paths);
                         }
                     }
                     (true, true) => {
@@ -259,7 +279,9 @@ impl MultiBibleData {
                         let old_inside_path = get_inside_bible_path(old_trimmed_path);
                         let new_inside_path = get_inside_bible_path(new_trimmed_path);
                         let Some(old_bible_data) = self.bibles.get(&*old_bible) else {
-                            return Ok(());
+                            let mut paths = mem::take(&mut event.paths);
+                            paths.remove(0);
+                            return self.handle_rename_partial(RenameMode::To, paths);
                         };
                         if old_bible == new_bible {
                             let mut sources = old_bible_data.sources.write();
@@ -296,16 +318,8 @@ impl MultiBibleData {
                     }
                     _ => {
                         let mut paths = mem::take(&mut event.paths);
-                        self.handle_file_change(notify::Event {
-                            kind: EventKind::Modify(ModifyKind::Name(RenameMode::From)),
-                            paths: vec![paths.remove(0)],
-                            attrs: EventAttributes::default(),
-                        })?;
-                        self.handle_file_change(notify::Event {
-                            kind: EventKind::Modify(ModifyKind::Name(RenameMode::To)),
-                            paths,
-                            attrs: EventAttributes::default(),
-                        })?;
+                        self.handle_rename_partial(RenameMode::From, vec![paths.remove(0)])?;
+                        return self.handle_rename_partial(RenameMode::To, paths);
                     }
                 }
             }
@@ -337,6 +351,14 @@ impl MultiBibleData {
         Ok(())
     }
 
+    fn handle_rename_partial(&self, mode: RenameMode, paths: Vec<PathBuf>) -> ConfigResult<()> {
+        self.handle_file_change(notify::Event {
+            kind: EventKind::Modify(ModifyKind::Name(mode)),
+            paths,
+            attrs: EventAttributes::default(),
+        })
+    }
+
     pub fn reload_everything(&self) -> ConfigResult<()> {
         let _lock = self
             .file_change_active
@@ -347,6 +369,9 @@ impl MultiBibleData {
         for entry in self.root_dir.read_dir()? {
             let entry = entry?;
             let path = entry.path();
+            if self.check_for_disabled_load(&path) {
+                continue;
+            }
             let is_file = {
                 let base = entry.file_type()?;
                 if !base.is_symlink() {
@@ -376,6 +401,19 @@ impl MultiBibleData {
             self.bibles.retain(|k, _| keys.contains(k));
         }
         Ok(())
+    }
+
+    fn check_for_disabled_load(&self, path: &Path) -> bool {
+        if self.disabled_bibles.is_empty() {
+            return false;
+        }
+        let bible_id = BibleData::get_file_bible_id(path);
+        if self.disabled_bibles.contains(&bible_id) {
+            tracing::info!("Skipping loading disabled bible {bible_id}");
+            true
+        } else {
+            false
+        }
     }
 }
 

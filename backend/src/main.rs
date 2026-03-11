@@ -5,6 +5,7 @@ use actix_web::{App, HttpServer, middleware, web};
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
+use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -83,6 +84,11 @@ async fn real_main() -> Result<(), ServerError> {
     let bible_data = web::Data::new(MultiBibleData::load(
         bibles_dir.clone(),
         var_str("DEFAULT_BIBLE")?,
+        env::var("DISABLE_BIBLES")
+            .ok()
+            .filter(|x| !x.is_empty())
+            .map(|x| x.split(',').map(|s| Cow::Owned(s.to_string())).collect())
+            .unwrap_or_default(),
     )?);
 
     let usj_watcher = {
