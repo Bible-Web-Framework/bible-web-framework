@@ -1,6 +1,7 @@
+mod book;
 mod general;
-pub mod search;
-pub mod short_url;
+mod search;
+mod short_url;
 
 use crate::api::short_url::ShortUrlValue;
 use crate::book_data::Book;
@@ -86,7 +87,7 @@ pub fn scope() -> Scope {
         )
         .service(
             web::scope("/bible/{bible}")
-                .service(search::book)
+                .service(book::book)
                 .service(search::search)
                 .service(search::index_route),
         )

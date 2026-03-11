@@ -2,7 +2,7 @@ use crate::bible_data::{BibleData, FootnotesConfig, FootnotesTree};
 use crate::book_data::Book;
 use crate::index::BibleIndex;
 use crate::reference::{BibleReference, BookReference, ParseReferenceError, parse_references};
-use crate::usj::{ParaContent, UsjContent, UsjRoot, is_title_marker};
+use crate::usj::{ParaContent, TranslatedBookInfo, UsjContent, UsjRoot, is_title_marker};
 use crate::verse_range::VerseRange;
 use charabia::{SeparatorKind, Tokenize, Tokenizer};
 use itertools::Itertools;
@@ -34,7 +34,7 @@ pub enum SearchResponseType {
 pub enum SearchResponseResult {
     ReferenceContent {
         reference: BibleReference,
-        translated_book_name: Option<String>,
+        translated_book_info: Option<TranslatedBookInfo<'static>>,
         previous_chapter: Option<ChapterReference>,
         next_chapter: Option<ChapterReference>,
         content: Option<Vec<UsjContent>>,
@@ -50,7 +50,7 @@ pub enum SearchResponseResult {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChapterReference {
     pub book: Book,
-    pub translated_book_name: Option<String>,
+    pub translated_book_info: Option<TranslatedBookInfo<'static>>,
     pub chapter: NonZeroU8,
 }
 
@@ -93,7 +93,7 @@ pub fn search_bible(
                     let usj = usj.as_deref().map(UsjContent::unwrap_root);
                     SearchResponseResult::ReferenceContent {
                         reference,
-                        translated_book_name: get_translated_book_name(usj),
+                        translated_book_info: get_translated_book_info(usj),
                         previous_chapter: get_nearby_book(
                             bible,
                             reference.book,
@@ -204,7 +204,7 @@ fn search_for_terms(
                 let usj = usj.as_deref().map(UsjContent::unwrap_root);
                 SearchResponseResult::ReferenceContent {
                     reference,
-                    translated_book_name: get_translated_book_name(usj),
+                    translated_book_info: get_translated_book_info(usj),
                     previous_chapter: get_nearby_book(
                         bible,
                         reference.book,
@@ -226,9 +226,8 @@ fn search_for_terms(
     )
 }
 
-fn get_translated_book_name(usj: Option<&UsjRoot>) -> Option<String> {
-    usj.and_then(|x| x.translated_book_name())
-        .map(str::to_string)
+fn get_translated_book_info(usj: Option<&UsjRoot>) -> Option<TranslatedBookInfo<'static>> {
+    usj.map(|x| x.translated_book_info().to_owned())
 }
 
 fn get_nearby_book(
@@ -278,7 +277,7 @@ fn get_nearby_book(
         ) {
             return Some(ChapterReference {
                 book: current_book,
-                translated_book_name: get_translated_book_name(current_usj.as_root()),
+                translated_book_info: get_translated_book_info(current_usj.as_root()),
                 chapter: NonZeroU8::new(current_chapter).unwrap(),
             });
         }

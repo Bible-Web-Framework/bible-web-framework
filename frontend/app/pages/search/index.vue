@@ -1,7 +1,13 @@
 <script lang="ts" setup>
 import type { FunctionalComponent, VNode } from 'vue'
 import type { LocationQuery } from 'vue-router'
-import { formatBibleReference, formatChapterReference, isFullChapter, type ApiV1 } from '~/bwfApi'
+import {
+  formatBibleReference,
+  formatChapterReference,
+  getShortBookName,
+  isFullChapter,
+  type ApiV1,
+} from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import { normalizeNoteCallers, walkUsj, type ParaContent, type UsjContent } from '~/usj'
 import { NuxtLink } from '#components'
@@ -80,7 +86,9 @@ const { data: searchData } = await useAsyncData(
         reference.content.splice(0, 0, {
           type: 'para',
           marker: 'cl',
-          content: [`${reference.translated_book_name} ${chapter.pubnumber ?? chapter.number}`],
+          content: [
+            `${getShortBookName(reference.translated_book_info, reference.reference.book)} ${chapter.pubnumber ?? chapter.number}`,
+          ],
         })
       }
     }
@@ -223,7 +231,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
                 <NuxtLink
                   :to="{
                     query: newQueryParamsForSearch(
-                      `${reference.translated_book_name} ${reference.reference.chapter}`,
+                      `${getShortBookName(reference.translated_book_info, reference.reference.book)} ${reference.reference.chapter}`,
                     ),
                   }"
                   >View full chapter</NuxtLink

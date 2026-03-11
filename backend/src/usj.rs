@@ -1,6 +1,7 @@
 use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
+use crate::utils::CloneOptionCow;
 use crate::utils::serde_as::OptionAsVec;
 use crate::verse_range::VerseRange;
 use either::Either;
@@ -8,6 +9,7 @@ use ere::compile_regex;
 use monostate::MustBe;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::io::BufRead;
@@ -26,6 +28,36 @@ impl Display for UsjBookInfo {
             f.write_fmt(format_args!("{} ({})", self.book, description))
         } else {
             self.book.fmt(f)
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TranslatedBookInfo<'a> {
+    pub running_header: Option<Cow<'a, str>>,
+    pub long_book_name: Option<Cow<'a, str>>,
+    pub short_book_name: Option<Cow<'a, str>>,
+    pub book_abbreviation: Option<Cow<'a, str>>,
+}
+
+impl TranslatedBookInfo<'_> {
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        [
+            &self.running_header,
+            &self.long_book_name,
+            &self.short_book_name,
+            &self.book_abbreviation,
+        ]
+        .into_iter()
+        .filter_map(Option::as_deref)
+    }
+
+    pub fn to_owned(&self) -> TranslatedBookInfo<'static> {
+        TranslatedBookInfo {
+            running_header: self.running_header.clone_to_owned(),
+            long_book_name: self.long_book_name.clone_to_owned(),
+            short_book_name: self.short_book_name.clone_to_owned(),
+            book_abbreviation: self.book_abbreviation.clone_to_owned(),
         }
     }
 }
@@ -338,20 +370,28 @@ impl UsjRoot {
         })
     }
 
-    pub fn translated_book_name(&self) -> Option<&str> {
-        self.content
+    pub fn translated_book_info(&self) -> TranslatedBookInfo<'_> {
+        let mut info = TranslatedBookInfo::default();
+        for element in self
+            .content
             .iter()
             .take_while(|x| !matches!(x, UsjContent::Chapter { .. }))
-            .find_map(|x| {
-                if let UsjContent::Paragraph { marker, content } = x
-                    && (marker == "h" || marker == "h1")
-                    && let [ParaContent::Plain(text)] = &content[..]
-                {
-                    Some(text.trim())
-                } else {
-                    None
-                }
-            })
+        {
+            let UsjContent::Paragraph { marker, content } = element else {
+                continue;
+            };
+            let [ParaContent::Plain(text)] = &content[..] else {
+                continue;
+            };
+            match marker.as_str() {
+                "h" | "h1" => info.running_header = Some(Cow::Borrowed(text)),
+                "toc1" => info.long_book_name = Some(Cow::Borrowed(text)),
+                "toc2" => info.short_book_name = Some(Cow::Borrowed(text)),
+                "toc3" => info.book_abbreviation = Some(Cow::Borrowed(text)),
+                _ => {}
+            }
+        }
+        info
     }
 
     pub fn find_reference(

@@ -478,9 +478,11 @@ impl BibleData {
                     .copied()
                     .or_else(|| {
                         self.books.iter().find_map(|usj| {
-                            (usj.unwrap_root().translated_book_name().map(UniCase::new)
-                                == Some(str))
-                            .then_some(*usj.key())
+                            usj.unwrap_root()
+                                .translated_book_info()
+                                .names()
+                                .any(|c| UniCase::new(c) == str)
+                                .then_some(*usj.key())
                         })
                     })
             }

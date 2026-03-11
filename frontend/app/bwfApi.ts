@@ -69,28 +69,35 @@ export type SearchResponseResult = ReferenceContent | InvalidReference
 
 export type ReferenceContent = {
   reference: BibleReference
-  translated_book_name: string | null
+  translated_book_info: TranslatedBookInfo | null
   previous_chapter: ChapterReference | null
   next_chapter: ChapterReference | null
   content: UsjContent[] | null
   highlights?: HighlightsMap
 }
 
+export type BibleReference = {
+  book: Book
+  chapter: number
+  verses: [number, number]
+}
+
 export type ChapterReference = {
   book: Book
-  translated_book_name: string
+  translated_book_info: TranslatedBookInfo | null
   chapter: number
+}
+
+export type TranslatedBookInfo = {
+  running_header: string | null
+  long_book_name: string | null
+  short_book_name: string | null
+  book_abbreviation: string | null
 }
 
 export type InvalidReference = {
   invalid_reference: string
   details: ParseReferenceError
-}
-
-export type BibleReference = {
-  book: Book
-  chapter: number
-  verses: [number, number]
 }
 
 export type HighlightsMap = Record<string, GenericRange<number>[]>
@@ -140,7 +147,7 @@ export type BibleIndexResponse = {
 export function formatBibleReference(content: ReferenceContent) {
   const ref = content.reference
   const [verseStart, verseEnd] = ref.verses
-  let result = `${content.translated_book_name} ${ref.chapter}`
+  let result = `${getShortBookName(content.translated_book_info, content.reference.book)} ${ref.chapter}`
   if (!isFullChapter(ref)) {
     result += `:${verseStart}`
     if (verseEnd !== verseStart) {
@@ -155,11 +162,11 @@ export function isFullChapter(ref: BibleReference) {
 }
 
 export function formatChapterReference(reference: ChapterReference) {
-  return `${reference.translated_book_name} ${reference.chapter}`
+  return `${getShortBookName(reference.translated_book_info, reference.book)} ${reference.chapter}`
 }
 
 export function getChapterLabel(content: ReferenceContent) {
-  let label = content.translated_book_name ?? ''
+  let label = getShortBookName(content.translated_book_info, content.reference.book)
   for (const element of content.content ?? []) {
     if (element.type === 'para' && element.marker === 'cl') {
       label = element.content?.[0]?.toString() ?? ''
@@ -168,4 +175,14 @@ export function getChapterLabel(content: ReferenceContent) {
     }
   }
   return label
+}
+
+export function getShortBookName(info: TranslatedBookInfo | null, fallback: Book) {
+  return (
+    info?.short_book_name ??
+    info?.running_header ??
+    info?.book_abbreviation ??
+    info?.long_book_name ??
+    fallback
+  )
 }
