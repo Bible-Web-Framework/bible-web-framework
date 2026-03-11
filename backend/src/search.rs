@@ -31,6 +31,7 @@ pub enum SearchResponseType {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum SearchResponseResult {
     ReferenceContent {
         reference: BibleReference,
