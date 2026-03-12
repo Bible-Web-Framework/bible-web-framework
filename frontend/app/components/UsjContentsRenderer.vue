@@ -154,5 +154,5 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
 </template>
 
 <style>
-@import url('~/assets/bwf.css');
+@import url('~/assets/usj.css');
 </style>
