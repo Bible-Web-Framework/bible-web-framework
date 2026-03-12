@@ -185,7 +185,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
     notes.push(
       h('div', { class: 'note-contents' }, [
         h(
-          NuxtLink,
+          'a',
           {
             class: 'usj-content f',
             name: `note-contents-${element.caller}`,

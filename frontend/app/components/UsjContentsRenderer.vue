@@ -142,12 +142,12 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
-      <NuxtLink
+      <a
         v-if="content.marker === 'f' && content.caller !== '-'"
         class="usj-content note-source f"
         :name="`note-source-${content.caller}`"
         :href="`#note-contents-${content.caller}`"
-        >{{ content.caller }}</NuxtLink
+        >{{ content.caller }}</a
       >
     </template>
   </template>
