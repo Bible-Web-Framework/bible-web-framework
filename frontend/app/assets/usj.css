@@ -220,6 +220,10 @@ p.usj-content {
 .png {
   text-decoration: underline;
 }
+
+.qt {
+  font-style: italic;
+}
 /* #endregion */
 
 /* #region Notes */

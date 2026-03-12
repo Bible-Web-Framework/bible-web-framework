@@ -110,7 +110,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
     <template v-else-if="content.type === 'char'">
       <span
         v-if="
-          ['add', 'bk', 'dc', 'em', 'k', 'nd', 'ord', 'pn', 'png', 'fr', 'ft'].includes(
+          ['add', 'bk', 'dc', 'em', 'k', 'nd', 'ord', 'pn', 'png', 'qt', 'fr', 'ft'].includes(
             content.marker,
           )
         "
@@ -139,6 +139,15 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
       /></NuxtLink>
+      <ruby v-else-if="content.marker === 'rb'" class="usj-content rb"
+        ><UsjContentsRenderer
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
+        /><rp>(</rp><rt>{{ content.gloss }}</rt
+        ><rp>)</rp></ruby
+      >
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
