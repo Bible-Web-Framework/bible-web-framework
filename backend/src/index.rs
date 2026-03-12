@@ -4,7 +4,6 @@ use crate::usj::{ParaContent, UsjContent, UsjRoot};
 use crate::verse_range::VerseRange;
 use charabia::Tokenizer;
 use dashmap::DashMap;
-use itertools::Itertools;
 use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::{SmallVec, smallvec};
@@ -95,20 +94,15 @@ impl BibleIndex {
     }
 
     pub fn replace_from_indexer(&mut self, book: Book, indexer: BookIndexer) {
-        let words = indexer
-            .results
-            .into_iter()
-            .map(|(key, values)| (self.interner.get_or_intern(key), values))
-            .collect_vec();
         let old_words = self
             .words_by_book
             .insert(
                 book,
-                words
-                    .iter()
-                    .map(|(s, _)| *s)
-                    .collect_vec()
-                    .into_boxed_slice(),
+                indexer
+                    .results
+                    .keys()
+                    .map(|word| self.interner.get_or_intern(word))
+                    .collect(),
             )
             .unwrap_or_default();
         for word in old_words {
@@ -126,8 +120,11 @@ impl BibleIndex {
                 }
             }
         }
-        for (word, (new_name, new_references)) in words {
-            let (references, name) = self.references_and_names_by_word.entry(word).or_default();
+        for (word, (new_name, new_references)) in indexer.results {
+            let (references, name) = self
+                .references_and_names_by_word
+                .entry(self.interner.get_or_intern(word))
+                .or_default();
             if name.is_none() {
                 *name = new_name;
             }
