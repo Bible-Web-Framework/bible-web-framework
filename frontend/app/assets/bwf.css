@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+.centered-body {
+  max-width: 750px;
+  margin-inline: auto;
+}
+
+.search-area {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 0.5em;
+  margin-block-end: 0.5em;
+  max-width: 300px;
+
+  > .search-box {
+    grid-column: 1 / span 4;
+  }
+
+  > .book-box {
+    grid-column: 1 / span 2;
+  }
+}
+
+.usj-container {
+  font-family: 'Inter', 'sans-serif';
+  font-size: 18px;
+}
+
+.center-nav {
+  text-align: center;
+}
+
+.sided-nav {
+  display: flex;
+  justify-content: space-between;
+}

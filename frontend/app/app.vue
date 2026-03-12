@@ -10,8 +10,5 @@
 </template>
 
 <style>
-.centered-body {
-  max-width: 750px;
-  margin-inline: auto;
-}
+@import url('~/assets/bwf.css');
 </style>
