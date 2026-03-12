@@ -73,7 +73,7 @@ export type BibleBookInfo = {
 }
 
 export type BibleBookChapterInfo = {
-  chapter: number
+  number: number
   alt_number?: number
   pub_number?: string
 }

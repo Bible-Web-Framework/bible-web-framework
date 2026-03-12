@@ -9,7 +9,7 @@ import {
   type ApiV1,
 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
-import { normalizeNoteCallers, walkUsj, type ParaContent, type UsjContent } from '~/usj'
+import { normalizeNoteCallers, walkUsj, type Book, type ParaContent, type UsjContent } from '~/usj'
 import { NuxtLink } from '#components'
 
 const config = useRuntimeConfig()
@@ -23,6 +23,13 @@ const router = useRouter()
 const bible = computed(() =>
   (route.query.bible || biblesData.value?.default_bible || '').toString(),
 )
+const { data: booksData } = await useFetch<ApiV1['bible']['books']>(
+  () => `/v1/bible/${bible.value}/books`,
+  {
+    baseURL: config.public.apiRootUrl,
+  },
+)
+
 const query = computed(() => (route.query.q || '').toString())
 const page = computed({
   get: () => Math.max(Math.round(+(route.query.page || '1').toString() || 1), 1),
@@ -112,23 +119,62 @@ const pageCount = computed(() => {
 })
 
 const newQuery = ref(query.value)
-const newBible = ref(bible.value)
-function newQueryParamsForSearch(q: string, bible?: string) {
+function newQueryParamsForSearch(q: string) {
   const newQueryParams: LocationQuery = { ...route.query, q }
   delete newQueryParams['page']
-  if (bible !== undefined) {
-    newQueryParams.bible = bible
-  }
   return newQueryParams
 }
 function search() {
-  router.push({ query: newQueryParamsForSearch(newQuery.value, newBible.value) })
+  router.push({ query: newQueryParamsForSearch(newQuery.value) })
 }
+
+const newBook = ref<Book | null>(null)
+const newChapter = ref<number | null>(null)
+const newBible = ref(bible.value)
+
+function computeCurrentBookAndChapter() {
+  const results = searchResults.value
+  if (
+    results === undefined ||
+    results.response_type === 'search_results' ||
+    results.total_results !== 1
+  ) {
+    newBook.value = null
+    return
+  }
+  const reference = results.references.find((x) => 'reference' in x)
+  if (reference === undefined) {
+    newBook.value = null
+    return
+  }
+  newBook.value = reference.reference.book
+  newChapter.value = reference.reference.chapter
+}
+watch(searchResults, computeCurrentBookAndChapter)
+computeCurrentBookAndChapter()
 
 watch([query, bible], () => {
   newQuery.value = query.value
   newBible.value = bible.value
 })
+watch(searchResults, () => {})
+
+function directGo() {
+  const book = newBook.value
+  const chapter = newChapter.value
+  if (book === null || chapter === null) {
+    return
+  }
+  const bookInfo = booksData.value?.books[book]
+  if (bookInfo === undefined) {
+    return
+  }
+  router.push({
+    query: newQueryParamsForSearch(
+      `${getShortBookName(bookInfo.translated_book_info, book)} ${chapter}`,
+    ),
+  })
+}
 
 const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
   const notes: VNode[] = []
@@ -160,17 +206,52 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
   <div>
     <h1>Search Page</h1>
 
-    <div class="search-line">
-      <input v-model="newQuery" placeholder="Enter search term" @keyup.enter="search" />
-      <select v-if="biblesData" v-model="newBible" class="padded-bible-select">
+    <div class="search-area">
+      <input
+        v-model="newQuery"
+        placeholder="Enter search term"
+        class="search-box"
+        @keyup.enter="search"
+      />
+      <button @click="search">Search</button>
+      <select v-model="newBook" class="book-box" @change="newChapter = null">
+        <option :value="null">----</option>
+        <template v-if="booksData">
+          <option v-for="(info, book) in booksData.books" :key="book" :value="book">
+            {{ getShortBookName(info.translated_book_info, book) }}
+          </option>
+        </template>
+      </select>
+      <select v-model="newChapter" @change="directGo">
+        <option :value="null">--</option>
+        <template v-if="booksData && newBook">
+          <option
+            v-for="chapter in booksData.books[newBook].chapters"
+            :key="chapter.number"
+            :value="chapter.number"
+          >
+            {{ chapter.pub_number ?? chapter.number }}
+          </option>
+        </template>
+      </select>
+      <select
+        v-if="biblesData"
+        v-model="newBible"
+        class="bible-box"
+        @change="
+          router.push({
+            query: { ...route.query, bible: newBible },
+          })
+        "
+      >
         <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
           {{ info.display_name ?? id.toLocaleUpperCase() }}
         </option>
       </select>
-      <button @click="search">Search</button>
+      <span v-else />
     </div>
 
-    <template v-if="searchResults?.response_type === 'search_results'">
+    <template v-if="query && searchResults?.response_type === 'search_results'">
       <template v-if="pageCount > 1">
         Page:
         <select v-model="page">
@@ -294,12 +375,21 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 
-.search-line {
+.search-area {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 0.5em;
   margin-block-end: 0.5em;
-}
+  max-width: 300px;
 
-.padded-bible-select {
-  margin-inline: 0.5em;
+  > .search-box {
+    grid-column: 1 / span 4;
+  }
+
+  > .book-box {
+    grid-column: 1 / span 2;
+  }
 }
 
 .usj-container {
