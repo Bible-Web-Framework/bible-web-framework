@@ -88,7 +88,8 @@ pub fn scope() -> Scope {
         .service(
             web::scope("/bible/{bible}")
                 .service(book::book)
+                .service(book::books)
                 .service(search::search)
-                .service(search::index_route),
+                .service(search::index),
         )
 }

@@ -90,15 +90,30 @@ impl<'a> ToUnicaseCow<'a> for UniCase<&'a str> {
     }
 }
 
-pub trait CloneOptionCow<T: ToOwned + ?Sized> {
-    fn clone_to_owned(&self) -> Option<Cow<'static, T>>;
+pub trait CloneToOwned {
+    type Output;
+
+    fn clone_to_owned(&self) -> Self::Output;
 }
 
-impl<'a, T> CloneOptionCow<T> for Option<Cow<'a, T>>
+impl<'a, T> CloneToOwned for Cow<'a, T>
 where
-    T: ToOwned + ?Sized,
+    T: ToOwned + ?Sized + 'static,
 {
-    fn clone_to_owned(&self) -> Option<Cow<'static, T>> {
-        self.as_ref().cloned().map(Cow::into_owned).map(Cow::Owned)
+    type Output = Cow<'static, T>;
+
+    fn clone_to_owned(&self) -> Self::Output {
+        Cow::Owned(self.clone().into_owned())
+    }
+}
+
+impl<'a, T> CloneToOwned for Option<Cow<'a, T>>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Option<Cow<'static, T>>;
+
+    fn clone_to_owned(&self) -> Self::Output {
+        self.as_ref().map(Cow::clone_to_owned)
     }
 }

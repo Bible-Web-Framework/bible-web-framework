@@ -30,6 +30,10 @@ export type ApiV1 = {
      */
     book: BibleBookResponse
     /**
+     * `/books`
+     */
+    books: BibleBooksResponse
+    /**
      * `/search?term={term}&start={start}&count={count}`
      */
     search: BibleSearchResponse
@@ -57,6 +61,15 @@ export type ShortCreateResponse = {
 export type ShortResolveResponse = BibleReference[]
 
 export type BibleBookResponse = UsjRoot
+
+export type BibleBooksResponse = {
+  books: Record<Book, BibleBookInfo>
+  book_order: (Book | null)[]
+}
+
+export type BibleBookInfo = {
+  translated_book_info: TranslatedBookInfo
+}
 
 export type BibleSearchResponse = {
   response_type: 'search_results' | 'scripture_passages'

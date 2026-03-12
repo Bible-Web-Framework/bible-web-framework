@@ -50,7 +50,7 @@ pub async fn search(
 }
 
 #[get("/index")]
-pub async fn index_route(
+pub async fn index(
     bible: web::Path<String>,
     bibles: web::Data<MultiBibleData>,
 ) -> ApiResult<HttpResponse> {

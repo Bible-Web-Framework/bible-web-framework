@@ -1,7 +1,7 @@
 use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
-use crate::utils::CloneOptionCow;
+use crate::utils::CloneToOwned;
 use crate::utils::serde_as::OptionAsVec;
 use crate::verse_range::VerseRange;
 use either::Either;
@@ -52,13 +52,25 @@ impl TranslatedBookInfo<'_> {
         .filter_map(Option::as_deref)
     }
 
-    pub fn to_owned(&self) -> TranslatedBookInfo<'static> {
+    pub fn as_owned(&self) -> TranslatedBookInfo<'static> {
         TranslatedBookInfo {
             running_header: self.running_header.clone_to_owned(),
             long_book_name: self.long_book_name.clone_to_owned(),
             short_book_name: self.short_book_name.clone_to_owned(),
             book_abbreviation: self.book_abbreviation.clone_to_owned(),
         }
+    }
+
+    pub fn is_full(&self) -> bool {
+        matches!(
+            (
+                &self.running_header,
+                &self.long_book_name,
+                &self.short_book_name,
+                &self.book_abbreviation
+            ),
+            (Some(_), Some(_), Some(_), Some(_)),
+        )
     }
 }
 
@@ -388,7 +400,10 @@ impl UsjRoot {
                 "toc1" => info.long_book_name = Some(Cow::Borrowed(text)),
                 "toc2" => info.short_book_name = Some(Cow::Borrowed(text)),
                 "toc3" => info.book_abbreviation = Some(Cow::Borrowed(text)),
-                _ => {}
+                _ => continue,
+            }
+            if info.is_full() {
+                break;
             }
         }
         info

@@ -228,7 +228,7 @@ fn search_for_terms(
 }
 
 fn get_translated_book_info(usj: Option<&UsjRoot>) -> Option<TranslatedBookInfo<'static>> {
-    usj.map(|x| x.translated_book_info().to_owned())
+    usj.map(|x| x.translated_book_info().as_owned())
 }
 
 fn get_nearby_book(
