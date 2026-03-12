@@ -1,4 +1,5 @@
 use enum_map::{EnumArray, EnumMap};
+use enumset::{EnumSet, EnumSetType};
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -8,11 +9,11 @@ use std::marker::PhantomData;
 use thiserror::Error;
 
 #[derive(Debug)]
-pub struct EnumOrderMap<T: EnumArray<Neighbor<T>>> {
-    neighbors: EnumMap<T, Neighbor<T>>,
+pub struct EnumOrderMap<T: EnumArray<Neighbors<T>>> {
+    neighbors: EnumMap<T, Neighbors<T>>,
 }
 
-impl<T: EnumArray<Neighbor<T>>> EnumOrderMap<T> {
+impl<T: EnumArray<Neighbors<T>>> EnumOrderMap<T> {
     pub fn new_unordered() -> Self {
         Self {
             neighbors: EnumMap::default(),
@@ -22,27 +23,31 @@ impl<T: EnumArray<Neighbor<T>>> EnumOrderMap<T> {
     pub fn group_starts(&self) -> impl Iterator<Item = T> {
         self.neighbors
             .iter()
-            .filter(|(_, n)| matches!(n, Neighbor::Successor(_)))
+            .filter(|(_, n)| matches!(n, Neighbors::Successor(_)))
             .map(|(v, _)| v)
+    }
+
+    pub fn neighbors_iter(&self) -> impl Iterator<Item = (T, &Neighbors<T>)> {
+        self.neighbors.iter()
     }
 }
 
-impl<T: EnumArray<Neighbor<T>>> EnumOrderMap<T>
+impl<T: EnumArray<Neighbors<T>>> EnumOrderMap<T>
 where
     T: Copy,
 {
     pub fn add_order(&mut self, left: T, right: T) -> Result<(), OrderedEnumError<T>> {
         let new_left = match self.neighbors[left] {
-            Neighbor::Isolated => Neighbor::Successor(right),
-            Neighbor::Predecessor(pred) => Neighbor::Both(pred, right),
-            Neighbor::Successor(succ) | Neighbor::Both(_, succ) => {
+            Neighbors::Isolated => Neighbors::Successor(right),
+            Neighbors::Predecessor(pred) => Neighbors::Both(pred, right),
+            Neighbors::Successor(succ) | Neighbors::Both(_, succ) => {
                 return Err(OrderedEnumError::SuccessorAlreadyExists { value: left, succ });
             }
         };
         let new_right = match self.neighbors[right] {
-            Neighbor::Isolated => Neighbor::Predecessor(left),
-            Neighbor::Successor(succ) => Neighbor::Both(left, succ),
-            Neighbor::Predecessor(pred) | Neighbor::Both(pred, _) => {
+            Neighbors::Isolated => Neighbors::Predecessor(left),
+            Neighbors::Successor(succ) => Neighbors::Both(left, succ),
+            Neighbors::Predecessor(pred) | Neighbors::Both(pred, _) => {
                 return Err(OrderedEnumError::PredecessorAlreadyExists { value: right, pred });
             }
         };
@@ -53,14 +58,14 @@ where
 
     pub fn predecessor(&self, value: T) -> Option<T> {
         match self.neighbors[value] {
-            Neighbor::Predecessor(pred) | Neighbor::Both(pred, _) => Some(pred),
+            Neighbors::Predecessor(pred) | Neighbors::Both(pred, _) => Some(pred),
             _ => None,
         }
     }
 
     pub fn successor(&self, value: T) -> Option<T> {
         match self.neighbors[value] {
-            Neighbor::Successor(succ) | Neighbor::Both(_, succ) => Some(succ),
+            Neighbors::Successor(succ) | Neighbors::Both(_, succ) => Some(succ),
             _ => None,
         }
     }
@@ -71,9 +76,9 @@ where
     }
 }
 
-impl<T: EnumArray<Neighbor<T>>> Copy for EnumOrderMap<T> where T::Array: Copy {}
+impl<T: EnumArray<Neighbors<T>>> Copy for EnumOrderMap<T> where T::Array: Copy {}
 
-impl<T: EnumArray<Neighbor<T>>> Clone for EnumOrderMap<T>
+impl<T: EnumArray<Neighbors<T>>> Clone for EnumOrderMap<T>
 where
     T::Array: Clone,
 {
@@ -84,7 +89,7 @@ where
     }
 }
 
-impl<T: EnumArray<Neighbor<T>>> Default for EnumOrderMap<T> {
+impl<T: EnumArray<Neighbors<T>>> Default for EnumOrderMap<T> {
     fn default() -> Self {
         if T::LENGTH < 2 {
             return Self::new_unordered();
@@ -93,41 +98,58 @@ impl<T: EnumArray<Neighbor<T>>> Default for EnumOrderMap<T> {
             neighbors: EnumMap::from_fn(|v: T| {
                 let idx = v.into_usize();
                 if idx == 0 {
-                    Neighbor::Successor(T::from_usize(1))
+                    Neighbors::Successor(T::from_usize(1))
                 } else if idx == T::LENGTH - 1 {
-                    Neighbor::Predecessor(T::from_usize(T::LENGTH - 2))
+                    Neighbors::Predecessor(T::from_usize(T::LENGTH - 2))
                 } else {
-                    Neighbor::Both(T::from_usize(idx - 1), T::from_usize(idx + 1))
+                    Neighbors::Both(T::from_usize(idx - 1), T::from_usize(idx + 1))
                 }
             }),
         }
     }
 }
 
-impl<T: EnumArray<Neighbor<T>>> Serialize for EnumOrderMap<T>
+impl<T: EnumArray<Neighbors<T>>> Serialize for EnumOrderMap<T>
 where
-    T: Copy + Serialize,
+    T: Copy + Serialize + EnumSetType,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(None)?;
-        let mut has_any = false;
+        let mut handled = EnumSet::new();
         for group_start in self.group_starts() {
-            if has_any {
+            if !handled.is_empty() {
                 seq.serialize_element(&Option::<T>::None)?;
             }
-            has_any = true;
             for element in self.successors(group_start) {
+                handled.insert(element);
                 seq.serialize_element(&Some(element))?;
+            }
+        }
+        if handled.len() < T::LENGTH {
+            for (key, neighbors) in self.neighbors_iter() {
+                if handled.contains(key) || neighbors.is_isolated() {
+                    continue;
+                }
+                if !handled.is_empty() {
+                    seq.serialize_element(&Option::<T>::None)?;
+                }
+                for element in self.successors(key) {
+                    let was_new = handled.insert(element);
+                    seq.serialize_element(&Some(element))?;
+                    if !was_new {
+                        break;
+                    }
+                }
             }
         }
         seq.end()
     }
 }
 
-impl<'de, T: EnumArray<Neighbor<T>>> Deserialize<'de> for EnumOrderMap<T>
+impl<'de, T: EnumArray<Neighbors<T>>> Deserialize<'de> for EnumOrderMap<T>
 where
     T: Copy + Deserialize<'de> + Display,
 {
@@ -136,7 +158,7 @@ where
         D: Deserializer<'de>,
     {
         struct ValueVisitor<T>(PhantomData<T>);
-        impl<'de, T: EnumArray<Neighbor<T>> + Copy + Deserialize<'de> + Display> Visitor<'de>
+        impl<'de, T: EnumArray<Neighbors<T>> + Copy + Deserialize<'de> + Display> Visitor<'de>
             for ValueVisitor<T>
         {
             type Value = EnumOrderMap<T>;
@@ -167,15 +189,41 @@ where
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-#[doc(hidden)]
-#[derive(Default)]
-pub enum Neighbor<T> {
+#[derive(Copy, Clone, Debug, Default)]
+pub enum Neighbors<T> {
     #[default]
     Isolated,
     Successor(T),
     Predecessor(T),
     Both(T, T),
+}
+
+impl<T> Neighbors<T> {
+    pub fn is_isolated(&self) -> bool {
+        matches!(self, Self::Isolated)
+    }
+}
+
+impl<T> From<Neighbors<T>> for (Option<T>, Option<T>) {
+    fn from(value: Neighbors<T>) -> Self {
+        match value {
+            Neighbors::Isolated => (None, None),
+            Neighbors::Successor(succ) => (None, Some(succ)),
+            Neighbors::Predecessor(pred) => (Some(pred), None),
+            Neighbors::Both(pred, succ) => (Some(pred), Some(succ)),
+        }
+    }
+}
+
+impl<T> From<(Option<T>, Option<T>)> for Neighbors<T> {
+    fn from(value: (Option<T>, Option<T>)) -> Self {
+        match value {
+            (None, None) => Neighbors::Isolated,
+            (None, Some(succ)) => Neighbors::Successor(succ),
+            (Some(pred), None) => Neighbors::Predecessor(pred),
+            (Some(pred), Some(succ)) => Neighbors::Both(pred, succ),
+        }
+    }
 }
 
 #[derive(Error)]
