@@ -424,8 +424,6 @@ macro_rules! format_source {
 }
 
 impl BibleData {
-    const CONFIG_PATH: &str = "bible.toml";
-
     pub fn load_from_dir(path: PathBuf) -> ConfigResult<Self> {
         Self::load(path, false)
     }
@@ -711,9 +709,6 @@ impl BibleData {
                 .filter_map(|index| {
                     let mut zip = zip.clone();
                     let filename = zip.name_for_index(index).unwrap();
-                    if filename == Self::CONFIG_PATH {
-                        return None;
-                    }
                     if filename
                         .chars()
                         .next_back()
@@ -735,7 +730,7 @@ impl BibleData {
             "Loaded {} USFM/USJ files from {} in {:?}",
             self.files.len(),
             self.source.display(),
-            start.elapsed()
+            start.elapsed(),
         );
         Ok(())
     }
