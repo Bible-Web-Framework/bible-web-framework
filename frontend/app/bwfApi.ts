@@ -69,6 +69,13 @@ export type BibleBooksResponse = {
 
 export type BibleBookInfo = {
   translated_book_info: TranslatedBookInfo
+  chapters: BibleBookChapterInfo[]
+}
+
+export type BibleBookChapterInfo = {
+  chapter: number
+  alt_number?: number
+  pub_number?: string
 }
 
 export type BibleSearchResponse = {
