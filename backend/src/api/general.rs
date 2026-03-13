@@ -1,5 +1,6 @@
 use crate::api::ApiResult;
 use crate::bible_data::MultiBibleData;
+use crate::book_data::Book;
 use actix_web::{get, web};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -13,6 +14,7 @@ pub struct BiblesResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct BiblesResponseData {
     pub display_name: Option<String>,
+    pub simple_book_names: BTreeMap<Book, String>,
 }
 
 #[get("/bibles")]
@@ -27,6 +29,21 @@ pub async fn bibles(bibles: web::Data<MultiBibleData>) -> ApiResult<web::Json<Bi
                     bible.key().to_string(),
                     BiblesResponseData {
                         display_name: bible.value().config.read().display_name.clone(),
+                        simple_book_names: bible
+                            .value()
+                            .files
+                            .iter()
+                            .map(|book| {
+                                (
+                                    *book.key(),
+                                    book.value()
+                                        .unwrap_root()
+                                        .translated_book_info()
+                                        .short_name(*book.key())
+                                        .to_string(),
+                                )
+                            })
+                            .collect(),
                     },
                 )
             })

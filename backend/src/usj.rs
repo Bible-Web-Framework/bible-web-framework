@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::io::BufRead;
 use std::num::NonZeroU8;
+use std::ops::Deref;
 use std::slice::SliceIndex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +72,15 @@ impl TranslatedBookInfo<'_> {
             ),
             (Some(_), Some(_), Some(_), Some(_)),
         )
+    }
+
+    pub fn short_name(&self, book: Book) -> &str {
+        self.short_book_name
+            .as_ref()
+            .or(self.running_header.as_ref())
+            .or(self.book_abbreviation.as_ref())
+            .or(self.long_book_name.as_ref())
+            .map_or(book.usfm_id(), Cow::deref)
     }
 }
 

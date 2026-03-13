@@ -125,11 +125,10 @@ const pageCount = computed(() => {
   return Math.ceil(searchResults.value.total_results / resultsPerPage.value)
 })
 
-function formatReference(ref: BibleReference | ChapterReference) {
-  let q = ''
-  if (booksData.value) {
-    q += getShortBookName(booksData.value.books[ref.book]?.translated_book_info, ref.book)
-  }
+function formatReference(ref: BibleReference | ChapterReference, overrideBookName?: string) {
+  let q =
+    overrideBookName ??
+    getShortBookName(booksData.value?.books[ref.book]?.translated_book_info ?? null, ref.book)
   q += ` ${ref.chapter}`
   if ('verses' in ref) {
     const [start, end] = ref.verses
@@ -205,6 +204,32 @@ function directGo() {
   })
 }
 
+function changeBible() {
+  const newParams: LocationQuery = { ...route.query, bible: newBible.value }
+  const currentResults = searchResults.value
+  if (currentResults && currentResults.response_type === 'scripture_passages') {
+    delete newParams['page']
+    let newQuery = ''
+    for (const result of currentResults.references) {
+      if (newQuery.length > 0) {
+        newQuery += '; '
+      }
+      if ('invalid_reference' in result) {
+        newQuery += result.invalid_reference
+      } else {
+        newQuery += formatReference(
+          result.reference,
+          biblesData.value?.bibles?.[newBible.value]?.simple_book_names?.[result.reference.book],
+        )
+      }
+    }
+    newParams.q = newQuery
+  }
+  router.push({
+    query: newParams,
+  })
+}
+
 const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
   const notes: VNode[] = []
   walkUsj(contents, (element) => {
@@ -273,16 +298,7 @@ NotesRenderer.props = {
           </option>
         </template>
       </select>
-      <select
-        v-if="biblesData"
-        v-model="newBible"
-        class="bible-box"
-        @change="
-          router.push({
-            query: { ...route.query, bible: newBible },
-          })
-        "
-      >
+      <select v-if="biblesData" v-model="newBible" class="bible-box" @change="changeBible">
         <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
           {{ info.display_name ?? id.toLocaleUpperCase() }}
         </option>

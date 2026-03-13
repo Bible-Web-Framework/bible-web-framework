@@ -51,6 +51,7 @@ export type BiblesResponse = {
 
 export type BibleInfo = {
   display_name: string | null
+  simple_book_names: Record<Book, string>
 }
 
 export type ShortCreateResponse = {
