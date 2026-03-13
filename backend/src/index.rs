@@ -17,6 +17,7 @@ use string_interner::StringInterner;
 use string_interner::backend::StringBackend;
 use string_interner::symbol::SymbolU32;
 use tinyvec::{TinyVec, tiny_vec};
+use unicode_normalization::UnicodeNormalization;
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextRange)]>>;
 
@@ -276,6 +277,9 @@ impl BookIndexer {
     }
 
     fn push_text(&mut self, text: &str) {
+        if self.current_chapter.is_none() || self.current_verses.is_none() {
+            return;
+        }
         self.current_text.push_str(text);
         self.current_paths
             .extend(text.chars().enumerate().map(|(idx, _)| TextLocation {
@@ -288,18 +292,17 @@ impl BookIndexer {
         if self.current_text.is_empty() {
             return;
         }
-        let Some(reference) = self.current_verses.map(|verses| BookReference {
+        // unwrap() is safe because current_text cannot be non-empty while either is None
+        let reference = BookReference {
             chapter: self.current_chapter.unwrap(),
-            verses,
-        }) else {
-            return;
+            verses: self.current_verses.unwrap(),
         };
         for token in tokenizer.tokenize(&self.current_text) {
             if !token.is_word() {
                 continue;
             }
             let name = Some(&self.current_text[token.byte_start..token.byte_end])
-                .take_if(|x| *x != token.lemma());
+                .filter(|x| *x != token.lemma() && !x.nfd().eq(token.lemma().chars()));
             let range = self.get_text_location(token.char_start, false)
                 ..self.get_text_location(token.char_end, true);
             let (name_result, result) = self.results.entry(token.lemma.into_owned()).or_default();
