@@ -634,7 +634,10 @@ impl BibleData {
                         .and_then(|_| load_usj_from_usfm(usfm))?;
                     if !usj.diagnostics.is_empty() {
                         let mut diag_message = String::new();
-                        let source_code = Arc::new(NamedSource::new(filename, usj.source));
+                        let source_code = Arc::new(NamedSource::new(
+                            format!("{}{filename}", format_source!(self)),
+                            usj.source,
+                        ));
                         let reporter = GraphicalReportHandler::new();
                         let is_all_error = usj
                             .diagnostics
