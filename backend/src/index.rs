@@ -1,22 +1,23 @@
 use crate::book_data::Book;
 use crate::reference::BookReference;
-use crate::usj::{ParaContent, UsjContent, UsjRoot};
+use crate::usj::{ParaContent, ParaIndex, UsjContent, UsjRoot};
 use crate::verse_range::VerseRange;
 use charabia::Tokenizer;
 use dashmap::DashMap;
 use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, LinkedList};
 use std::num::NonZeroU8;
-use std::ops::Range;
+use std::ops::{Range, SubAssign};
 use std::time::Instant;
 use string_interner::StringInterner;
 use string_interner::backend::StringBackend;
 use string_interner::symbol::SymbolU32;
 
-pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextLocation)]>>;
+pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextRange)]>>;
 
 type InternerSymbol = SymbolU32;
 type InternerBackend = StringBackend<InternerSymbol>;
@@ -205,13 +206,13 @@ impl BibleIndex {
     }
 }
 
-type ReferenceLocationVec = Vec<(BookReference, TextLocation)>;
+type ReferenceLocationVec = Vec<(BookReference, TextRange)>;
 
 pub struct BookIndexer {
     results: HashMap<String, (Option<Box<str>>, ReferenceLocationVec)>,
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
-    current_path: SmallVec<[usize; 4]>,
+    current_path: UsjPath,
 }
 
 impl BookIndexer {
@@ -290,25 +291,29 @@ impl BookIndexer {
                 reference,
                 TextLocation {
                     usj_path: self.current_path.clone(),
-                    char_range: token.char_start..token.char_end,
+                    char: token.char_start,
+                }..TextLocation {
+                    usj_path: self.current_path.clone(),
+                    char: token.char_end,
                 },
             ));
         }
     }
 }
 
-#[derive(Clone, Debug)]
+pub type UsjPath = SmallVec<[usize; 4]>;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextLocation {
-    pub usj_path: SmallVec<[usize; 4]>,
-    pub char_range: Range<usize>,
+    pub usj_path: UsjPath,
+    pub char: usize,
 }
 
-impl TextLocation {
-    pub fn resolve_text_section<'a>(&self, content: &'a UsjContent) -> Option<&'a str> {
-        let mut current = content;
-        for &index in self.usj_path.iter().take(self.usj_path.len() - 1) {
-            current = current.get_content(index)?.left()?;
-        }
-        current.get_content(*self.usj_path.last()?)?.right()
+pub type TextRange = Range<TextLocation>;
+
+impl SubAssign<ParaIndex> for TextLocation {
+    fn sub_assign(&mut self, rhs: ParaIndex) {
+        self.usj_path[0] -= rhs.0;
+        self.usj_path[1] -= rhs.1;
     }
 }

@@ -93,7 +93,7 @@ export type ReferenceContent = {
   previous_chapter: ChapterReference | null
   next_chapter: ChapterReference | null
   content: UsjContent[] | null
-  highlights?: HighlightsMap
+  highlights?: HighlightsArray
 }
 
 export type BibleReference = {
@@ -108,6 +108,18 @@ export type ChapterReference = {
   chapter: number
 }
 
+export type HighlightsArray = Array<GenericRange<TextLocation>>
+
+export type TextLocation = {
+  usj_path: number[]
+  char: number
+}
+
+export type GenericRange<T> = {
+  start: T
+  end: T
+}
+
 export type TranslatedBookInfo = {
   running_header: string | null
   long_book_name: string | null
@@ -118,13 +130,6 @@ export type TranslatedBookInfo = {
 export type InvalidReference = {
   invalid_reference: string
   details: ParseReferenceError
-}
-
-export type HighlightsMap = Record<string, GenericRange<number>[]>
-
-export type GenericRange<T> = {
-  start: T
-  end: T
 }
 
 export type ParseReferenceError =

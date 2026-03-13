@@ -65,7 +65,7 @@ const { data: searchData } = await useAsyncData(
     }
 
     for (const reference of response.references) {
-      if (!('content' in reference) || !reference.content) {
+      if (!('content' in reference) || !reference.content || reference.highlights) {
         continue
       }
       const chapterIndex = reference.content.findIndex((el) => el.type === 'chapter')
@@ -203,6 +203,12 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
     return false
   })
   return notes
+}
+NotesRenderer.props = {
+  contents: {
+    type: Array,
+    required: true,
+  },
 }
 </script>
 

@@ -1,6 +1,6 @@
 use crate::bible_data::{BibleData, FootnotesConfig, FootnotesTree};
 use crate::book_data::Book;
-use crate::index::BibleIndex;
+use crate::index::{BibleIndex, TextRange};
 use crate::reference::{BibleReference, BookReference, ParseReferenceError, parse_references};
 use crate::usj::{ParaContent, TranslatedBookInfo, UsjContent, UsjRoot, is_title_marker};
 use crate::verse_range::VerseRange;
@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::num::NonZeroU8;
-use std::ops::Range;
 use std::time::Instant;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,7 +39,7 @@ pub enum SearchResponseResult {
         next_chapter: Option<ChapterReference>,
         content: Option<Vec<UsjContent>>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        highlights: Option<HashMap<String, Vec<Range<usize>>>>,
+        highlights: Option<Vec<TextRange>>,
     },
     InvalidReference {
         invalid_reference: String,
@@ -107,9 +106,9 @@ pub fn search_bible(
                             reference.chapter,
                             NearbyDir::Next,
                         ),
-                        content: usj.and_then(|usj| {
-                            usj.find_reference(reference.chapter, reference.verses)
-                        }),
+                        content: usj
+                            .and_then(|usj| usj.find_reference(reference.chapter, reference.verses))
+                            .map(|(_, c)| c),
                         highlights: None,
                     }
                 }
@@ -190,19 +189,22 @@ fn search_for_terms(
             .skip(start)
             .take(max_count)
             .map(|(reference, locations)| {
-                let mut highlights: HashMap<_, Vec<_>> = HashMap::new();
+                let mut highlights = vec![];
                 let usj = bible.files.get(&reference.book);
-                if let Some(usj) = &usj {
-                    for location in locations {
-                        if let Some(text) = location.resolve_text_section(usj) {
-                            highlights
-                                .entry(text.to_string())
-                                .or_default()
-                                .push(location.char_range);
+                let usj = usj.as_deref().map(UsjContent::unwrap_root);
+                let content = if let Some(usj) = &usj {
+                    let content = usj.find_reference(reference.chapter, reference.verses);
+                    if let Some((offset, _)) = &content {
+                        for mut location in locations {
+                            location.start -= *offset;
+                            location.end -= *offset;
+                            highlights.push(location);
                         }
                     }
-                }
-                let usj = usj.as_deref().map(UsjContent::unwrap_root);
+                    content
+                } else {
+                    None
+                };
                 SearchResponseResult::ReferenceContent {
                     reference,
                     translated_book_info: get_translated_book_info(usj),
@@ -218,8 +220,7 @@ fn search_for_terms(
                         reference.chapter,
                         NearbyDir::Next,
                     ),
-                    content: usj
-                        .and_then(|usj| usj.find_reference(reference.chapter, reference.verses)),
+                    content: content.map(|(_, c)| c),
                     highlights: Some(highlights),
                 }
             })

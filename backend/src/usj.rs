@@ -366,7 +366,7 @@ pub struct UsjRoot {
     pub content: Vec<UsjContent>,
 }
 
-type ParaIndex = (usize, usize);
+pub type ParaIndex = (usize, usize);
 
 impl UsjRoot {
     pub fn book_info(&self) -> Option<UsjBookInfo> {
@@ -413,7 +413,7 @@ impl UsjRoot {
         &self,
         chapter: NonZeroU8,
         verse_range: VerseRange,
-    ) -> Option<Vec<UsjContent>> {
+    ) -> Option<(ParaIndex, Vec<UsjContent>)> {
         let chapter_start = self.find_chapter_start(chapter)?;
 
         let (start, base_chapter_label) = if verse_range.first_u8() == 1 {
@@ -450,7 +450,7 @@ impl UsjRoot {
         if let Some(label) = base_chapter_label {
             result.insert(0, label);
         }
-        Some(result)
+        Some((start, result))
     }
 
     fn find_chapter_label(&self) -> Option<UsjContent> {

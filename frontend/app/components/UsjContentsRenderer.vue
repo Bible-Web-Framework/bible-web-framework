@@ -1,51 +1,74 @@
 <script setup lang="ts">
+import arrayEqual from 'array-equal'
 import type { FunctionalComponent } from 'vue'
 import type { LocationQueryRaw } from 'vue-router'
-import type { HighlightsMap } from '~/bwfApi'
+import type { HighlightsArray } from '~/bwfApi'
 import type { ParaContent } from '~/usj'
 
-const props = defineProps<{
-  contents: ParaContent[]
-  highlights?: HighlightsMap
-  ignoredContentTypes?: string[]
-  generateSearchQuery?: (q: string) => LocationQueryRaw
-}>()
+const props = withDefaults(
+  defineProps<{
+    contents: ParaContent[]
+    highlights?: HighlightsArray
+    ignoredContentTypes?: string[]
+    generateSearchQuery?: (q: string) => LocationQueryRaw
+    currentPath?: number[]
+  }>(),
+  {
+    highlights: () => [],
+    ignoredContentTypes: () => [],
+    generateSearchQuery: undefined,
+    currentPath: () => [],
+  },
+)
 
-const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }> = ({
+const RenderWithHighlight: FunctionalComponent<{ text: string; textIndex: number }> = ({
   text,
-  suffix,
+  textIndex,
 }) => {
-  const highlights = props.highlights?.[text]
-  if (suffix) {
-    text += suffix
-  }
-  if (!highlights) {
+  const path = props.currentPath.concat(textIndex)
+  const highlights = props.highlights.filter(
+    (range) => range.start.usj_path <= path && path <= range.end.usj_path,
+  )
+  if (!highlights.length) {
     return text
   }
+  const startHighlight = highlights.find((x) => arrayEqual(x.start.usj_path, path))?.start?.char
+  const endHighlight = highlights.find((x) => arrayEqual(x.end.usj_path, path))?.end?.char
+
   const result = []
-  let lastEnd = 0
-  for (const highlight of highlights) {
-    if (highlight.start > lastEnd) {
-      result.push(text.substring(lastEnd, highlight.start))
-    }
-    result.push(
-      h('span', { class: 'usj-content search-highlight' }, [
-        text.substring(highlight.start, highlight.end),
-      ]),
-    )
-    lastEnd = highlight.end
+  if (startHighlight !== undefined && startHighlight > 0) {
+    result.push(text.substring(0, startHighlight))
   }
-  if (lastEnd < text.length) {
-    result.push(text.substring(lastEnd))
+  result.push(
+    h('span', { class: 'usj-content search-highlight' }, [
+      text.substring(startHighlight ?? 0, endHighlight),
+    ]),
+  )
+  if (endHighlight !== undefined && endHighlight < text.length) {
+    result.push(text.substring(endHighlight))
   }
   return result
+}
+RenderWithHighlight.props = {
+  text: {
+    type: String,
+    required: true,
+  },
+  textIndex: {
+    type: Number,
+    required: true,
+  },
 }
 </script>
 
 <template>
   <template v-for="(content, contentIndex) in contents" :key="contentIndex">
-    <RenderWithHighlight v-if="typeof content === 'string'" :text="content" />
-    <template v-else-if="ignoredContentTypes?.includes(content.type)"></template>
+    <RenderWithHighlight
+      v-if="typeof content === 'string'"
+      :text="content"
+      :text-index="contentIndex"
+    />
+    <template v-else-if="ignoredContentTypes.includes(content.type)"></template>
     <span v-else-if="content.type === 'chapter'" class="usj-content c">{{ content.number }}</span>
     <span v-else-if="content.type === 'verse'" class="usj-content v">{{ content.number }}</span>
     <template v-else-if="content.type === 'para'">
@@ -84,6 +107,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
         />
       </p>
       <p
@@ -102,6 +126,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
         />
       </p>
       <!-- \nb is not implemented... do we even want to? -->
@@ -121,6 +146,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
       /></span>
       <NuxtLink
         v-else-if="content.marker === 'jmp'"
@@ -138,6 +164,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
       /></NuxtLink>
       <ruby v-else-if="content.marker === 'rb'" class="usj-content rb"
         ><UsjContentsRenderer
@@ -145,6 +172,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
@@ -163,6 +191,7 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
       /></NuxtLink>
     </template>
     <!-- TODO: Implement Milestones -->
