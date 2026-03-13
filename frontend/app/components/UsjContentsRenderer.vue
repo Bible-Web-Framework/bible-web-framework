@@ -135,7 +135,7 @@ RenderWithHighlight.props = {
     <template v-else-if="content.type === 'char'">
       <span
         v-if="
-          ['add', 'bk', 'dc', 'em', 'k', 'nd', 'ord', 'pn', 'png', 'qt', 'fr', 'ft'].includes(
+          ['add', 'bk', 'dc', 'em', 'k', 'nd', 'ord', 'pn', 'png', 'qt', 'rq', 'fr', 'ft'].includes(
             content.marker,
           )
         "
@@ -176,23 +176,6 @@ RenderWithHighlight.props = {
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
-      <NuxtLink
-        v-else-if="['rq'].includes(content.marker)"
-        :to="
-          content.content.length === 1 &&
-          typeof content.content[0] === 'string' &&
-          generateSearchQuery
-            ? { query: generateSearchQuery(content.content[0]) }
-            : undefined
-        "
-        :class="['usj-content', content.marker]"
-        ><UsjContentsRenderer
-          :contents="content.content"
-          :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
-          :generate-search-query="generateSearchQuery"
-          :current-path="currentPath.concat(contentIndex)"
-      /></NuxtLink>
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
