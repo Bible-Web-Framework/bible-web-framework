@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FunctionalComponent } from 'vue'
-import type { RouteLocationRaw } from 'vue-router'
+import type { LocationQueryRaw } from 'vue-router'
 import type { HighlightsMap } from '~/bwfApi'
 import type { ParaContent } from '~/usj'
 
@@ -8,7 +8,7 @@ const props = defineProps<{
   contents: ParaContent[]
   highlights?: HighlightsMap
   ignoredContentTypes?: string[]
-  generateSearchQuery?: (q: string) => RouteLocationRaw
+  generateSearchQuery?: (q: string) => LocationQueryRaw
 }>()
 
 const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }> = ({
@@ -148,6 +148,22 @@ const RenderWithHighlight: FunctionalComponent<{ text: string; suffix?: string }
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
+      <NuxtLink
+        v-else-if="['rq'].includes(content.marker)"
+        :to="
+          content.content.length === 1 &&
+          typeof content.content[0] === 'string' &&
+          generateSearchQuery
+            ? { query: generateSearchQuery(content.content[0]) }
+            : undefined
+        "
+        :class="['usj-content', content.marker]"
+        ><UsjContentsRenderer
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
+      /></NuxtLink>
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">

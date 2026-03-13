@@ -193,7 +193,11 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
           },
           [element.caller],
         ),
-        h(UsjContentsRenderer, { contents: element.content, ignoredContentTypes: ['note'] }),
+        h(UsjContentsRenderer, {
+          contents: element.content,
+          ignoredContentTypes: ['note'],
+          generateSearchQuery: newQueryParamsForSearch,
+        }),
       ]),
     )
     return false
@@ -306,7 +310,10 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
                 <div v-else />
               </div>
               <div class="usj-container">
-                <UsjContentsRenderer :contents="reference.content" />
+                <UsjContentsRenderer
+                  :contents="reference.content"
+                  :generate-search-query="newQueryParamsForSearch"
+                />
               </div>
               <div v-if="!isFullChapter(reference.reference)" class="center-nav">
                 <NuxtLink

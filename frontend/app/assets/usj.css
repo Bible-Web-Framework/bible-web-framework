@@ -224,6 +224,11 @@ p.usj-content {
 .qt {
   font-style: italic;
 }
+
+.rq {
+  font-size: 83%;
+  font-style: italic;
+}
 /* #endregion */
 
 /* #region Notes */
