@@ -3,14 +3,14 @@ import arrayEqual from 'array-equal'
 import type { FunctionalComponent } from 'vue'
 import type { LocationQueryRaw } from 'vue-router'
 import type { HighlightsArray } from '~/bwfApi'
-import type { ParaContent } from '~/usj'
+import { MACHINE_REFERENCE_REGEX, type ParaContent } from '~/usj'
 
 const props = withDefaults(
   defineProps<{
     contents: ParaContent[]
     highlights?: HighlightsArray
     ignoredContentTypes?: string[]
-    generateSearchQuery?: (q: string) => LocationQueryRaw
+    generateSearchQuery?: (q: string, normalize: boolean) => LocationQueryRaw
     currentPath?: number[]
   }>(),
   {
@@ -153,8 +153,8 @@ RenderWithHighlight.props = {
         :id="content.id"
         :href="
           (content.href &&
-            /[A-Z1-4]{3}(-[A-Z1-4]{3})? ?[a-z0-9\-:]*/.test(content.href) &&
-            generateSearchQuery?.(content.href)) ||
+            MACHINE_REFERENCE_REGEX.test(content.href) &&
+            generateSearchQuery?.(content.href, true)) ||
           content.href
         "
         :title="content.title"
@@ -176,6 +176,7 @@ RenderWithHighlight.props = {
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
+      <!-- TODO: Implement \ref when \x is implemented -->
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">

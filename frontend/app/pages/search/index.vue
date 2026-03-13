@@ -2,14 +2,21 @@
 import type { FunctionalComponent, VNode } from 'vue'
 import type { LocationQuery } from 'vue-router'
 import {
-  formatBibleReference,
-  formatChapterReference,
   getShortBookName,
   isFullChapter,
   type ApiV1,
+  type BibleReference,
+  type ChapterReference,
 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
-import { normalizeNoteCallers, walkUsj, type Book, type ParaContent, type UsjContent } from '~/usj'
+import {
+  MACHINE_REFERENCE_REGEX,
+  normalizeNoteCallers,
+  walkUsj,
+  type Book,
+  type ParaContent,
+  type UsjContent,
+} from '~/usj'
 import { NuxtLink } from '#components'
 
 const config = useRuntimeConfig()
@@ -118,8 +125,36 @@ const pageCount = computed(() => {
   return Math.ceil(searchResults.value.total_results / resultsPerPage.value)
 })
 
+function formatReference(ref: BibleReference | ChapterReference) {
+  let q = ''
+  if (booksData.value) {
+    q += getShortBookName(booksData.value.books[ref.book]?.translated_book_info, ref.book)
+  }
+  q += ` ${ref.chapter}`
+  if ('verses' in ref) {
+    const [start, end] = ref.verses
+    q += `:${start}`
+    if (end > start) {
+      q += `-${end}`
+    }
+  }
+  return q
+}
+
 const newQuery = ref(query.value)
-function newQueryParamsForSearch(q: string) {
+function newQueryParamsForSearch(
+  q: string | BibleReference | ChapterReference,
+  normalize: boolean = false,
+) {
+  if (typeof q !== 'string') {
+    q = formatReference(q)
+    normalize = false
+  }
+  if (normalize && booksData.value && MACHINE_REFERENCE_REGEX.test(q)) {
+    for (const [book, translation] of Object.entries(booksData.value.books)) {
+      q = q.replaceAll(book, getShortBookName(translation.translated_book_info, book as Book))
+    }
+  }
   const newQueryParams: LocationQuery = { ...route.query, q }
   delete newQueryParams['page']
   return newQueryParams
@@ -165,14 +200,8 @@ function directGo() {
   if (book === null || chapter === null) {
     return
   }
-  const bookInfo = booksData.value?.books[book]
-  if (bookInfo === undefined) {
-    return
-  }
   router.push({
-    query: newQueryParamsForSearch(
-      `${getShortBookName(bookInfo.translated_book_info, book)} ${chapter}`,
-    ),
+    query: newQueryParamsForSearch({ book, chapter, translated_book_info: null }),
   })
 }
 
@@ -299,19 +328,17 @@ NotesRenderer.props = {
                 <NuxtLink
                   v-if="reference.previous_chapter"
                   :to="{
-                    query: newQueryParamsForSearch(
-                      formatChapterReference(reference.previous_chapter),
-                    ),
+                    query: newQueryParamsForSearch(reference.previous_chapter),
                   }"
-                  >❮ {{ formatChapterReference(reference.previous_chapter) }}</NuxtLink
+                  >❮ {{ formatReference(reference.previous_chapter) }}</NuxtLink
                 >
                 <div v-else />
                 <NuxtLink
                   v-if="reference.next_chapter"
                   :to="{
-                    query: newQueryParamsForSearch(formatChapterReference(reference.next_chapter)),
+                    query: newQueryParamsForSearch(reference.next_chapter),
                   }"
-                  >{{ formatChapterReference(reference.next_chapter) }} ❯</NuxtLink
+                  >{{ formatReference(reference.next_chapter) }} ❯</NuxtLink
                 >
                 <div v-else />
               </div>
@@ -324,16 +351,18 @@ NotesRenderer.props = {
               <div v-if="!isFullChapter(reference.reference)" class="center-nav">
                 <NuxtLink
                   :to="{
-                    query: newQueryParamsForSearch(
-                      `${getShortBookName(reference.translated_book_info, reference.reference.book)} ${reference.reference.chapter}`,
-                    ),
+                    query: newQueryParamsForSearch({
+                      book: reference.reference.book,
+                      chapter: reference.reference.chapter,
+                      translated_book_info: null,
+                    }),
                   }"
                   >View full chapter</NuxtLink
                 >
               </div>
             </template>
             <p v-else class="error">
-              No scripture passage found for {{ formatBibleReference(reference) }}
+              No scripture passage found for {{ formatReference(reference.reference) }}
             </p>
           </template>
           <td v-else class="error">{{ reference.details }}</td>
@@ -365,9 +394,9 @@ NotesRenderer.props = {
               <td>
                 <NuxtLink
                   :to="{
-                    query: newQueryParamsForSearch(formatBibleReference(reference)),
+                    query: newQueryParamsForSearch(reference.reference),
                   }"
-                  >{{ formatBibleReference(reference) }}</NuxtLink
+                  >{{ formatReference(reference.reference) }}</NuxtLink
                 >
               </td>
               <td v-if="reference.content" class="usj-container">

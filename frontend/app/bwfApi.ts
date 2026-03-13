@@ -169,25 +169,8 @@ export type BibleIndexResponse = {
   words: Record<string, number>
 }
 
-export function formatBibleReference(content: ReferenceContent) {
-  const ref = content.reference
-  const [verseStart, verseEnd] = ref.verses
-  let result = `${getShortBookName(content.translated_book_info, content.reference.book)} ${ref.chapter}`
-  if (!isFullChapter(ref)) {
-    result += `:${verseStart}`
-    if (verseEnd !== verseStart) {
-      result += `-${verseEnd}`
-    }
-  }
-  return result
-}
-
 export function isFullChapter(ref: BibleReference) {
   return ref.verses[0] === 1 && ref.verses[1] === bookVerseCounts[ref.book][ref.chapter - 1]
-}
-
-export function formatChapterReference(reference: ChapterReference) {
-  return `${getShortBookName(reference.translated_book_info, reference.book)} ${reference.chapter}`
 }
 
 export function getChapterLabel(content: ReferenceContent) {

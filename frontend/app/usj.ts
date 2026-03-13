@@ -267,3 +267,5 @@ export const bookVerseCounts: Record<Book, number[]> = Object.fromEntries(
     typeof b !== 'string' ? [b.usfm_id, b.verse_counts] : [b, []],
   ),
 )
+
+export const MACHINE_REFERENCE_REGEX = /^[A-Z1-4]{3}(-[A-Z1-4]{3})? ?[a-z0-9\-:]*$/
