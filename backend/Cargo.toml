@@ -28,7 +28,7 @@ subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/
 miette = { version = "7.6.0", features = ["fancy"] }
 itertools = "0.14.0"
 monostate = "1.0.2"
-smallvec = { version = "1.15.1", features = ["serde"] }
+smallvec = "1.15.1"
 charabia = "0.9.9"
 either = "1.15.0"
 string-interner = "0.19.0"
@@ -55,6 +55,7 @@ rangemap = { version = "1.7.1", features = ["serde"] }
 usfm3 = "0.1.5"
 memory-stats = "1.2.0"
 enum-map = "2.7.3"
+tinyvec = { version = "1.10.0", features = ["serde"] }
 
 [dev-dependencies]
 censor = "0.3.0"

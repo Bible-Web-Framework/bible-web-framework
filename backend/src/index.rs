@@ -7,7 +7,7 @@ use dashmap::DashMap;
 use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, LinkedList};
 use std::num::NonZeroU8;
@@ -16,6 +16,7 @@ use std::time::Instant;
 use string_interner::StringInterner;
 use string_interner::backend::StringBackend;
 use string_interner::symbol::SymbolU32;
+use tinyvec::{TinyVec, tiny_vec};
 
 pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextRange)]>>;
 
@@ -213,6 +214,8 @@ pub struct BookIndexer {
     current_chapter: Option<NonZeroU8>,
     current_verses: Option<VerseRange>,
     current_path: UsjPath,
+    current_text: String,
+    current_paths: Vec<TextLocation>,
 }
 
 impl BookIndexer {
@@ -221,7 +224,9 @@ impl BookIndexer {
             results: HashMap::new(),
             current_chapter: None,
             current_verses: None,
-            current_path: smallvec![],
+            current_path: tiny_vec![],
+            current_text: String::new(),
+            current_paths: vec![],
         }
     }
 
@@ -232,20 +237,19 @@ impl BookIndexer {
     // This is the function that decides what gets indexed and what doesn't
     pub fn index_usj(&mut self, usj: &UsjContent, tokenizer: &Tokenizer) {
         match usj {
-            UsjContent::Root(UsjRoot { content, .. })
-            | UsjContent::Table { content, .. }
-            | UsjContent::TableRow { content, .. } => {
+            UsjContent::Root(UsjRoot { content, .. }) => {
                 self.for_with_path(content, |this, child| this.index_usj(child, tokenizer));
             }
 
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::TableCell { content, .. } => {
-                if !usj.is_title_para() {
-                    self.for_with_path(content, |this, child| match child {
-                        ParaContent::Usj(usj) => this.index_usj(usj, tokenizer),
-                        ParaContent::Plain(text) => this.index_text(text, tokenizer),
-                    });
+            UsjContent::Paragraph { content, .. } | UsjContent::Character { content, .. }
+                if !usj.is_title_para() && self.current_chapter.is_some() =>
+            {
+                self.for_with_path(content, |this, child| match child {
+                    ParaContent::Usj(usj) => this.index_usj(usj, tokenizer),
+                    ParaContent::Plain(text) => this.push_text(text),
+                });
+                if matches!(usj, UsjContent::Paragraph { .. }) {
+                    self.flush_text(tokenizer);
                 }
             }
 
@@ -253,7 +257,10 @@ impl BookIndexer {
                 self.current_chapter = Some(*number);
                 self.current_verses = None;
             }
-            UsjContent::Verse { number, .. } => self.current_verses = Some(*number),
+            UsjContent::Verse { number, .. } => {
+                self.flush_text(tokenizer);
+                self.current_verses = Some(*number);
+            }
 
             _ => {}
         }
@@ -268,52 +275,78 @@ impl BookIndexer {
         self.current_path.pop();
     }
 
-    fn index_text(&mut self, text: &str, tokenizer: &Tokenizer) {
-        let Some(reference) = self.current_chapter.and_then(|chapter| {
-            Some(BookReference {
-                chapter,
-                verses: self.current_verses?,
-            })
+    fn push_text(&mut self, text: &str) {
+        self.current_text.push_str(text);
+        self.current_paths
+            .extend(text.chars().enumerate().map(|(idx, _)| TextLocation {
+                usj_path: self.current_path.clone(),
+                char: idx as u16,
+            }));
+    }
+
+    fn flush_text(&mut self, tokenizer: &Tokenizer) {
+        if self.current_text.is_empty() {
+            return;
+        }
+        let Some(reference) = self.current_verses.map(|verses| BookReference {
+            chapter: self.current_chapter.unwrap(),
+            verses,
         }) else {
             return;
         };
-        for token in tokenizer.tokenize(text) {
+        for token in tokenizer.tokenize(&self.current_text) {
             if !token.is_word() {
                 continue;
             }
-            let name =
-                Some(&text[token.byte_start..token.byte_end]).take_if(|x| *x != token.lemma());
+            let name = Some(&self.current_text[token.byte_start..token.byte_end])
+                .take_if(|x| *x != token.lemma());
+            let range = self.get_text_location(token.char_start, false)
+                ..self.get_text_location(token.char_end, true);
             let (name_result, result) = self.results.entry(token.lemma.into_owned()).or_default();
             if let Some(name) = name {
                 name_result.get_or_insert_with(|| name.to_string().into_boxed_str());
             }
-            result.push((
-                reference,
+            result.push((reference, range));
+        }
+        self.current_text.clear();
+        self.current_paths.clear();
+    }
+
+    fn get_text_location(&self, char_idx: usize, is_end: bool) -> TextLocation {
+        if char_idx == self.current_paths.len() {
+            let last = &self.current_paths[char_idx - 1];
+            TextLocation {
+                usj_path: last.usj_path.clone(),
+                char: last.char + 1,
+            }
+        } else {
+            let mut element = &self.current_paths[char_idx];
+            if is_end && element.char == 0 && char_idx > 0 {
+                element = &self.current_paths[char_idx - 1];
                 TextLocation {
-                    usj_path: self.current_path.clone(),
-                    char: token.char_start,
-                }..TextLocation {
-                    usj_path: self.current_path.clone(),
-                    char: token.char_end,
-                },
-            ));
+                    usj_path: element.usj_path.clone(),
+                    char: element.char + 1,
+                }
+            } else {
+                element.clone()
+            }
         }
     }
 }
 
-pub type UsjPath = SmallVec<[usize; 4]>;
+pub type UsjPath = TinyVec<[u16; 4]>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextLocation {
     pub usj_path: UsjPath,
-    pub char: usize,
+    pub char: u16,
 }
 
 pub type TextRange = Range<TextLocation>;
 
 impl SubAssign<ParaIndex> for TextLocation {
     fn sub_assign(&mut self, rhs: ParaIndex) {
-        self.usj_path[0] -= rhs.0;
-        self.usj_path[1] -= rhs.1;
+        self.usj_path[0] -= rhs.0 as u16;
+        self.usj_path[1] -= rhs.1 as u16;
     }
 }
