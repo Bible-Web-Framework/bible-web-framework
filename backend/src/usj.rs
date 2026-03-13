@@ -178,8 +178,14 @@ pub enum UsjContent {
         attributes: AttributesMap,
     },
 
+    Periph {
+        alt: String,
+        content: Vec<UsjContent>,
+        #[serde(flatten)]
+        attributes: AttributesMap,
+    },
+
     OptBreak,
-    // TODO: \periph
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -249,6 +255,7 @@ impl UsjContent {
             Self::Sidebar { marker, .. } => Some(get_value(marker)),
             Self::Figure { marker, .. } => Some(get_value(marker)),
             Self::Reference { .. } => None,
+            Self::Periph { .. } => None,
             Self::OptBreak => None,
         }
     }
@@ -258,6 +265,8 @@ impl UsjContent {
             Self::Root(_) => "USJ",
             Self::Table { .. } => "table",
             Self::Reference { .. } => "ref",
+            Self::Periph { .. } => "periph",
+            Self::OptBreak => "optbreak",
             _ => unreachable!("All other variants should be handled by marker()"),
         })
     }
@@ -266,7 +275,9 @@ impl UsjContent {
         match self {
             UsjContent::Root(UsjRoot { content, .. })
             | UsjContent::Table { content, .. }
-            | UsjContent::TableRow { content, .. } => content.insert(index, new_content),
+            | UsjContent::TableRow { content, .. }
+            | UsjContent::Sidebar { content, .. }
+            | UsjContent::Periph { content, .. } => content.insert(index, new_content),
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
@@ -285,7 +296,8 @@ impl UsjContent {
             UsjContent::Root(UsjRoot { content, .. })
             | UsjContent::Table { content, .. }
             | UsjContent::TableRow { content, .. }
-            | UsjContent::Sidebar { content, .. } => Either::Left(content.get(index)?),
+            | UsjContent::Sidebar { content, .. }
+            | UsjContent::Periph { content, .. } => Either::Left(content.get(index)?),
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }
@@ -317,7 +329,8 @@ impl UsjContent {
             UsjContent::Root(UsjRoot { content, .. })
             | UsjContent::Table { content, .. }
             | UsjContent::TableRow { content, .. }
-            | UsjContent::Sidebar { content, .. } => Either::Left(content.get_mut(index)?),
+            | UsjContent::Sidebar { content, .. }
+            | UsjContent::Periph { content, .. } => Either::Left(content.get_mut(index)?),
 
             UsjContent::Paragraph { content, .. }
             | UsjContent::Character { content, .. }

@@ -249,21 +249,25 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             }),
             Some(span),
         ),
-        Node::Periph { content, span, .. } => {
-            // TODO: \periph
-            diags.push(
-                MietteDiagnostic::new("\\periph not yet implemented, treating as \\p")
-                    .with_severity(Severity::Advice)
-                    .with_label(LabeledSpan::new_with_span(None, span.clone())),
-            );
-            (
-                ParaContent::Usj(UsjContent::Paragraph {
-                    marker: "p".to_string(),
-                    content: paras_from_usfm(content, diags),
+        Node::Periph {
+            alt,
+            content,
+            attributes,
+            span,
+        } => (
+            ParaContent::Usj(UsjContent::Periph {
+                alt: alt.unwrap_or_else(|| {
+                    diags.push(
+                        MietteDiagnostic::new("Missing periph title")
+                            .with_label(LabeledSpan::new_with_span(None, span.clone())),
+                    );
+                    "".to_string()
                 }),
-                Some(span),
-            )
-        }
+                content: usjs_from_usfm(content, diags),
+                attributes: parse_attributes(attributes),
+            }),
+            Some(span),
+        ),
         Node::Table { content, span } => (
             ParaContent::Usj(UsjContent::Table {
                 content: usjs_from_usfm(content, diags),
