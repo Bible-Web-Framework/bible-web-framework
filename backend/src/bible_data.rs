@@ -11,6 +11,7 @@ use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, Entry};
+use enum_map::Enum;
 use ere::{Regex, compile_regex};
 use fst::Streamer;
 use miette::{GraphicalReportHandler, NamedSource, Severity};
@@ -437,6 +438,7 @@ impl BibleData {
             id: Self::get_file_bible_id(&path).into_owned(),
             source: path,
             source_is_zip: from_zip,
+            files: DashMap::with_capacity(Book::LENGTH),
             ..Default::default()
         };
         data.reload_all()?;
