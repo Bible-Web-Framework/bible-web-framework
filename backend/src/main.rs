@@ -77,6 +77,7 @@ async fn real_main() -> Result<(), ServerError> {
                 .with_default_directive(LevelFilter::INFO.into())
                 .from_env()?,
         )
+        .with_ansi_sanitization(false)
         .init();
     tracing::debug!("Debug logging is enabled");
 
