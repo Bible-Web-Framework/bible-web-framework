@@ -89,7 +89,7 @@ impl<'de> DeserializeAs<'de, Language> for LanguageAsCode {
         Language::from_code(&code).ok_or_else(|| {
             Error::invalid_value(
                 Unexpected::Str(&code),
-                &"an ISO 639-9 3-letter language code",
+                &"an ISO 639-9 3-letter language code (see docs)",
             )
         })
     }

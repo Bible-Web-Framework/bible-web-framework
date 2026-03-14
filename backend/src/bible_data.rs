@@ -63,8 +63,8 @@ pub struct BibleData {
 #[derive(Debug, Default)]
 pub struct BibleConfig {
     pub display_name: Option<String>,
-    pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub book_order: EnumOrderMap<Book>,
+    pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
     pub footnotes: FootnotesTree,
 }
@@ -797,27 +797,30 @@ mod unresolved {
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::UsjContent;
-    use crate::utils::ordered_enum::EnumOrderMap;
+    use crate::utils::ordered_enum::{EnumOrderMap, EnumOrderMapAs};
     use crate::utils::serde_as::{FootnoteUsfmAsUsj, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
     use charabia::{Language, Normalize, StrDetection, Token};
     use itertools::Itertools;
     use permutate::Permutator;
     use serde::Deserialize;
-    use serde_with::{DisplayFromStr, serde_as};
+    use serde_with::{DisplayFromStr, NoneAsEmptyString, serde_as};
     use std::borrow::Cow;
     use std::collections::HashMap;
     use std::ops::RangeInclusive;
     use std::{iter, mem};
     use unicase::UniCase;
 
+    #[serde_as]
     #[derive(Debug, Deserialize)]
     pub struct BibleConfig {
         #[serde(default)]
         display_name: Option<String>,
+        #[serde_as(as = "EnumOrderMapAs<NoneAsEmptyString>")]
+        #[serde(default)]
+        book_order: EnumOrderMap<Book>,
         #[serde(default)]
         book_aliases: AliasesConfig,
-        book_order: Option<EnumOrderMap<Book>>,
         #[serde(default)]
         search: SearchConfig,
         #[serde(default)]
@@ -890,8 +893,8 @@ mod unresolved {
 
             super::BibleConfig {
                 display_name: val.display_name,
+                book_order: val.book_order,
                 book_aliases,
-                book_order: val.book_order.unwrap_or_default(),
                 footnotes: val
                     .footnotes
                     .into_iter()

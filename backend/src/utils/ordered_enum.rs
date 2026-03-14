@@ -3,6 +3,9 @@ use enumset::{EnumSet, EnumSetType};
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::de::DeserializeAsWrap;
+use serde_with::ser::SerializeAsWrap;
+use serde_with::{DeserializeAs, Same, SerializeAs};
 use std::fmt::{Display, Formatter};
 use std::iter;
 use std::marker::PhantomData;
@@ -117,35 +120,7 @@ where
     where
         S: Serializer,
     {
-        let mut seq = serializer.serialize_seq(None)?;
-        let mut handled = EnumSet::new();
-        for group_start in self.group_starts() {
-            if !handled.is_empty() {
-                seq.serialize_element(&Option::<T>::None)?;
-            }
-            for element in self.successors(group_start) {
-                handled.insert(element);
-                seq.serialize_element(&Some(element))?;
-            }
-        }
-        if handled.len() < T::LENGTH {
-            for (key, neighbors) in self.neighbors_iter() {
-                if handled.contains(key) || neighbors.is_isolated() {
-                    continue;
-                }
-                if !handled.is_empty() {
-                    seq.serialize_element(&Option::<T>::None)?;
-                }
-                for element in self.successors(key) {
-                    let was_new = handled.insert(element);
-                    seq.serialize_element(&Some(element))?;
-                    if !was_new {
-                        break;
-                    }
-                }
-            }
-        }
-        seq.end()
+        EnumOrderMapAs::<Option<Same>>::serialize_as(self, serializer)
     }
 }
 
@@ -157,9 +132,68 @@ where
     where
         D: Deserializer<'de>,
     {
-        struct ValueVisitor<T>(PhantomData<T>);
-        impl<'de, T: EnumArray<Neighbors<T>> + Copy + Deserialize<'de> + Display> Visitor<'de>
-            for ValueVisitor<T>
+        EnumOrderMapAs::<Option<Same>>::deserialize_as(deserializer)
+    }
+}
+
+pub struct EnumOrderMapAs<T>(PhantomData<T>);
+
+impl<T: EnumArray<Neighbors<T>>, U> SerializeAs<EnumOrderMap<T>> for EnumOrderMapAs<U>
+where
+    T: Copy + Serialize + EnumSetType,
+    U: SerializeAs<Option<T>>,
+{
+    fn serialize_as<S>(source: &EnumOrderMap<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(None)?;
+        let mut handled = EnumSet::new();
+        for group_start in source.group_starts() {
+            if !handled.is_empty() {
+                seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&None))?;
+            }
+            for element in source.successors(group_start) {
+                handled.insert(element);
+                seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&Some(element)))?;
+            }
+        }
+        if handled.len() < T::LENGTH {
+            for (key, neighbors) in source.neighbors_iter() {
+                if handled.contains(key) || neighbors.is_isolated() {
+                    continue;
+                }
+                if !handled.is_empty() {
+                    seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&None))?;
+                }
+                for element in source.successors(key) {
+                    let was_new = handled.insert(element);
+                    seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&Some(element)))?;
+                    if !was_new {
+                        break;
+                    }
+                }
+            }
+        }
+        seq.end()
+    }
+}
+
+impl<'de, T: EnumArray<Neighbors<T>>, U> DeserializeAs<'de, EnumOrderMap<T>> for EnumOrderMapAs<U>
+where
+    T: Copy + Deserialize<'de> + Display,
+    U: DeserializeAs<'de, Option<T>>,
+{
+    fn deserialize_as<D>(deserializer: D) -> Result<EnumOrderMap<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ValueVisitor<T, U>(PhantomData<(T, U)>);
+        impl<
+            'de,
+            T: EnumArray<Neighbors<T>> + Copy + Deserialize<'de> + Display,
+            U: DeserializeAs<'de, Option<T>>,
+        > Visitor<'de> for ValueVisitor<T, U>
         {
             type Value = EnumOrderMap<T>;
 
@@ -173,7 +207,10 @@ where
             {
                 let mut result = EnumOrderMap::new_unordered();
                 let mut current_pred = None;
-                while let Some(value) = seq.next_element::<Option<T>>()? {
+                while let Some(value) = seq
+                    .next_element::<DeserializeAsWrap<Option<T>, U>>()?
+                    .map(|v| v.into_inner())
+                {
                     if let Some(pred) = current_pred
                         && let Some(succ) = value
                         && let Err(err) = result.add_order(pred, succ)
@@ -185,7 +222,7 @@ where
                 Ok(result)
             }
         }
-        deserializer.deserialize_seq(ValueVisitor(PhantomData))
+        deserializer.deserialize_seq(ValueVisitor::<T, U>(PhantomData))
     }
 }
 
