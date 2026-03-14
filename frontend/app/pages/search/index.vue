@@ -281,6 +281,7 @@ NotesRenderer.props = {
       <select v-model="newBook" class="book-box" @change="newChapter = null">
         <option :value="null">----</option>
         <template v-if="booksData">
+          <!-- TODO: Make the order here match the book_order field -->
           <option v-for="(info, book) in booksData.books" :key="book" :value="book">
             {{ getShortBookName(info.translated_book_info, book) }}
           </option>

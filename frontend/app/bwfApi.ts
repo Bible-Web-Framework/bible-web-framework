@@ -65,7 +65,7 @@ export type BibleBookResponse = UsjRoot
 
 export type BibleBooksResponse = {
   books: Record<Book, BibleBookInfo>
-  book_order: (Book | null)[]
+  book_order: (Book | '')[]
 }
 
 export type BibleBookInfo = {
