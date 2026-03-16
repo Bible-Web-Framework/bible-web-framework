@@ -6,7 +6,7 @@ use crate::usfm_loader::load_usj_from_usfm;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj};
 use crate::utils::ordered_enum::EnumOrderMap;
 use crate::utils::prefix_tree::PrefixTree;
-use crate::utils::{ExclusiveMutex, ToUnicaseCow};
+use crate::utils::{ExclusiveMutex, ToUnicaseCow, normalize_str};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::Ref;
@@ -481,7 +481,7 @@ impl BibleData {
                             usj.unwrap_root()
                                 .translated_book_info()
                                 .names()
-                                .any(|c| UniCase::new(c) == str)
+                                .any(|name| UniCase::new(normalize_str(name)) == str)
                                 .then_some(*usj.key())
                         })
                     })
