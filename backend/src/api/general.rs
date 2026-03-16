@@ -31,12 +31,13 @@ pub async fn bibles(bibles: web::Data<MultiBibleData>) -> ApiResult<web::Json<Bi
                         display_name: bible.value().config.read().display_name.clone(),
                         simple_book_names: bible
                             .value()
-                            .files
+                            .books
                             .iter()
                             .map(|book| {
                                 (
                                     *book.key(),
                                     book.value()
+                                        .usj()
                                         .unwrap_root()
                                         .translated_book_info()
                                         .short_name(*book.key())

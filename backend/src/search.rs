@@ -89,7 +89,7 @@ pub fn search_bible(
             .into_iter()
             .map(|x| match x {
                 Ok(reference) => {
-                    let usj = bible.files.get(&reference.book);
+                    let usj = bible.usj(reference.book);
                     let usj = usj.as_deref().map(UsjContent::unwrap_root);
                     SearchResponseResult::ReferenceContent {
                         reference,
@@ -190,7 +190,7 @@ fn search_for_terms(
             .take(max_count)
             .map(|(reference, locations)| {
                 let mut highlights = vec![];
-                let usj = bible.files.get(&reference.book);
+                let usj = bible.usj(reference.book);
                 let usj = usj.as_deref().map(UsjContent::unwrap_root);
                 let content = if let Some(usj) = &usj {
                     let content = usj.find_reference(reference.chapter, reference.verses);
@@ -240,7 +240,7 @@ fn get_nearby_book(
 ) -> Option<ChapterReference> {
     let mut current_chapter_count = current_book.chapter_count()?.get();
     let mut current_chapter = current_chapter.get();
-    let mut current_usj = bible.files.get(&current_book);
+    let mut current_usj = bible.usj(current_book);
     let book_order = bible.config.read().book_order;
     loop {
         match nearby_dir {
@@ -251,7 +251,7 @@ fn get_nearby_book(
                     current_book = pred;
                     current_chapter_count = pred.chapter_count().map_or(1, NonZeroU8::get);
                     current_chapter = current_chapter_count;
-                    current_usj = bible.files.get(&current_book);
+                    current_usj = bible.usj(current_book);
                 } else {
                     return None;
                 }
@@ -263,7 +263,7 @@ fn get_nearby_book(
                     current_book = succ;
                     current_chapter_count = succ.chapter_count().map_or(1, NonZeroU8::get);
                     current_chapter = 1;
-                    current_usj = bible.files.get(&current_book);
+                    current_usj = bible.usj(current_book);
                 } else {
                     return None;
                 }

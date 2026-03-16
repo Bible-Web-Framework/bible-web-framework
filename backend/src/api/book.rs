@@ -18,7 +18,7 @@ pub async fn book(
     let Some(book) = Book::parse(&book, &bible.book_parse_options()) else {
         return Err(ApiError::InvalidBook(book));
     };
-    let Some(usj) = bible.files.get(&book) else {
+    let Some(usj) = bible.usj(book) else {
         return Err(ApiError::MissingUsj(book));
     };
     Ok(HttpResponse::Ok().json(&*usj))
@@ -82,7 +82,7 @@ pub async fn books(
     Ok(HttpResponse::Ok().json(Response {
         books: Book::VARIANTS
             .iter()
-            .filter_map(|x| bible.files.get(x))
+            .filter_map(|&x| bible.usj(x))
             .map(|x| (*x.key(), x.value().into()))
             .collect(),
         book_order: bible.config.read().book_order,

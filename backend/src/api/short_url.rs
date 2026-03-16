@@ -65,7 +65,7 @@ pub async fn create(
             .into_iter()
             .map(|reference| match reference {
                 Ok(r) => {
-                    if !bible.files.contains_key(&r.book) {
+                    if !bible.books.contains_key(&r.book) {
                         return Err(ApiError::MissingReference(r));
                     }
                     Ok(r)

@@ -9,7 +9,7 @@ use crate::utils::prefix_tree::PrefixTree;
 use crate::utils::{ExclusiveMutex, ToUnicaseCow, normalize_str};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
-use dashmap::mapref::one::Ref;
+use dashmap::mapref::one::{MappedRef, Ref};
 use dashmap::{DashMap, Entry};
 use enum_map::Enum;
 use ere::{Regex, compile_regex};
@@ -53,7 +53,7 @@ pub struct BibleData {
     pub source_is_zip: bool,
     pub id: String,
     pub config: RwLock<Arc<BibleConfig>>,
-    pub files: DashMap<Book, UsjContent>,
+    pub books: DashMap<Book, BookData>,
     pub index: RwLock<BibleIndex>,
     sources: RwLock<BiMap<Book, Cow<'static, str>>>,
     has_ignored_files: AtomicBool,
@@ -80,6 +80,11 @@ pub type FootnotesTree = PrefixTree<String, RangeInclusiveMap<BibleReference, Fo
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FootnotesConfig {
     pub footnote: UsjContent,
+}
+
+pub struct BookData {
+    usj: UsjContent,
+    names: HashSet<UniCase<Cow<'static, str>>>,
 }
 
 impl MultiBibleData {
@@ -211,8 +216,8 @@ impl MultiBibleData {
                         .sources
                         .write()
                         .remove_by_right(&*inside_path)
-                        .and_then(|(b, _)| bible.files.remove(&b))
-                        .and_then(|(_, b)| b.unwrap_root().book_info());
+                        .and_then(|(b, _)| bible.books.remove(&b))
+                        .and_then(|(_, b)| b.usj.unwrap_root().book_info());
                     if let Some(load) = bible.insert_from_file_or_warn(path, inside_path) {
                         match load {
                             LoadComplete::Config { needs_reindex } => {
@@ -311,7 +316,7 @@ impl MultiBibleData {
                                 new_path.display(),
                             );
                             new_bible_data.insert_or_warn(
-                                LoadAction::Book(old_bible_data.files.remove(&book).unwrap().1),
+                                LoadAction::Book(old_bible_data.books.remove(&book).unwrap().1),
                                 new_inside_path.into_owned(),
                             );
                             old_bible_data.update_index(ReindexType::Unindex(book));
@@ -338,7 +343,7 @@ impl MultiBibleData {
                     };
                     let inside_path = get_inside_bible_path(trimmed_path);
                     if let Some((book, _)) = bible.sources.write().remove_by_right(&*inside_path) {
-                        bible.files.remove(&book);
+                        bible.books.remove(&book);
                         tracing::info!(
                             "Removed book {book} from {bible_id} sourced from {}",
                             path.display()
@@ -438,7 +443,7 @@ impl BibleData {
             id: Self::get_file_bible_id(&path).into_owned(),
             source: path,
             source_is_zip: from_zip,
-            files: DashMap::with_capacity(Book::LENGTH),
+            books: DashMap::with_capacity(Book::LENGTH),
             ..Default::default()
         };
         data.reload_all()?;
@@ -447,7 +452,7 @@ impl BibleData {
         index.log_marker = Some(data.id.clone());
         index.update_index(
             ReindexType::FullReindex,
-            &data.files,
+            &data.books,
             &data.config.read().search.create_tokenizer(),
         );
         drop(index);
@@ -467,7 +472,7 @@ impl BibleData {
     pub fn book_parse_options(&self) -> impl BookParseOptions {
         struct Options<'a> {
             config: Arc<BibleConfig>,
-            books: &'a DashMap<Book, UsjContent>,
+            books: &'a DashMap<Book, BookData>,
         }
 
         impl BookParseOptions for Options<'_> {
@@ -477,12 +482,8 @@ impl BibleData {
                     .get(&str.to_cow())
                     .copied()
                     .or_else(|| {
-                        self.books.iter().find_map(|usj| {
-                            usj.unwrap_root()
-                                .translated_book_info()
-                                .names()
-                                .any(|name| UniCase::new(normalize_str(name)) == str)
-                                .then_some(*usj.key())
+                        self.books.iter().find_map(|book| {
+                            book.names.contains(&str.to_cow()).then_some(*book.key())
                         })
                     })
             }
@@ -494,8 +495,12 @@ impl BibleData {
 
         Options {
             config: self.config.read().clone(),
-            books: &self.files,
+            books: &self.books,
         }
+    }
+
+    pub fn usj(&self, book: Book) -> Option<MappedRef<'_, Book, BookData, UsjContent>> {
+        self.books.get(&book).map(|data| data.map(BookData::usj))
     }
 
     fn update_index(&self, reindex_type: ReindexType) {
@@ -510,7 +515,7 @@ impl BibleData {
         }
         self.index.write().update_index(
             reindex_type,
-            &self.files,
+            &self.books,
             &self.config.read().search.create_tokenizer(),
         );
     }
@@ -536,21 +541,21 @@ impl BibleData {
                 *self.config.write() = new_config;
                 Some(LoadComplete::Config { needs_reindex })
             }
-            LoadAction::Book(usj) => {
-                let Some(book) = usj.as_root().and_then(UsjRoot::book_info) else {
+            LoadAction::Book(data) => {
+                let Some(book) = data.usj.as_root().and_then(UsjRoot::book_info) else {
                     tracing::error!(
                         "Book at {}{source} missing root element or book identifier",
                         format_source!(self),
                     );
                     return None;
                 };
-                match self.files.entry(book.book) {
+                match self.books.entry(book.book) {
                     Entry::Vacant(e) => {
-                        e.insert(usj);
+                        e.insert(data);
                         if let Overwritten::Right(book, _) =
                             self.sources.write().insert(book.book, Cow::Owned(source))
                         {
-                            self.files.remove(&book);
+                            self.books.remove(&book);
                             self.update_index(ReindexType::Unindex(book));
                         }
                     }
@@ -558,7 +563,7 @@ impl BibleData {
                         let sources = self.sources.read();
                         let old_path = sources.get_by_left(&book.book).unwrap();
                         if &source == old_path {
-                            e.insert(usj);
+                            e.insert(data);
                         } else {
                             self.has_ignored_files.store(true, Ordering::Release);
                             let new_description = book
@@ -569,6 +574,7 @@ impl BibleData {
                                 self.source.display(),
                                 book.book,
                                 e.get()
+                                    .usj
                                     .unwrap_root()
                                     .book_info()
                                     .unwrap()
@@ -620,12 +626,12 @@ impl BibleData {
                 .map(str::to_ascii_lowercase)
                 .as_deref()
             {
-                Some("usj") => Some(LoadAction::Book(
+                Some("usj") => Some(LoadAction::Book(BookData::new(
                     reader
                         .map_err(Into::into)
                         .map(BufReader::new)
                         .and_then(load_usj)?,
-                )),
+                ))),
                 Some("usfm" | "sfm") => {
                     let mut usfm = String::new();
                     let usj = reader
@@ -663,7 +669,7 @@ impl BibleData {
                             );
                         }
                     }
-                    Some(LoadAction::Book(usj.usj))
+                    Some(LoadAction::Book(BookData::new(usj.usj)))
                 }
                 Some(ext) if IGNORED_EXTENSIONS.test(ext) => None,
                 Some(_) | None => {
@@ -684,7 +690,7 @@ impl BibleData {
             .full_reload_active
             .lock()
             .expect("BibleData::reload_all called while reload active");
-        self.files.clear();
+        self.books.clear();
         self.sources.write().clear();
         self.has_ignored_files.store(false, Ordering::Relaxed);
         let start = Instant::now();
@@ -733,7 +739,7 @@ impl BibleData {
         }
         tracing::info!(
             "Loaded {} USFM/USJ files from {} in {:?}",
-            self.files.len(),
+            self.books.len(),
             self.source.display(),
             start.elapsed(),
         );
@@ -743,7 +749,7 @@ impl BibleData {
 
 enum LoadAction {
     Config(Arc<BibleConfig>),
-    Book(UsjContent),
+    Book(BookData),
 }
 
 enum LoadComplete {
@@ -770,6 +776,24 @@ impl SearchConfig {
             builder.stop_words(words);
         }
         builder.into_tokenizer()
+    }
+}
+
+impl BookData {
+    pub fn new(usj: UsjContent) -> Self {
+        Self {
+            names: usj
+                .unwrap_root()
+                .translated_book_info()
+                .names()
+                .map(|s| UniCase::new(Cow::Owned(normalize_str(s).into_owned())))
+                .collect(),
+            usj,
+        }
+    }
+
+    pub fn usj(&self) -> &UsjContent {
+        &self.usj
     }
 }
 

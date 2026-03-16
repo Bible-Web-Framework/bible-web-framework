@@ -1,3 +1,4 @@
+use crate::bible_data::BookData;
 use crate::book_data::Book;
 use crate::reference::BookReference;
 use crate::usj::{ParaContent, ParaIndex, UsjContent, UsjRoot};
@@ -154,7 +155,7 @@ impl BibleIndex {
     pub fn update_index(
         &mut self,
         reindex_type: ReindexType,
-        book_content: &DashMap<Book, UsjContent>,
+        book_content: &DashMap<Book, BookData>,
         tokenizer: &Tokenizer,
     ) {
         match reindex_type {
@@ -162,8 +163,8 @@ impl BibleIndex {
                 let book_count = books.len();
                 tracing::info!("Reindexing {book_count} book(s){}", format_marker!(self));
                 for book in books {
-                    if let Some(usj) = book_content.get(&book) {
-                        self.reindex_usj(book, &usj, tokenizer);
+                    if let Some(data) = book_content.get(&book) {
+                        self.reindex_usj(book, data.usj(), tokenizer);
                     }
                 }
             }
@@ -180,7 +181,7 @@ impl BibleIndex {
                     .par_iter()
                     .map(|entry| {
                         let mut indexer = BookIndexer::new();
-                        indexer.index_usj(entry.value(), tokenizer);
+                        indexer.index_usj(entry.value().usj(), tokenizer);
                         (*entry.key(), indexer)
                     })
                     .collect::<LinkedList<_>>()
