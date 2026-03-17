@@ -4,9 +4,10 @@ use crate::index::{BibleIndex, ReindexType};
 use crate::reference::BibleReference;
 use crate::usfm_loader::load_usj_from_usfm;
 use crate::usj::{UsjBookInfo, UsjContent, UsjRoot, load_usj};
+use crate::utils::normalize::normalize_str;
 use crate::utils::ordered_enum::EnumOrderMap;
 use crate::utils::prefix_tree::PrefixTree;
-use crate::utils::{ExclusiveMutex, ToUnicaseCow, normalize_str};
+use crate::utils::{ExclusiveMutex, ToUnicaseCow};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
 use dashmap::mapref::one::{MappedRef, Ref};
@@ -476,6 +477,10 @@ impl BibleData {
         }
 
         impl BookParseOptions for Options<'_> {
+            fn languages(&self) -> Option<&[Language]> {
+                self.config.search.languages.as_deref()
+            }
+
             fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
                 self.config
                     .book_aliases
@@ -524,12 +529,13 @@ impl BibleData {
         match load {
             LoadAction::Config(new_config) => {
                 let old_config = self.config.read();
-                let mut needs_reindex = new_config.search.languages != old_config.search.languages;
-                if !needs_reindex
+                let languages_changed = new_config.search.languages != old_config.search.languages;
+                let mut tokenizer_changed = languages_changed;
+                if !tokenizer_changed
                     && let Some(new_words) = &new_config.search.ignored_words
                     && let Some(old_words) = &old_config.search.ignored_words
                 {
-                    needs_reindex = new_words
+                    tokenizer_changed = new_words
                         .op()
                         .add(old_words)
                         .symmetric_difference()
@@ -538,10 +544,18 @@ impl BibleData {
                 }
                 drop(old_config);
 
-                *self.config.write() = new_config;
-                Some(LoadComplete::Config { needs_reindex })
+                *self.config.write() = new_config.clone();
+                if languages_changed {
+                    for mut book in self.books.iter_mut() {
+                        book.value_mut()
+                            .regenerate_names(new_config.search.languages.as_deref());
+                    }
+                }
+                Some(LoadComplete::Config {
+                    needs_reindex: tokenizer_changed,
+                })
             }
-            LoadAction::Book(data) => {
+            LoadAction::Book(mut data) => {
                 let Some(book) = data.usj.as_root().and_then(UsjRoot::book_info) else {
                     tracing::error!(
                         "Book at {}{source} missing root element or book identifier",
@@ -549,6 +563,7 @@ impl BibleData {
                     );
                     return None;
                 };
+                data.regenerate_names(self.config.read().search.languages.as_deref());
                 match self.books.entry(book.book) {
                     Entry::Vacant(e) => {
                         e.insert(data);
@@ -782,14 +797,23 @@ impl SearchConfig {
 impl BookData {
     pub fn new(usj: UsjContent) -> Self {
         Self {
-            names: usj
-                .unwrap_root()
-                .translated_book_info()
-                .names()
-                .map(|s| UniCase::new(Cow::Owned(normalize_str(s).into_owned())))
-                .collect(),
             usj,
+            names: HashSet::new(),
         }
+    }
+
+    fn regenerate_names(&mut self, languages: Option<&[Language]>) {
+        self.names = self
+            .usj
+            .unwrap_root()
+            .translated_book_info()
+            .names()
+            .map(|s| {
+                UniCase::new(Cow::Owned(
+                    normalize_str(Cow::Borrowed(s), languages).0.into_owned(),
+                ))
+            })
+            .collect();
     }
 
     pub fn usj(&self) -> &UsjContent {
@@ -821,6 +845,7 @@ mod unresolved {
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::UsjContent;
+    use crate::utils::normalize::normalize_str;
     use crate::utils::ordered_enum::{EnumOrderMap, EnumOrderMapAs};
     use crate::utils::serde_as::{FootnoteUsfmAsUsj, LanguageAsCode};
     use charabia::normalizer::NormalizerOption;
@@ -907,7 +932,14 @@ mod unresolved {
             for (book, aliases) in val.book_aliases.books {
                 for alias in aliases {
                     alias.permute(&val.book_aliases.common, |alias| {
-                        book_aliases.insert(UniCase::new(Cow::Owned(alias)), book);
+                        book_aliases.insert(
+                            UniCase::new(Cow::Owned(
+                                normalize_str(Cow::Owned(alias), val.search.languages.as_deref())
+                                    .0
+                                    .into_owned(),
+                            )),
+                            book,
+                        );
                     });
                 }
             }

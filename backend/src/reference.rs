@@ -1,12 +1,13 @@
 use crate::book_data::Book;
 use crate::book_data::BookParseOptions;
 use crate::nz_u8;
-use crate::utils::normalize_str;
+use crate::utils::normalize::normalize_str;
 use crate::utils::serde_as::VerseRangeAsTuple;
 use crate::verse_range::VerseRange;
 use rangemap::StepLite;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use std::borrow::Cow;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
 use std::ops::{Deref, RangeInclusive};
@@ -159,7 +160,12 @@ impl FromStr for BibleReference {
     type Err = ParseReferenceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_reference_part(s, &mut ParseState::default(), &())
+        let context = ParseContext::new(s, &());
+        parse_reference_part(
+            &context.normalized_str,
+            &context,
+            &mut ParseState::default(),
+        )
     }
 }
 
@@ -257,11 +263,33 @@ pub type ReferenceResult = Result<BibleReference, ParseReferenceError>;
 
 pub fn parse_references(reference: &str, options: &impl BookParseOptions) -> Vec<ReferenceResult> {
     let mut state = ParseState::default();
-    normalize_str(reference)
+    let context = ParseContext::new(reference, options);
+    context
+        .normalized_str
         .split([';', ','])
         .filter(|x| !x.is_empty())
-        .map(|x| parse_reference_part(x, &mut state, options))
+        .map(|x| parse_reference_part(x, &context, &mut state))
         .collect()
+}
+
+struct ParseContext<'a, O> {
+    original_str: &'a str,
+    normalized_str: Cow<'a, str>,
+    options: &'a O,
+    char_map: Option<Vec<usize>>,
+}
+
+impl<'a, O: BookParseOptions> ParseContext<'a, O> {
+    fn new(original_str: &'a str, options: &'a O) -> Self {
+        let (normalized_str, char_map) =
+            normalize_str(Cow::Borrowed(original_str), options.languages());
+        Self {
+            original_str,
+            normalized_str,
+            options,
+            char_map,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -270,10 +298,10 @@ struct ParseState {
     chapter: Option<NonZeroU8>,
 }
 
-fn parse_reference_part(
+fn parse_reference_part<O: BookParseOptions>(
     reference: &str,
+    context: &ParseContext<O>,
     state: &mut ParseState,
-    options: &impl BookParseOptions,
 ) -> ReferenceResult {
     let book_data = {
         let without_prefix_nums = reference.trim_start_matches(char::is_numeric);
@@ -286,42 +314,46 @@ fn parse_reference_part(
     };
 
     let remainder = if let Some((book_str, remainder)) = book_data {
-        state.book = Some(Book::parse(book_str, options).ok_or_else(|| {
-            ParseReferenceError::UnknownBook {
-                book: book_str.to_string(),
-                valid_otherwise: parse_book_reference(
-                    Book::default(),
-                    state,
-                    reference,
-                    remainder,
-                    options,
-                )
-                .is_ok(),
-            }
-        })?);
+        state.book = Some(
+            Book::parse_normalized(book_str, context.options).ok_or_else(|| {
+                ParseReferenceError::UnknownBook {
+                    book: string_from_char_map(book_str, context),
+                    valid_otherwise: parse_book_reference(
+                        Book::default(),
+                        context,
+                        state,
+                        reference,
+                        remainder,
+                    )
+                    .is_ok(),
+                }
+            })?,
+        );
         state.chapter = None;
         remainder
     } else if state.book.is_none() {
-        return Err(Book::parse(reference, options).map_or_else(
-            || ParseReferenceError::UnknownBook {
-                book: reference.to_string(),
-                valid_otherwise: false,
-            },
-            |_| ParseReferenceError::MissingChapter,
-        ));
+        return Err(
+            Book::parse_normalized(reference, context.options).map_or_else(
+                || ParseReferenceError::UnknownBook {
+                    book: string_from_char_map(reference, context),
+                    valid_otherwise: false,
+                },
+                |_| ParseReferenceError::MissingChapter,
+            ),
+        );
     } else {
         reference
     };
 
-    parse_book_reference(state.book.unwrap(), state, reference, remainder, options)
+    parse_book_reference(state.book.unwrap(), context, state, reference, remainder)
 }
 
-fn parse_book_reference(
+fn parse_book_reference<O: BookParseOptions>(
     book: Book,
+    context: &ParseContext<O>,
     state: &mut ParseState,
     full_reference: &str,
     reference_remainder: &str,
-    options: &impl BookParseOptions,
 ) -> ReferenceResult {
     let process_chapter_number = |chapter| -> Result<_, ParseReferenceError> {
         let verse_count = book
@@ -336,7 +368,7 @@ fn parse_book_reference(
             let verse = verse
                 .parse()
                 .map_err(|_| ParseReferenceError::InvalidVerse {
-                    verse: verse.to_string(),
+                    verse: string_from_char_map(verse, context),
                 })?;
             if verse > verse_count {
                 return Err(ParseReferenceError::OutOfBoundsVerse {
@@ -363,9 +395,9 @@ fn parse_book_reference(
     };
 
     let verify_not_book = || {
-        Book::parse(full_reference, options).map_or_else(
+        Book::parse_normalized(full_reference, context.options).map_or_else(
             || ParseReferenceError::UnknownBook {
-                book: reference_remainder.to_string(),
+                book: string_from_char_map(reference_remainder, context),
                 valid_otherwise: false,
             },
             |_| ParseReferenceError::MissingChapter,
@@ -378,7 +410,7 @@ fn parse_book_reference(
                 chapter
                     .parse::<NonZeroU8>()
                     .map_err(|_| ParseReferenceError::InvalidChapter {
-                        chapter: chapter.to_string(),
+                        chapter: string_from_char_map(chapter, context),
                     })?;
             state.chapter = Some(chapter);
             let parse_verses = process_chapter_number(chapter)?;
@@ -416,6 +448,19 @@ fn parse_book_reference(
     )
 }
 
+fn string_from_char_map<O>(value: &str, state: &ParseContext<O>) -> String {
+    if !value.is_empty()
+        && let Some(map) = &state.char_map
+    {
+        let base = state.normalized_str.subslice_offset(value).unwrap();
+        state.original_str[map[base]..map[base + value.len()]]
+            .trim()
+            .to_string()
+    } else {
+        value.to_string()
+    }
+}
+
 #[cfg(test)]
 #[macro_export]
 macro_rules! reference_value {
@@ -443,6 +488,7 @@ mod tests {
     use super::parse_references;
     use crate::book_data::Book::*;
     use crate::nz_u8;
+    use crate::utils::normalize::normalize_str;
     use cool_asserts::assert_panics;
     use pretty_assertions::assert_eq;
     use rangemap::StepLite;
@@ -466,7 +512,9 @@ mod tests {
         };
 
         ($reference:literal, $($name:literal => $book:ident),+) => {
-            parse_references($reference, &&HashMap::from([$((UniCase::new(Cow::Borrowed($name)), $book)),+]))
+            parse_references($reference, &&HashMap::from([
+                $((UniCase::new(normalize_str(Cow::Borrowed($name), None).0), $book)),+
+            ]))
         };
     }
 
@@ -502,6 +550,11 @@ mod tests {
         assert_parse!("John 1:6-", Ok(John 1:6-51));
         assert_parse!(
             "ヨハネ 1:1",
+            "ヨハネ" => John,
+            Ok(John 1:1-1)
+        );
+        assert_parse!(
+            "よはね1:1",
             "ヨハネ" => John,
             Ok(John 1:1-1)
         );
@@ -655,5 +708,10 @@ mod tests {
             msg,
             "Cannot sub_one from Genesis 1:1, as it would go out of bounds"
         ));
+    }
+
+    #[test]
+    fn test_reference_from_str() {
+        assert_eq!("Genesis 5:6".parse(), reference_result!(Ok(Genesis 5:6)))
     }
 }

@@ -1,3 +1,4 @@
+pub mod normalize;
 pub mod ordered_enum;
 pub mod prefix_tree;
 pub mod serde_as;
@@ -6,17 +7,6 @@ use std::borrow::Cow;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use unicase::UniCase;
-use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkc_quick};
-
-/// Returns a normalized version of `s`, or `None` if normalization was not needed. Normalized
-/// means no whitespace and NFKC.
-pub fn normalize_str(s: &str) -> Cow<'_, str> {
-    if s.chars().any(char::is_whitespace) || is_nfkc_quick(s.chars()) != IsNormalized::Yes {
-        Cow::Owned(s.nfkc().filter(|x| !x.is_whitespace()).collect::<String>())
-    } else {
-        Cow::Borrowed(s)
-    }
-}
 
 #[macro_export]
 macro_rules! nz_u8 {

@@ -1,4 +1,6 @@
-use crate::utils::{ToUnicaseCow, normalize_str};
+use crate::utils::ToUnicaseCow;
+use crate::utils::normalize::normalize_str;
+use charabia::Language;
 use enum_map::Enum;
 use enumset::EnumSetType;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -33,8 +35,14 @@ impl Book {
     }
 
     pub fn parse(book: &str, options: &impl BookParseOptions) -> Option<Self> {
-        let book = normalize_str(book);
-        let book = UniCase::new(&*book);
+        Self::parse_normalized(
+            &normalize_str(Cow::Borrowed(book), options.languages()).0,
+            options,
+        )
+    }
+
+    pub fn parse_normalized(book: &str, options: &impl BookParseOptions) -> Option<Self> {
+        let book = UniCase::new(book);
         options
             .lookup_book(book)
             .or_else(|| BOOK_ALIASES.get(&book).copied())
@@ -50,7 +58,7 @@ impl FromStr for Book {
     type Err = BookFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::parse(s, &()).ok_or_else(|| BookFromStrError(s.to_string()))
+        Self::parse_normalized(s, &()).ok_or_else(|| BookFromStrError(s.to_string()))
     }
 }
 
@@ -86,7 +94,8 @@ impl<'de> Deserialize<'de> for Book {
             where
                 E: Error,
             {
-                Book::parse(v, &()).ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
+                Book::parse_normalized(v, &())
+                    .ok_or_else(|| Error::invalid_value(Unexpected::Str(v), &self))
             }
         }
         deserializer.deserialize_str(Deserializer)
@@ -124,6 +133,10 @@ impl Display for Book {
 pub type AdditionalAliases<'a> = &'a HashMap<UniCase<Cow<'a, str>>, Book>;
 
 pub trait BookParseOptions {
+    fn languages(&self) -> Option<&[Language]> {
+        None
+    }
+
     fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
         let _ = str;
         None
