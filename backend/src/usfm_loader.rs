@@ -302,19 +302,15 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             }),
             Some(span),
         ),
-        Node::Unknown { content, span, .. } => {
-            diags.push(
-                MietteDiagnostic::new("Custom markers are not yet supported, treating as \\p")
-                    .with_severity(Severity::Warning)
-                    .with_label(LabeledSpan::new_with_span(None, span.clone())),
-            );
-            (
-                ParaContent::Usj(UsjContent::Paragraph {
-                    marker: "p".to_string(),
-                    content: paras_from_usfm(content, diags),
-                }),
-                Some(span),
-            )
+        Node::Unknown { marker, span, .. } => {
+            if marker.starts_with('z') {
+                diags.push(
+                    MietteDiagnostic::new("Custom markers are not yet supported, and are removed")
+                        .with_severity(Severity::Error)
+                        .with_label(LabeledSpan::new_with_span(None, span.clone())),
+                );
+            }
+            (ParaContent::Plain("".to_string()), Some(span))
         }
         Node::OptBreak => (ParaContent::Usj(UsjContent::OptBreak), None),
         Node::Text(text) => (ParaContent::Plain(text), None),
