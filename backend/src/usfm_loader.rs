@@ -318,17 +318,21 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
 }
 
 fn paras_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) -> Vec<ParaContent> {
-    nodes
+    let mut result = nodes
         .into_iter()
         .map(|node| para_from_usfm(node, diags).0)
-        .collect()
+        .collect_vec();
+    result.shrink_to_fit();
+    result
 }
 
 fn usjs_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) -> Vec<UsjContent> {
-    nodes
+    let mut result = nodes
         .into_iter()
         .map(|node| usj_from_usfm(node, diags).0)
-        .collect()
+        .collect_vec();
+    result.shrink_to_fit();
+    result
 }
 
 fn option_string_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) -> Option<String> {
