@@ -662,17 +662,17 @@ impl BibleData {
                             usj.source,
                         ));
                         let reporter = GraphicalReportHandler::new();
-                        let is_all_error = usj
+                        let is_any_error = usj
                             .diagnostics
                             .iter()
-                            .all(|x| x.severity.unwrap_or_default() == Severity::Error);
+                            .any(|x| x.severity.unwrap_or_default() == Severity::Error);
                         for diag in usj.diagnostics {
                             let report =
                                 miette::Report::new(diag).with_source_code(source_code.clone());
                             diag_message.push('\n');
                             let _ = reporter.render_report(&mut diag_message, &*report);
                         }
-                        if is_all_error {
+                        if is_any_error {
                             tracing::error!(
                                 "Errors in {}{filename}. The file will be attempted to be loaded, but errors may occur.{diag_message}",
                                 format_source!(self),

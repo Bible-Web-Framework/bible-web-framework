@@ -308,7 +308,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
         Node::Unknown { content, span, .. } => {
             diags.push(
                 MietteDiagnostic::new("Custom markers are not yet supported, treating as \\p")
-                    .with_severity(Severity::Advice)
+                    .with_severity(Severity::Warning)
                     .with_label(LabeledSpan::new_with_span(None, span.clone())),
             );
             (
@@ -395,7 +395,7 @@ where
         Ok(value) => value,
         Err(err) => {
             diags.push(
-                MietteDiagnostic::new(format!("Invalid {what}"))
+                MietteDiagnostic::new(format!("Invalid or unsupported {what}"))
                     .with_label(LabeledSpan::at(span, err.to_string())),
             );
             fallback
