@@ -256,12 +256,12 @@ impl BookIndexer {
             }
 
             UsjContent::Chapter { number, .. } => {
-                self.current_chapter = Some(*number);
+                self.current_chapter = Some(number.value);
                 self.current_verses = None;
             }
             UsjContent::Verse { number, .. } => {
                 self.flush_text(tokenizer);
-                self.current_verses = Some(*number);
+                self.current_verses = Some(number.value);
             }
 
             _ => {}

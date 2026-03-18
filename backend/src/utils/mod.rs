@@ -1,5 +1,6 @@
 pub mod normalize;
 pub mod ordered_enum;
+pub mod parsed_string_value;
 pub mod prefix_tree;
 pub mod serde_as;
 
@@ -7,6 +8,7 @@ use std::borrow::Cow;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use unicase::UniCase;
+use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkd_quick};
 
 #[macro_export]
 macro_rules! nz_u8 {
@@ -106,4 +108,26 @@ where
     fn clone_to_owned(&self) -> Self::Output {
         self.as_ref().map(Cow::clone_to_owned)
     }
+}
+
+pub fn nfkd_str<'a, const N: usize>(s: &str, arr: &'a mut [u8; N]) -> Option<&'a mut str> {
+    let index = if is_nfkd_quick(s.chars()) == IsNormalized::Yes {
+        if s.len() > N {
+            return None;
+        }
+        arr[..s.len()].copy_from_slice(s.as_bytes());
+        s.len()
+    } else {
+        let mut remaining = arr as &mut [u8];
+        for normalized in s.nfkd() {
+            let len = normalized.len_utf8();
+            if len > remaining.len() {
+                return None;
+            }
+            normalized.encode_utf8(remaining);
+            remaining = &mut remaining[len..];
+        }
+        N - remaining.len()
+    };
+    Some(unsafe { str::from_utf8_unchecked_mut(&mut arr[..index]) })
 }

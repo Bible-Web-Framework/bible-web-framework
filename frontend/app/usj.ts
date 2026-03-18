@@ -156,16 +156,16 @@ export type UsjContent =
   | {
       type: 'chapter'
       marker: 'c'
-      number: `${number}`
-      altnumber?: number
+      number: string
+      altnumber?: string
       pubnumber?: string
       sid: string
     }
   | {
       type: 'verse'
       marker: 'v'
-      number: VerseRange
-      altnumber?: number
+      number: string
+      altnumber?: string
       pubnumber?: string
       sid: string
     }

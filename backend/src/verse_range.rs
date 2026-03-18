@@ -1,4 +1,5 @@
 use crate::nz_u8;
+use crate::utils::nfkd_str;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
@@ -80,14 +81,12 @@ impl FromStr for VerseRange {
     /// Simple parsing function for verse range. Does not support unbounded ranges like `-5` or `5-`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn parse_verse(verse: &str) -> Result<NonZeroU8, VerseRangeParseError> {
-            verse
-                .trim()
-                .parse()
-                .map_err(|_| VerseRangeParseError::InvalidVerse {
+            nfkd_str(verse.trim_matches(|c: char| !c.is_numeric()), &mut [0; 3])
+                .and_then(|v| v.parse().ok())
+                .ok_or_else(|| VerseRangeParseError::InvalidVerse {
                     verse: verse.to_string(),
                 })
         }
-        let s = s.trim();
         if let Some((first, last)) = s.split_once('-') {
             let first = parse_verse(first)?;
             let last = parse_verse(last)?;

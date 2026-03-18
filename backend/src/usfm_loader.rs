@@ -1,6 +1,8 @@
 use crate::bible_data::BibleDataError;
 use crate::nz_u8;
 use crate::usj::{AttributesMap, ParaContent, UsjContent, UsjRoot};
+use crate::utils::parsed_string_value::ParsedStringValue;
+use crate::verse_range::VerseRange;
 use ere::compile_regex;
 use itertools::Itertools;
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
@@ -114,7 +116,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             (
                 ParaContent::Usj(UsjContent::Book {
                     marker: MustBeStr,
-                    code: parse_string(code, span.clone(), "book code", diags),
+                    code: parse_string(&code, span.clone(), "book code", diags),
                     content: option_string_from_usfm(content, diags),
                 }),
                 Some(span),
@@ -130,22 +132,13 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
         } => (
             ParaContent::Usj(UsjContent::Chapter {
                 marker: MustBeStr,
-                number: parse_string_with_default(
-                    number,
-                    nz_u8!(1),
-                    span.clone(),
-                    "chapter number",
-                    diags,
+                number: try_parse_string(&number, span.clone(), "chapter number", diags).unwrap_or(
+                    ParsedStringValue {
+                        value: nz_u8!(1),
+                        string: number,
+                    },
                 ),
-                alt_number: altnumber.map(|n| {
-                    parse_string_with_default(
-                        n,
-                        nz_u8!(1),
-                        span.clone(),
-                        "alternate chapter number",
-                        diags,
-                    )
-                }),
+                alt_number: altnumber,
                 pub_number: pubnumber,
                 sid: sid.unwrap_or_default(),
             }),
@@ -161,9 +154,13 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
         } => (
             ParaContent::Usj(UsjContent::Verse {
                 marker: MustBeStr,
-                number: parse_string(number, span.clone(), "verse number", diags),
-                alt_number: altnumber
-                    .map(|n| parse_string(n, span.clone(), "alternate verse number", diags)),
+                number: try_parse_string(&number, span.clone(), "verse number", diags).unwrap_or(
+                    ParsedStringValue {
+                        value: const { VerseRange::new_single_verse(nz_u8!(1)) },
+                        string: number,
+                    },
+                ),
+                alt_number: altnumber,
                 pub_number: pubnumber,
                 sid: sid.unwrap_or_default(),
             }),
@@ -203,7 +200,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             ParaContent::Usj(UsjContent::Note {
                 marker,
                 content: paras_from_usfm(content, diags),
-                caller: parse_string(caller, span.clone(), "note caller", diags),
+                caller: parse_string(&caller, span.clone(), "note caller", diags),
                 category,
             }),
             Some(span),
@@ -290,7 +287,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             ParaContent::Usj(UsjContent::TableCell {
                 marker,
                 content: paras_from_usfm(content, diags),
-                align: parse_string(align, span.clone(), "table cell alignment", diags),
+                align: parse_string(&align, span.clone(), "table cell alignment", diags),
             }),
             Some(span),
         ),
@@ -372,33 +369,32 @@ fn option_string_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) 
     result
 }
 
-fn parse_string<T>(str: String, span: Span, what: &str, diags: &mut Vec<MietteDiagnostic>) -> T
+fn parse_string<T>(str: &str, span: Span, what: &str, diags: &mut Vec<MietteDiagnostic>) -> T
 where
     T: FromStr + Default,
     T::Err: ToString,
 {
-    parse_string_with_default(str, T::default(), span, what, diags)
+    try_parse_string(str, span, what, diags).unwrap_or_else(T::default)
 }
 
-fn parse_string_with_default<T>(
-    str: String,
-    fallback: T,
+fn try_parse_string<T>(
+    str: &str,
     span: Span,
     what: &str,
     diags: &mut Vec<MietteDiagnostic>,
-) -> T
+) -> Option<T>
 where
     T: FromStr,
     T::Err: ToString,
 {
     match str.parse() {
-        Ok(value) => value,
+        Ok(value) => Some(value),
         Err(err) => {
             diags.push(
                 MietteDiagnostic::new(format!("Invalid or unsupported {what}"))
                     .with_label(LabeledSpan::at(span, err.to_string())),
             );
-            fallback
+            None
         }
     }
 }

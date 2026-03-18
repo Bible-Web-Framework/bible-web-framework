@@ -5,7 +5,6 @@ use crate::usj::{TranslatedBookInfo, UsjContent};
 use crate::utils::ordered_enum::EnumOrderMap;
 use actix_web::{HttpResponse, get, web};
 use serde::Serialize;
-use std::num::NonZeroU8;
 use strum::VariantArray;
 
 #[get("/book/{book}")]
@@ -53,9 +52,9 @@ pub async fn books(
 
     #[derive(Serialize)]
     struct ChapterInfo {
-        number: NonZeroU8,
+        number: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        alt_number: Option<NonZeroU8>,
+        alt_number: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         pub_number: Option<String>,
     }
@@ -71,8 +70,8 @@ pub async fn books(
                 return None;
             };
             Some(ChapterInfo {
-                number: *number,
-                alt_number: *alt_number,
+                number: number.string.clone(),
+                alt_number: alt_number.clone(),
                 pub_number: pub_number.clone(),
             })
         }

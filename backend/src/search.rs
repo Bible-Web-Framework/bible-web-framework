@@ -275,7 +275,7 @@ fn get_nearby_book(
             continue;
         };
         if current_usj.unwrap_root().content.iter().any(
-            |x| matches!(x, UsjContent::Chapter { number, .. } if number.get() == current_chapter),
+            |x| matches!(x, UsjContent::Chapter { number, .. } if number.value.get() == current_chapter),
         ) {
             return Some(ChapterReference {
                 book: current_book,
@@ -395,12 +395,12 @@ impl FootnoteGenerator<'_> {
             }
 
             UsjContent::Chapter { number, .. } => {
-                self.current_chapter = Some(*number);
+                self.current_chapter = Some(number.value);
                 self.current_verses = None;
                 self.end_section();
             }
             UsjContent::Verse { number, .. } => {
-                self.current_verses = Some(*number);
+                self.current_verses = Some(number.value);
                 self.end_section();
             }
 

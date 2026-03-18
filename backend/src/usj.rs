@@ -2,13 +2,14 @@ use crate::bible_data::BibleDataError;
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
 use crate::utils::CloneToOwned;
+use crate::utils::parsed_string_value::ParsedStringValue;
 use crate::utils::serde_as::OptionAsVec;
 use crate::verse_range::VerseRange;
 use either::Either;
 use ere::compile_regex;
 use monostate::MustBe;
 use serde::{Deserialize, Serialize};
-use serde_with::{DisplayFromStr, serde_as, skip_serializing_none};
+use serde_with::{serde_as, skip_serializing_none};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
@@ -116,21 +117,20 @@ pub enum UsjContent {
 
     Chapter {
         marker: MustBe!("c"),
-        #[serde_as(as = "DisplayFromStr")]
-        number: NonZeroU8,
-        #[serde(rename = "altnumber")]
-        alt_number: Option<NonZeroU8>,
-        #[serde(rename = "pubnumber")]
+        number: ParsedStringValue<NonZeroU8>,
+        #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
+        alt_number: Option<String>,
+        #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
         pub_number: Option<String>,
         sid: String,
     },
 
     Verse {
         marker: MustBe!("v"),
-        number: VerseRange,
-        #[serde(rename = "altnumber")]
-        alt_number: Option<VerseRange>,
-        #[serde(rename = "pubnumber")]
+        number: ParsedStringValue<VerseRange>,
+        #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
+        alt_number: Option<String>,
+        #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
         pub_number: Option<String>,
         sid: String,
     },
@@ -496,10 +496,9 @@ impl UsjRoot {
     }
 
     fn find_chapter_start(&self, chapter: NonZeroU8) -> Option<ParaIndex> {
-        let chapter_index = self
-            .content
-            .iter()
-            .position(|x| matches!(&x, UsjContent::Chapter { number, .. } if *number == chapter))?;
+        let chapter_index = self.content.iter().position(
+            |x| matches!(&x, UsjContent::Chapter { number, .. } if number.value == chapter),
+        )?;
         Some((chapter_index, 0))
     }
 
@@ -574,9 +573,9 @@ impl UsjRoot {
                     .skip(skip)
                     .find_map(|(index, content)| {
                         if let ParaContent::Usj(UsjContent::Verse { number: range, .. }) = content
-                            && range.contains(verse)
+                            && range.value.contains(verse)
                         {
-                            Some(((root_index, index), *range))
+                            Some(((root_index, index), range.value))
                         } else {
                             None
                         }
