@@ -13,6 +13,7 @@ p.usj-content {
 }
 
 /* #region Chapters and Verses */
+/* Below is an alternative chapter formatting scheme, but it currently does not play nicely with section headings
 .c {
   font-size: 150%;
   font-weight: bold;
@@ -25,6 +26,10 @@ p.usj-content {
       display: none;
     }
   }
+}
+*/
+.c {
+  display: none;
 }
 
 .v {

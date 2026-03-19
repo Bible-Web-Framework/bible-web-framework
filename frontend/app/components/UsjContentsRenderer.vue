@@ -69,6 +69,7 @@ RenderWithHighlight.props = {
       :text-index="contentIndex"
     />
     <template v-else-if="ignoredContentTypes.includes(content.type)"></template>
+    <!-- TODO: Support \ca and \va when https://github.com/jcuenod/usfm3/issues/2 is fixed -->
     <span v-else-if="content.type === 'chapter'" class="usj-content c">{{
       content.pubnumber ?? content.number
     }}</span>
@@ -140,6 +141,7 @@ RenderWithHighlight.props = {
       <br v-else-if="content.marker === 'b'" class="usj-content b" />
     </template>
     <template v-else-if="content.type === 'char'">
+      <!-- TODO: Implement \ref -->
       <span
         v-if="
           ['add', 'bk', 'dc', 'em', 'k', 'nd', 'ord', 'pn', 'png', 'qt', 'rq', 'fr', 'ft'].includes(
