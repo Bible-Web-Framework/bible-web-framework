@@ -21,7 +21,7 @@ p.usj-content {
   + p:not(.poetry) {
     display: inline;
 
-    :first-child.v {
+    :first-child.v[data-verse-1] {
       display: none;
     }
   }

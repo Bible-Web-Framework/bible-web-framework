@@ -69,8 +69,15 @@ RenderWithHighlight.props = {
       :text-index="contentIndex"
     />
     <template v-else-if="ignoredContentTypes.includes(content.type)"></template>
-    <span v-else-if="content.type === 'chapter'" class="usj-content c">{{ content.number }}</span>
-    <span v-else-if="content.type === 'verse'" class="usj-content v">{{ content.number }}</span>
+    <span v-else-if="content.type === 'chapter'" class="usj-content c">{{
+      content.pubnumber ?? content.number
+    }}</span>
+    <span
+      v-else-if="content.type === 'verse'"
+      class="usj-content v"
+      :data-verse-1="(content.pubnumber ?? content.number) === '1' ? true : undefined"
+      >{{ content.pubnumber ?? content.number }}</span
+    >
     <template v-else-if="content.type === 'para'">
       <!-- TODO: Implement \ip when an example is found -->
       <p
