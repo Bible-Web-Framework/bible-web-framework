@@ -4450,9 +4450,9 @@ dependencies = [
 
 [[package]]
 name = "usfm3"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e445c3c388c8b9d81cd63ad88930be5b4f3715f2802481fc47f49847b9d64c75"
+checksum = "1cc1bf6db57766e3a36ca28428ce56f17b2e130cbd2175cc73975cc594ce80cd"
 dependencies = [
  "logos",
  "quick-xml",
