@@ -55,7 +55,7 @@ rangemap = { version = "1.7.1", features = ["serde"] }
 usfm3 = "0.1.6"
 memory-stats = "1.2.0"
 enum-map = "2.7.3"
-tinyvec = { version = "1.10.0", features = ["serde"] }
+tinyvec = { version = "1.11.0", features = ["serde"] }
 
 [dev-dependencies]
 censor = "0.3.0"
