@@ -21,7 +21,7 @@
     "devDependencies": {
         "@nuxt/eslint": "^1.15.2",
         "@types/node": "^25.5.0",
-        "eslint": "^10.0.3",
+        "eslint": "^10.1.0",
         "json-stringify-pretty-compact": "^4.0.0",
         "typescript": "^5.9.3"
     }
