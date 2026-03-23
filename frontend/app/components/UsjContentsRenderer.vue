@@ -144,9 +144,23 @@ RenderWithHighlight.props = {
       <!-- TODO: Implement \ref -->
       <span
         v-if="
-          ['add', 'bk', 'dc', 'em', 'k', 'nd', 'ord', 'pn', 'png', 'qt', 'rq', 'fr', 'ft'].includes(
-            content.marker,
-          )
+          [
+            'add',
+            'bk',
+            'dc',
+            'em',
+            'k',
+            'nd',
+            'ord',
+            'pn',
+            'png',
+            'qt',
+            'rq',
+            // TODO: Implement ref, sig, sls, tl, w, wa, wg, and wh
+            'wj',
+            'fr',
+            'ft',
+          ].includes(content.marker)
         "
         :class="['usj-content', content.marker]"
       >
@@ -185,7 +199,6 @@ RenderWithHighlight.props = {
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
-      <!-- TODO: Implement \ref when \x is implemented -->
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
