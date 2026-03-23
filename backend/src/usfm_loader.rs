@@ -21,10 +21,12 @@ pub struct LoadedUsjFromUsfm {
 
 pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDataError> {
     let parse_results = parse(&content);
-    let mut diags = vec![];
 
-    for diag in parse_results.diagnostics.into_inner().into_iter() {
-        diags.push(
+    let mut diags = parse_results
+        .diagnostics
+        .into_inner()
+        .into_iter()
+        .map(|diag| {
             MietteDiagnostic::new(diag.message)
                 .with_severity(match diag.severity {
                     usfm3::diagnostics::Severity::Info => Severity::Advice,
@@ -32,9 +34,9 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
                     usfm3::diagnostics::Severity::Error => Severity::Error,
                 })
                 .with_label(LabeledSpan::new_with_span(None, diag.span))
-                .with_code(format!("DiagnosticCode::{:?}", diag.code)),
-        );
-    }
+                .with_code(format!("DiagnosticCode::{:?}", diag.code))
+        })
+        .collect();
 
     Ok(LoadedUsjFromUsfm {
         usj: UsjContent::Root(UsjRoot {

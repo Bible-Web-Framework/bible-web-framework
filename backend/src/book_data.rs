@@ -46,7 +46,7 @@ impl Book {
         options
             .lookup_book(book)
             .or_else(|| BOOK_ALIASES.get(&book).copied())
-            .take_if(|&mut x| options.book_allowed(x))
+            .filter(|&x| options.book_allowed(x))
     }
 }
 
