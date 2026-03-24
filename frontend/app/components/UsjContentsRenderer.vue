@@ -129,7 +129,7 @@ UnimplementedMarker.props = {
         />
       </p>
       <p
-        v-else-if="/^([pm]i[1-3]?|q[1-4]?|qm[1-3]?)$/.test(content.marker)"
+        v-else-if="/^([pm]i[1-3]?|q[1-4]?|qm[1-3]?|li[1-4]?|ms[1-3]?)$/.test(content.marker)"
         :class="{
           'usj-content': true,
           [content.marker.replace(/\d/g, '')]: true,
@@ -217,8 +217,8 @@ UnimplementedMarker.props = {
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
       <a
-        v-if="content.marker === 'f' && content.caller !== '-'"
-        class="usj-content note-source f"
+        v-if="['f', 'x'].includes(content.marker) && content.caller !== '-'"
+        :class="['usj-content', 'note-source', content.marker]"
         :name="`note-source-${content.caller}`"
         :href="`#note-contents-${content.caller}`"
         >{{ content.caller }}</a

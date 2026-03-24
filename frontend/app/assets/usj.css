@@ -49,6 +49,18 @@ p.usj-content {
   margin-block-start: 4pt;
   margin-block-end: 8pt;
 }
+
+.ms {
+  font-weight: bold;
+  font-size: 116%;
+  text-align: center;
+  margin-block-start: 4pt;
+  margin-block-end: 16pt;
+}
+
+.ms[data-usj-indent='3'] {
+  font-style: italic;
+}
 /* #endregion */
 
 /* #region Body Paragraphs */
@@ -117,6 +129,11 @@ p.usj-content {
   text-align: end;
   font-weight: bold;
 }
+
+/* \nb is not properly implemented. Do we even want to? */
+.nb {
+  display: none;
+}
 /* #endregion */
 
 /* #region Poetry */
@@ -183,10 +200,27 @@ p.usj-content {
 .poetry-block:has(:not(+ .poetry-block, + br + .poetry-block)) {
   margin-block-end: 1em;
 }
+/* #endregion */
 
-/* \nb is not properly implemented. Do we even want to? */
-.nb {
-  display: none;
+/* #region Lists */
+.li {
+  text-indent: -2em;
+}
+
+.li[data-usj-indent='1'] {
+  margin-inline: 3em;
+}
+
+.li[data-usj-indent='2'] {
+  margin-inline: 4em;
+}
+
+.li[data-usj-indent='3'] {
+  margin-inline: 5em;
+}
+
+.li[data-usj-indent='4'] {
+  margin-inline: 6em;
 }
 /* #endregion */
 /* #endregion */
@@ -247,7 +281,7 @@ p.usj-content {
 
 /* #region Notes */
 /* #region Footnotes */
-.f {
+.note-source {
   font-size: 66%;
   font-style: italic;
   vertical-align: text-top;
