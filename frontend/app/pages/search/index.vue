@@ -352,6 +352,20 @@ async function checkForUnimplementedMarkers() {
 
 <template>
   <div>
+    <DevOnly>
+      <span>
+        <button @click="checkForUnimplementedMarkers">
+          Check for unimplemented markers in selected bible
+        </button>
+        <template v-if="scannedBooks !== undefined">
+          Scanned {{ scannedBooks }}/{{ totalBooks }} books
+        </template>
+        <template v-if="currentlyScanning !== undefined">
+          Currently scanning {{ currentlyScanning }}
+        </template>
+      </span>
+    </DevOnly>
+
     <h1>Search Page</h1>
 
     <div class="search-area">
@@ -390,18 +404,6 @@ async function checkForUnimplementedMarkers() {
       </select>
       <span v-else />
     </div>
-
-    <DevOnly>
-      <button @click="checkForUnimplementedMarkers">
-        Check for unimplemented markers in selected bible
-      </button>
-      <br />
-      <span v-if="scannedBooks !== undefined"
-        >Scanned {{ scannedBooks }}/{{ totalBooks }} books</span
-      >
-      <br />
-      <span v-if="currentlyScanning !== undefined">Currently scanning {{ currentlyScanning }}</span>
-    </DevOnly>
 
     <template v-if="query && searchResults?.response_type === 'search_results'">
       <template v-if="pageCount > 1">
