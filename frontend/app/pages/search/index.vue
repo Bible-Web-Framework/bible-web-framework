@@ -18,6 +18,7 @@ import {
   type UsjContent,
 } from '~/usj'
 import { NuxtLink } from '#components'
+import { mount } from '@vue/test-utils'
 
 const config = useRuntimeConfig()
 const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
@@ -264,6 +265,85 @@ NotesRenderer.props = {
     required: true,
   },
 }
+
+const scannedBooks = ref<number>()
+const totalBooks = computed(() => {
+  if (!booksData.value) {
+    return 0
+  }
+  return Object.keys(booksData.value.books).length
+})
+async function checkForUnimplementedMarkers() {
+  if (!booksData.value) {
+    return alert('No bibles loaded!')
+  }
+  scannedBooks.value = 0
+
+  let totalMissing = 0
+  let missingReferences = ''
+  for (const book in booksData.value.books) {
+    const bookData = await $fetch<ApiV1['bible']['book']>(`/v1/bible/${bible.value}/book/${book}`, {
+      baseURL: config.public.apiRootUrl,
+    })
+
+    function scan(contents: UsjContent[]) {
+      const first = contents[0]
+      if (first?.type !== 'chapter') return
+      const rendered = mount(UsjContentsRenderer, {
+        props: {
+          contents,
+        },
+      })
+      const missing = rendered.findAllComponents({
+        name: 'UnimplementedMarker',
+      })
+      if (missing.length > 0) {
+        totalMissing += missing.length
+        console.warn(
+          'Found missing in chapter',
+          book,
+          first.number,
+          missing.map((dom) => {
+            const text: string = dom.element.innerText
+            return text.substring(text.indexOf(':') + 2, text.length - 1)
+          }),
+        )
+
+        if (missingReferences) {
+          missingReferences += ';'
+        }
+        missingReferences += `${book}${first.number}`
+      }
+    }
+
+    let prevChapter = bookData.content.findIndex((u) => u.type === 'chapter')
+    while (prevChapter < bookData.content.length) {
+      let nextChapter = bookData.content
+        .slice(prevChapter + 1)
+        .findIndex((u) => u.type === 'chapter')
+      if (nextChapter === -1) {
+        scan(bookData.content.slice(prevChapter))
+        break
+      }
+      nextChapter += prevChapter + 1
+      scan(bookData.content.slice(prevChapter, nextChapter))
+      prevChapter = nextChapter
+    }
+
+    scannedBooks.value++
+  }
+  scannedBooks.value = undefined
+
+  console.info('Found unimplemented markers in', totalMissing, 'places')
+
+  if (totalMissing) {
+    alert(`Found unimplemented markers in ${totalMissing} places`)
+    newQuery.value = missingReferences
+    search()
+  } else {
+    alert('No unimplemented markers found!')
+  }
+}
 </script>
 
 <template>
@@ -306,6 +386,15 @@ NotesRenderer.props = {
       </select>
       <span v-else />
     </div>
+
+    <DevOnly>
+      <button @click="checkForUnimplementedMarkers">
+        Check for unimplemented markers in selected bible
+      </button>
+      <span v-if="scannedBooks !== undefined"
+        >Scanned {{ scannedBooks }}/{{ totalBooks }} books</span
+      >
+    </DevOnly>
 
     <template v-if="query && searchResults?.response_type === 'search_results'">
       <template v-if="pageCount > 1">
