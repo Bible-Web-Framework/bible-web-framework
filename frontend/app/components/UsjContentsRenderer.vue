@@ -59,6 +59,16 @@ RenderWithHighlight.props = {
     required: true,
   },
 }
+
+const UnimplementedMarker: FunctionalComponent<{ marker: string }> = import.meta.dev
+  ? ({ marker }) => h('code', [`[Unimplemented marker/type: ${marker}]`])
+  : () => {}
+UnimplementedMarker.props = {
+  marker: {
+    type: String,
+    required: true,
+  },
+}
 </script>
 
 <template>
@@ -139,6 +149,7 @@ RenderWithHighlight.props = {
       </p>
       <!-- \nb is not implemented... do we even want to? -->
       <br v-else-if="content.marker === 'b'" class="usj-content b" />
+      <UnimplementedMarker v-else :marker="content.marker" />
     </template>
     <template v-else-if="content.type === 'char'">
       <!-- TODO: Implement \ref -->
@@ -199,6 +210,7 @@ RenderWithHighlight.props = {
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
+      <UnimplementedMarker v-else :marker="content.marker" />
     </template>
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
@@ -209,7 +221,9 @@ RenderWithHighlight.props = {
         :href="`#note-contents-${content.caller}`"
         >{{ content.caller }}</a
       >
+      <UnimplementedMarker v-else :marker="content.marker" />
     </template>
+    <UnimplementedMarker v-else :marker="'marker' in content ? content.marker : content.type" />
   </template>
 </template>
 
