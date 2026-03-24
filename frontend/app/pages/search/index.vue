@@ -273,6 +273,7 @@ const totalBooks = computed(() => {
   }
   return Object.keys(booksData.value.books).length
 })
+const currentlyScanning = ref<string>()
 async function checkForUnimplementedMarkers() {
   if (!booksData.value) {
     return alert('No bibles loaded!')
@@ -281,7 +282,9 @@ async function checkForUnimplementedMarkers() {
 
   let totalMissing = 0
   let missingReferences = ''
-  for (const book in booksData.value.books) {
+  for (const [book, bookInfo] of Object.entries(booksData.value.books)) {
+    currentlyScanning.value = `${book}/${getShortBookName(bookInfo.translated_book_info, book as Book)}`
+
     const bookData = await $fetch<ApiV1['bible']['book']>(`/v1/bible/${bible.value}/book/${book}`, {
       baseURL: config.public.apiRootUrl,
     })
@@ -333,6 +336,7 @@ async function checkForUnimplementedMarkers() {
     scannedBooks.value++
   }
   scannedBooks.value = undefined
+  currentlyScanning.value = undefined
 
   console.info('Found unimplemented markers in', totalMissing, 'places')
 
@@ -391,9 +395,12 @@ async function checkForUnimplementedMarkers() {
       <button @click="checkForUnimplementedMarkers">
         Check for unimplemented markers in selected bible
       </button>
+      <br />
       <span v-if="scannedBooks !== undefined"
         >Scanned {{ scannedBooks }}/{{ totalBooks }} books</span
       >
+      <br />
+      <span v-if="currentlyScanning !== undefined">Currently scanning {{ currentlyScanning }}</span>
     </DevOnly>
 
     <template v-if="query && searchResults?.response_type === 'search_results'">
