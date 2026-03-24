@@ -183,6 +183,11 @@ p.usj-content {
 .poetry-block:has(:not(+ .poetry-block, + br + .poetry-block)) {
   margin-block-end: 1em;
 }
+
+/* \nb is not properly implemented. Do we even want to? */
+.nb {
+  display: none;
+}
 /* #endregion */
 /* #endregion */
 

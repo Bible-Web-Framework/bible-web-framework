@@ -147,8 +147,10 @@ UnimplementedMarker.props = {
           :current-path="currentPath.concat(contentIndex)"
         />
       </p>
-      <!-- \nb is not implemented... do we even want to? -->
-      <br v-else-if="content.marker === 'b'" class="usj-content b" />
+      <br
+        v-else-if="['nb', 'b'].includes(content.marker)"
+        :class="['usj-content', content.marker]"
+      />
       <UnimplementedMarker v-else :marker="content.marker" />
     </template>
     <template v-else-if="content.type === 'char'">
