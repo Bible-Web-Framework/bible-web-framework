@@ -42,7 +42,7 @@ p.usj-content {
 
 /* #region Paragraphs */
 /* #region Titles and Sections */
-.cl {
+p.cl {
   font-weight: bold;
   font-size: 150%;
   text-align: center;
@@ -50,7 +50,7 @@ p.usj-content {
   margin-block-end: 8pt;
 }
 
-.ms {
+p.ms {
   font-weight: bold;
   font-size: 116%;
   text-align: center;
@@ -61,6 +61,20 @@ p.usj-content {
 .ms[data-usj-indent='3'] {
   font-style: italic;
 }
+
+.d {
+  font-style: italic;
+  text-align: center;
+  margin-block: 4pt;
+  max-width: 50%;
+  margin-inline: auto;
+}
+
+p.sp {
+  font-style: italic;
+  margin-block-start: 8pt;
+  margin-block-end: 4pt;
+}
 /* #endregion */
 
 /* #region Body Paragraphs */
@@ -68,7 +82,7 @@ p.usj-content {
   text-indent: 1em;
 }
 
-.po {
+p.po {
   text-indent: 1em;
   margin-block: 4pt;
 }
@@ -276,6 +290,13 @@ p.usj-content {
 
 .wj {
   color: #d43128;
+}
+/* #endregion */
+
+/* #region Poetry */
+.qs {
+  font-style: italic;
+  text-align: end;
 }
 /* #endregion */
 

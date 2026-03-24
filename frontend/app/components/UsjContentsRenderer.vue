@@ -95,6 +95,8 @@ UnimplementedMarker.props = {
         v-if="
           [
             'cl',
+            'd',
+            'sp',
             'p',
             'm',
             'po',
@@ -212,6 +214,16 @@ UnimplementedMarker.props = {
         /><rp>(</rp><rt>{{ content.gloss }}</rt
         ><rp>)</rp></ruby
       >
+      <!-- Why is it a char if it's treated like a div? Idk ask the usfm devs -->
+      <div v-else-if="content.marker === 'qs'" class="usj-content qs">
+        <UsjContentsRenderer
+          :contents="content.content"
+          :highlights="highlights"
+          :ignored-content-types="ignoredContentTypes"
+          :generate-search-query="generateSearchQuery"
+          :current-path="currentPath.concat(contentIndex)"
+        />
+      </div>
       <UnimplementedMarker v-else :marker="content.marker" />
     </template>
     <!-- TODO: Implement Milestones -->
