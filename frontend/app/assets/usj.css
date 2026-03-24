@@ -73,7 +73,7 @@ p.ms {
 p.sp {
   font-style: italic;
   margin-block-start: 8pt;
-  margin-block-end: 4pt;
+  margin-block-end: -0.8em;
 }
 /* #endregion */
 
