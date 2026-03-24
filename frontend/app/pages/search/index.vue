@@ -192,7 +192,6 @@ watch([query, bible], () => {
   newQuery.value = query.value
   newBible.value = bible.value
 })
-watch(searchResults, () => {})
 
 function directGo() {
   const book = newBook.value
