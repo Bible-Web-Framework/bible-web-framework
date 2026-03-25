@@ -1,16 +1,22 @@
 use crate::bible_data::BibleDataError;
 use crate::nz_u8;
-use crate::usj::{AttributesMap, ParaContent, UsjContent, UsjRoot};
+use crate::usj::content::{AttributesMap, ParaContent, UsjContent};
+use crate::usj::root::UsjRoot;
 use crate::utils::parsed_string_value::ParsedStringValue;
 use crate::verse_range::VerseRange;
-use ere::compile_regex;
 use itertools::Itertools;
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
+use smallvec::SmallVec;
+use std::io::BufRead;
 use std::str::FromStr;
 use usfm3::ast::{Attribute, Node};
 use usfm3::builder::parse;
 use usfm3::diagnostics::Span;
+
+pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, BibleDataError> {
+    Ok(serde_json::from_reader(reader)?)
+}
 
 #[derive(Debug)]
 pub struct LoadedUsjFromUsfm {
@@ -93,7 +99,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             span,
         } => {
             #[expect(clippy::question_mark)]
-            const PROPER_BOOK_REGEX: ere::Regex = compile_regex!("^[A-Z0-9][A-Z][A-Z]$");
+            const PROPER_BOOK_REGEX: ere::Regex = ere::compile_regex!("^[A-Z0-9][A-Z][A-Z]$");
             if !code.is_ascii() {
                 diags.push(
                     MietteDiagnostic::new("Non-standard USFM book code")
@@ -339,7 +345,7 @@ fn option_string_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) 
     let mut paras = nodes
         .into_iter()
         .map(|node| para_from_usfm(node, diags))
-        .collect_vec()
+        .collect::<SmallVec<[_; 1]>>()
         .into_iter();
     let (para, span) = paras.next()?;
     let result = match para {
@@ -409,8 +415,9 @@ fn parse_attributes(attributes: Vec<Attribute>) -> AttributesMap {
 #[cfg(test)]
 mod test {
     use crate::bible_data::BibleDataError;
-    use crate::usfm_loader::load_footnote_from_usfm;
-    use crate::usj::{AttributesMap, NoteCaller, ParaContent, UsjContent};
+    use crate::usj::content::UsjContent;
+    use crate::usj::content::{AttributesMap, NoteCaller, ParaContent};
+    use crate::usj::loader::load_footnote_from_usfm;
     use pretty_assertions::assert_eq;
     use std::error::Error;
 

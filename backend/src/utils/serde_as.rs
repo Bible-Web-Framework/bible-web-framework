@@ -1,5 +1,5 @@
-use crate::usfm_loader::load_footnote_from_usfm;
-use crate::usj::UsjContent;
+use crate::usj::content::UsjContent;
+use crate::usj::loader::load_footnote_from_usfm;
 use crate::verse_range::VerseRange;
 use charabia::Language;
 use miette::{Diagnostic, Severity};

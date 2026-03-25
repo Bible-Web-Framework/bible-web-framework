@@ -1,7 +1,9 @@
 use crate::bible_data::BookData;
 use crate::book_data::Book;
 use crate::reference::BookReference;
-use crate::usj::{ParaContent, ParaIndex, UsjContent, UsjRoot};
+use crate::usj::content::ParaContent;
+use crate::usj::root::UsjRoot;
+use crate::usj::{ParaIndex, content::UsjContent};
 use crate::verse_range::VerseRange;
 use charabia::Tokenizer;
 use dashmap::DashMap;

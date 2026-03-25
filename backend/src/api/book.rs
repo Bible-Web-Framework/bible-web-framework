@@ -1,7 +1,7 @@
 use crate::api::{ApiError, ApiResult};
 use crate::bible_data::MultiBibleData;
 use crate::book_data::Book;
-use crate::usj::{TranslatedBookInfo, UsjContent};
+use crate::usj::{TranslatedBookInfo, content::UsjContent};
 use crate::utils::ordered_enum::EnumOrderMap;
 use actix_web::{HttpResponse, get, web};
 use serde::Serialize;
