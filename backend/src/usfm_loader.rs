@@ -48,16 +48,14 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
     })
 }
 
-pub fn load_footnote_from_usfm(footnote: &str) -> Result<LoadedUsjFromUsfm, BibleDataError> {
-    let mut base = load_usj_from_usfm(format!("\\id GEN\n\\c 1\n{footnote}"))?;
+pub fn load_footnote_from_usfm(footnote: String) -> Result<LoadedUsjFromUsfm, BibleDataError> {
+    let mut base = load_usj_from_usfm(footnote)?;
     base.usj = match base.usj {
         UsjContent::Root(root) => {
-            if root.content.len() > 3 {
-                return Err(BibleDataError::InjectedFootnoteLength(
-                    root.content.len() - 2,
-                ));
+            if root.content.len() > 1 {
+                return Err(BibleDataError::InjectedFootnoteLength(root.content.len()));
             }
-            let element = root.content.into_iter().nth(2).unwrap();
+            let element = root.content.into_iter().next().unwrap();
             if !matches!(element, UsjContent::Note { .. }) {
                 return Err(BibleDataError::InjectedFootnoteNotNote(
                     element.marker_or_type().to_string(),
@@ -418,8 +416,7 @@ mod test {
 
     #[test]
     fn test_load_footnote() -> Result<(), Box<dyn Error>> {
-        // TODO: Remove + when jcuenod/usfm3#1 is fixed
-        let usfm = "\\f +\\ft Test footnote \\+nd Lord\\nd*\\f*";
+        let usfm = "\\f +\\ft Test footnote \\nd Lord\\nd*\\f*";
         let usj = UsjContent::Note {
             marker: "f".to_string(),
             caller: NoteCaller::Generated,
@@ -438,7 +435,7 @@ mod test {
             })],
         };
 
-        let converted_usj = load_footnote_from_usfm(usfm)?;
+        let converted_usj = load_footnote_from_usfm(usfm.to_string())?;
         assert_eq!(converted_usj.usj, usj);
         assert!(
             converted_usj.diagnostics.is_empty(),
@@ -452,7 +449,7 @@ mod test {
     #[test]
     fn test_load_footnote_extra_data() {
         let usfm = "\\f +\\ft Test footnote\\f*\n\\b\n\\p Hello";
-        let usj = load_footnote_from_usfm(usfm);
+        let usj = load_footnote_from_usfm(usfm.to_string());
         assert!(
             matches!(&usj, Err(BibleDataError::InjectedFootnoteLength(3))),
             "{usj:#?}",
@@ -462,7 +459,7 @@ mod test {
     #[test]
     fn test_load_footnote_not_note() {
         let usfm = "\\p Hello, world!";
-        let usj = load_footnote_from_usfm(usfm);
+        let usj = load_footnote_from_usfm(usfm.to_string());
         assert!(
             matches!(&usj, Err(BibleDataError::InjectedFootnoteNotNote(marker)) if marker == "p"),
             "{usj:#?}",

@@ -100,8 +100,8 @@ impl<'de> DeserializeAs<'de, UsjContent> for FootnoteUsfmAsUsj {
     where
         D: Deserializer<'de>,
     {
-        let footnote = <CowStr>::deserialize(deserializer)?.0;
-        let loaded = load_footnote_from_usfm(&footnote).map_err(Error::custom)?;
+        let footnote = String::deserialize(deserializer)?;
+        let loaded = load_footnote_from_usfm(footnote).map_err(Error::custom)?;
         if loaded
             .diagnostics
             .iter()
