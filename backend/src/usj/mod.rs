@@ -1,4 +1,5 @@
 pub mod content;
+pub mod identifier;
 pub mod loader;
 pub mod marker;
 pub mod root;

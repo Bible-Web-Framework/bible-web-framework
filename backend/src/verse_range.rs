@@ -122,7 +122,7 @@ impl Display for VerseRange {
     }
 }
 
-#[derive(Debug, Error, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Error, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum VerseRangeParseError {
     #[error("Invalid verse number '{verse}'")]

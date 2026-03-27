@@ -1,5 +1,6 @@
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
+use crate::usj::identifier::UsjIdentifier;
 use crate::usj::is_title_marker;
 use crate::usj::marker::{ContentMarker, MacroEnum, MilestoneMarker, NoteMarker};
 use crate::usj::root::UsjRoot;
@@ -50,7 +51,7 @@ pub enum UsjContent {
         alt_number: Option<String>,
         #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
         pub_number: Option<String>,
-        sid: String,
+        sid: UsjIdentifier,
     },
 
     Verse {
@@ -60,7 +61,7 @@ pub enum UsjContent {
         alt_number: Option<String>,
         #[serde(rename = "pubnumber", skip_serializing_if = "Option::is_none")]
         pub_number: Option<String>,
-        sid: String,
+        sid: UsjIdentifier,
     },
 
     #[serde(rename = "ms")]

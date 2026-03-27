@@ -50,7 +50,7 @@ impl Book {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[error("Unknown book '{0}'")]
 pub struct BookFromStrError(String);
 
