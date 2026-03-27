@@ -1,10 +1,11 @@
 pub mod content;
 pub mod loader;
+pub mod marker;
 pub mod root;
 
 use crate::book_data::Book;
+use crate::usj::marker::ContentMarker;
 use crate::utils::CloneToOwned;
-use ere::compile_regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
@@ -77,10 +78,12 @@ impl TranslatedBookInfo<'_> {
     }
 }
 
-pub fn is_title_marker(marker: &str) -> bool {
-    const REGEX: ere::Regex<2> =
-        compile_regex!("^(mt[1-9]?|mte[1-9]?|ms[1-9]?|mr|s[1-9]?|sr|r|d|sp|sd[1-9]?)$");
-    REGEX.test(marker)
+pub fn is_title_marker(marker: ContentMarker) -> bool {
+    use ContentMarker::*;
+    matches!(
+        marker,
+        Mt(_) | Mte(_) | Ms(_) | Mr(_) | S(_) | Sr(_) | R(_) | D(_) | Sp(_) | Sd(_),
+    )
 }
 
 pub type ParaIndex = (usize, usize);

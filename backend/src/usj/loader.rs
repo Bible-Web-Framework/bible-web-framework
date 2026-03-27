@@ -1,6 +1,7 @@
 use crate::bible_data::BibleDataError;
 use crate::nz_u8;
 use crate::usj::content::{AttributesMap, ParaContent, UsjContent};
+use crate::usj::marker::{ContentMarker, MilestoneMarker, MilestoneSide, NoteMarker};
 use crate::usj::root::UsjRoot;
 use crate::utils::parsed_string_value::ParsedStringValue;
 use crate::verse_range::VerseRange;
@@ -81,7 +82,7 @@ fn usj_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (UsjContent, 
             diags.push(MietteDiagnostic::new("Unexpected plain-text"));
             (
                 UsjContent::Paragraph {
-                    marker: "p".to_string(),
+                    marker: ContentMarker::P(()),
                     content: vec![ParaContent::Plain(text)],
                 },
                 span,
@@ -122,7 +123,7 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             (
                 ParaContent::Usj(UsjContent::Book {
                     marker: MustBeStr,
-                    code: parse_string(&code, span.clone(), "book code", diags),
+                    code: parse_string(&code, span.clone(), "book code", "Genesis", diags),
                     content: option_string_from_usfm(content, diags),
                 }),
                 Some(span),
@@ -138,12 +139,11 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
         } => (
             ParaContent::Usj(UsjContent::Chapter {
                 marker: MustBeStr,
-                number: try_parse_string(&number, span.clone(), "chapter number", diags).unwrap_or(
-                    ParsedStringValue {
+                number: try_parse_string(&number, span.clone(), "chapter number", "1", diags)
+                    .unwrap_or(ParsedStringValue {
                         value: nz_u8!(1),
                         string: number,
-                    },
-                ),
+                    }),
                 alt_number: altnumber,
                 pub_number: pubnumber,
                 sid: sid.unwrap_or_default(),
@@ -160,12 +160,11 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
         } => (
             ParaContent::Usj(UsjContent::Verse {
                 marker: MustBeStr,
-                number: try_parse_string(&number, span.clone(), "verse number", diags).unwrap_or(
-                    ParsedStringValue {
+                number: try_parse_string(&number, span.clone(), "verse number", "1", diags)
+                    .unwrap_or(ParsedStringValue {
                         value: const { VerseRange::new_single_verse(nz_u8!(1)) },
                         string: number,
-                    },
-                ),
+                    }),
                 alt_number: altnumber,
                 pub_number: pubnumber,
                 sid: sid.unwrap_or_default(),
@@ -178,7 +177,8 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             span,
         } => (
             ParaContent::Usj(UsjContent::Paragraph {
-                marker,
+                marker: try_parse_string(&marker, span.clone(), "paragraph marker", "\\p", diags)
+                    .unwrap_or(ContentMarker::P(())),
                 content: paras_from_usfm(content, diags),
             }),
             Some(span),
@@ -190,7 +190,8 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             span,
         } => (
             ParaContent::Usj(UsjContent::Character {
-                marker,
+                marker: try_parse_string(&marker, span.clone(), "character marker", "\\no", diags)
+                    .unwrap_or(ContentMarker::No(())),
                 content: paras_from_usfm(content, diags),
                 attributes: parse_attributes(attributes),
             }),
@@ -204,9 +205,10 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             span,
         } => (
             ParaContent::Usj(UsjContent::Note {
-                marker,
+                marker: try_parse_string(&marker, span.clone(), "note marker", "\\f", diags)
+                    .unwrap_or(NoteMarker::F(())),
                 content: paras_from_usfm(content, diags),
-                caller: parse_string(&caller, span.clone(), "note caller", diags),
+                caller: parse_string(&caller, span.clone(), "note caller", "+", diags),
                 category,
             }),
             Some(span),
@@ -217,7 +219,14 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             span,
         } => (
             ParaContent::Usj(UsjContent::Milestone {
-                marker,
+                marker: try_parse_string(
+                    &marker,
+                    span.clone(),
+                    "milestone marker",
+                    "\\qt1-s",
+                    diags,
+                )
+                .unwrap_or(MilestoneMarker::Qt((MilestoneSide::Start, 1))),
                 attributes: parse_attributes(attributes),
             }),
             Some(span),
@@ -291,9 +300,16 @@ fn para_from_usfm(node: Node, diags: &mut Vec<MietteDiagnostic>) -> (ParaContent
             span,
         } => (
             ParaContent::Usj(UsjContent::TableCell {
-                marker,
+                marker: try_parse_string(
+                    &marker,
+                    span.clone(),
+                    "table cell marker",
+                    "\\tc1",
+                    diags,
+                )
+                .unwrap_or(ContentMarker::Tc((1, 1))),
                 content: paras_from_usfm(content, diags),
-                align: parse_string(&align, span.clone(), "table cell alignment", diags),
+                align: parse_string(&align, span.clone(), "table cell alignment", "start", diags),
             }),
             Some(span),
         ),
@@ -375,18 +391,25 @@ fn option_string_from_usfm(nodes: Vec<Node>, diags: &mut Vec<MietteDiagnostic>) 
     result
 }
 
-fn parse_string<T>(str: &str, span: Span, what: &str, diags: &mut Vec<MietteDiagnostic>) -> T
+fn parse_string<T>(
+    str: &str,
+    span: Span,
+    what: &str,
+    fallback_str: &str,
+    diags: &mut Vec<MietteDiagnostic>,
+) -> T
 where
     T: FromStr + Default,
     T::Err: ToString,
 {
-    try_parse_string(str, span, what, diags).unwrap_or_else(T::default)
+    try_parse_string(str, span, what, fallback_str, diags).unwrap_or_else(T::default)
 }
 
 fn try_parse_string<T>(
     str: &str,
     span: Span,
     what: &str,
+    fallback_str: &str,
     diags: &mut Vec<MietteDiagnostic>,
 ) -> Option<T>
 where
@@ -397,8 +420,10 @@ where
         Ok(value) => Some(value),
         Err(err) => {
             diags.push(
-                MietteDiagnostic::new(format!("Invalid or unsupported {what}"))
-                    .with_label(LabeledSpan::at(span, err.to_string())),
+                MietteDiagnostic::new(format!(
+                    "Invalid or unsupported {what}, falling back to {fallback_str}"
+                ))
+                .with_label(LabeledSpan::at(span, err.to_string())),
             );
             None
         }
@@ -418,6 +443,7 @@ mod test {
     use crate::usj::content::UsjContent;
     use crate::usj::content::{AttributesMap, NoteCaller, ParaContent};
     use crate::usj::loader::load_footnote_from_usfm;
+    use crate::usj::marker::{ContentMarker, NoteMarker};
     use pretty_assertions::assert_eq;
     use std::error::Error;
 
@@ -425,15 +451,15 @@ mod test {
     fn test_load_footnote() -> Result<(), Box<dyn Error>> {
         let usfm = "\\f +\\ft Test footnote \\nd Lord\\nd*\\f*";
         let usj = UsjContent::Note {
-            marker: "f".to_string(),
+            marker: NoteMarker::F(()),
             caller: NoteCaller::Generated,
             category: None,
             content: vec![ParaContent::Usj(UsjContent::Character {
-                marker: "ft".to_string(),
+                marker: ContentMarker::Ft(()),
                 content: vec![
                     ParaContent::Plain("Test footnote ".to_string()),
                     ParaContent::Usj(UsjContent::Character {
-                        marker: "nd".to_string(),
+                        marker: ContentMarker::Nd(()),
                         content: vec![ParaContent::Plain("Lord".to_string())],
                         attributes: AttributesMap::default(),
                     }),

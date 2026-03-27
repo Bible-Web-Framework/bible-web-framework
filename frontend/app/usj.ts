@@ -1,3 +1,4 @@
+import type { IntRange } from 'type-fest'
 import { booksData, type BooksData } from './books_data.js'
 import { excelColumnName } from './utils.js'
 
@@ -17,10 +18,10 @@ export type UsjContent =
         | 'sts'
         | 'rem'
         | 'h'
-        | `toc${number}`
-        | `toca${number}`
-        | `imt${number}`
-        | `is${number}`
+        | `toc${IntRange<1, 4>}`
+        | `toca${IntRange<1, 4>}`
+        | `imt${IntRange<1, 5>}`
+        | `is${IntRange<1, 3>}`
         | 'ip'
         | 'ipi'
         | 'im'
@@ -29,26 +30,26 @@ export type UsjContent =
         | 'imq'
         | 'ipr'
         | 'ipc'
-        | `iq${number}`
-        | `ili${number}`
+        | `iq${IntRange<1, 4>}`
+        | `ili${IntRange<1, 3>}`
         | 'ib'
         | 'iot'
-        | `io${number}`
+        | `io${IntRange<1, 5>}`
         | 'iex'
         | 'imte'
         | 'ie'
-        | `mt${number}`
-        | `mte${number}`
+        | `mt${IntRange<1, 5>}`
+        | `mte${IntRange<1, 3>}`
         | 'cl'
         | 'cd'
-        | `ms${number}`
+        | `ms${IntRange<1, 4>}`
         | 'mr'
-        | `s${number}`
+        | `s${IntRange<1, 5>}`
         | 'sr'
         | 'r'
         | 'd'
         | 'sp'
-        | `sd${number}`
+        | `sd${IntRange<1, 5>}`
         | 'p'
         | 'm'
         | 'po'
@@ -59,22 +60,22 @@ export type UsjContent =
         | 'pmo'
         | 'pmc'
         | 'pmr'
-        | `pi${number}`
+        | `pi${IntRange<1, 4>}`
         | 'mi'
         | 'lit'
         | 'nb'
         | 'b'
-        | `q${number}`
+        | `ph${IntRange<1, 4>}`
+        | `q${IntRange<1, 5>}`
         | 'qr'
         | 'qc'
         | 'qa'
-        | `qm${number}`
+        | `qm${IntRange<1, 4>}`
         | 'qd'
-        | 'b'
         | 'lh'
-        | `li${number}`
+        | `li${IntRange<1, 5>}`
         | 'lf'
-        | `lim${number}`
+        | `lim${IntRange<1, 5>}`
         | 'tr'
       content?: ParaContent[]
     }
@@ -119,12 +120,6 @@ export type UsjContent =
         | 'litl'
         | 'lik'
         | 'liv'
-        | `th${number}`
-        | `thr${number}`
-        | `thc${number}`
-        | `tc${number}`
-        | `tcr${number}`
-        | `tcc${number}`
         | 'fr'
         | 'fq'
         | 'fqa'
@@ -171,7 +166,7 @@ export type UsjContent =
     }
   | ({
       type: 'ms'
-      marker: `qt${number}` | 'ts'
+      marker: `qt${IntRange<1, 6>}${MilestoneSide}` | `ts${MilestoneSide}`
       content?: ParaContent[]
     } & AttributesMap)
   | {
@@ -193,12 +188,12 @@ export type UsjContent =
   | {
       type: 'table:cell'
       marker:
-        | `th${number}`
-        | `thr${number}`
-        | `thc${number}`
-        | `tc${number}`
-        | `tcr${number}`
-        | `tcc${number}`
+        | `th${CellRange}`
+        | `thr${CellRange}`
+        | `thc${CellRange}`
+        | `tc${CellRange}`
+        | `tcr${CellRange}`
+        | `tcc${CellRange}`
       content: ParaContent[]
       align: 'start' | 'center' | 'end'
     }
@@ -229,6 +224,10 @@ export type Book = {
 export type VerseRange = `${number}-${number}`
 
 export type AttributesMap = { [attribute: string]: string }
+
+export type MilestoneSide = '-s' | '-e'
+
+export type CellRange = number | `${number}-${number}`
 
 export function walkUsj(elements: ParaContent[], handler: (element: ParaContent) => boolean) {
   for (const element of elements) {

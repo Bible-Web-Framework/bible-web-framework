@@ -1,4 +1,5 @@
 use crate::usj::content::{ParaContent, UsjContent};
+use crate::usj::marker::ContentMarker;
 use crate::usj::{ParaIndex, TranslatedBookInfo, UsjBookInfo};
 use crate::verse_range::VerseRange;
 use serde::{Deserialize, Serialize};
@@ -39,11 +40,11 @@ impl UsjRoot {
             let [ParaContent::Plain(text)] = &content[..] else {
                 continue;
             };
-            match marker.as_str() {
-                "h" | "h1" => info.running_header = Some(Cow::Borrowed(text)),
-                "toc1" => info.long_book_name = Some(Cow::Borrowed(text)),
-                "toc2" => info.short_book_name = Some(Cow::Borrowed(text)),
-                "toc3" => info.book_abbreviation = Some(Cow::Borrowed(text)),
+            match marker {
+                ContentMarker::H(_) => info.running_header = Some(Cow::Borrowed(text)),
+                ContentMarker::Toc(1) => info.long_book_name = Some(Cow::Borrowed(text)),
+                ContentMarker::Toc(2) => info.short_book_name = Some(Cow::Borrowed(text)),
+                ContentMarker::Toc(3) => info.book_abbreviation = Some(Cow::Borrowed(text)),
                 _ => continue,
             }
             if info.is_full() {
@@ -102,7 +103,7 @@ impl UsjRoot {
                 if let UsjContent::Paragraph {
                     marker, content, ..
                 } = &x
-                    && marker == "cl"
+                    && *marker == ContentMarker::Cl(())
                     && let &[ParaContent::Plain(_)] = &content.as_slice()
                 {
                     true
@@ -239,7 +240,7 @@ impl UsjRoot {
         match &self.content[index] {
             UsjContent::Paragraph { marker, content } => UsjContent::Paragraph {
                 content: Vec::from(&content[sub_index]),
-                marker: marker.to_string(),
+                marker: *marker,
             },
             element => element.clone(),
         }

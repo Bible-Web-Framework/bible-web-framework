@@ -369,7 +369,7 @@ impl FootnoteGenerator<'_> {
                 if is_para {
                     self.end_section();
                 }
-                if !is_title_marker(marker) {
+                if !is_title_marker(*marker) {
                     self.current_path.push(0);
                     let mut i = 0;
                     while i < content.len() {
@@ -577,6 +577,7 @@ mod test {
     use crate::search::PhraseFinder;
     use crate::usj::content::ParaContent;
     use crate::usj::content::UsjContent;
+    use crate::usj::marker::ContentMarker;
     use charabia::{Language, Token, TokenizerBuilder};
     use itertools::Itertools;
     use multiset::HashMultiSet;
@@ -611,7 +612,7 @@ mod test {
     fn footnote_value(x: &str) -> FootnotesConfig {
         FootnotesConfig {
             footnote: UsjContent::Paragraph {
-                marker: "p".to_string(),
+                marker: ContentMarker::P(()),
                 content: vec![ParaContent::Plain(x.to_string())],
             },
         }

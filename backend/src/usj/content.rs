@@ -1,6 +1,7 @@
 use crate::book_data::Book;
 use crate::serde_display_and_parse;
 use crate::usj::is_title_marker;
+use crate::usj::marker::{ContentMarker, MacroEnum, MilestoneMarker, NoteMarker};
 use crate::usj::root::UsjRoot;
 use crate::utils::{parsed_string_value::ParsedStringValue, serde_as::OptionAsVec};
 use crate::verse_range::VerseRange;
@@ -8,6 +9,7 @@ use either::Either;
 use monostate::MustBe;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::num::NonZeroU8;
 
@@ -21,14 +23,14 @@ pub enum UsjContent {
 
     #[serde(rename = "para")]
     Paragraph {
-        marker: String,
+        marker: ContentMarker,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         content: Vec<ParaContent>,
     },
 
     #[serde(rename = "char")]
     Character {
-        marker: String,
+        marker: ContentMarker,
         content: Vec<ParaContent>,
         #[serde(flatten)]
         attributes: AttributesMap,
@@ -63,13 +65,13 @@ pub enum UsjContent {
 
     #[serde(rename = "ms")]
     Milestone {
-        marker: String,
+        marker: MilestoneMarker,
         #[serde(flatten)]
         attributes: AttributesMap,
     },
 
     Note {
-        marker: String,
+        marker: NoteMarker,
         content: Vec<ParaContent>,
         caller: NoteCaller,
         category: Option<String>,
@@ -87,7 +89,7 @@ pub enum UsjContent {
 
     #[serde(rename = "table:cell")]
     TableCell {
-        marker: String,
+        marker: ContentMarker,
         content: Vec<ParaContent>,
         align: TableCellAlignment,
     },
@@ -171,39 +173,47 @@ impl UsjContent {
             .expect("unwrap_root() called on a non-Root UsjContent")
     }
 
-    pub fn marker(&self) -> Option<&str> {
+    pub fn marker(&self) -> Option<Cow<'static, str>> {
         #[inline(always)]
-        const fn get_value<T: MustBe>(_: &T) -> <T as MustBe>::Type {
-            <T as MustBe>::VALUE
+        const fn get_must_be_value<T: MustBe<Type = &'static str>>(
+            _: &T,
+        ) -> Option<Cow<'static, str>> {
+            Some(Cow::Borrowed(T::VALUE))
+        }
+        #[inline(always)]
+        fn get_marker_enum_value<T: MacroEnum>(x: &T) -> Option<Cow<'static, str>> {
+            Some(x.to_cow_str())
         }
         match &self {
-            Self::Root(_) => None,
-            Self::Paragraph { marker, .. } => Some(marker),
-            Self::Character { marker, .. } => Some(marker),
-            Self::Book { marker, .. } => Some(get_value(marker)),
-            Self::Chapter { marker, .. } => Some(get_value(marker)),
-            Self::Verse { marker, .. } => Some(get_value(marker)),
-            Self::Milestone { marker, .. } => Some(marker),
-            Self::Note { marker, .. } => Some(marker),
-            Self::Table { .. } => None,
-            Self::TableRow { marker, .. } => Some(get_value(marker)),
-            Self::TableCell { marker, .. } => Some(marker),
-            Self::Sidebar { marker, .. } => Some(get_value(marker)),
-            Self::Figure { marker, .. } => Some(get_value(marker)),
-            Self::Reference { .. } => None,
-            Self::Periph { .. } => None,
-            Self::OptBreak => None,
+            Self::Book { marker, .. } => get_must_be_value(marker),
+            Self::Chapter { marker, .. } => get_must_be_value(marker),
+            Self::Verse { marker, .. } => get_must_be_value(marker),
+            Self::TableRow { marker, .. } => get_must_be_value(marker),
+            Self::Sidebar { marker, .. } => get_must_be_value(marker),
+            Self::Figure { marker, .. } => get_must_be_value(marker),
+            Self::Paragraph { marker, .. } => get_marker_enum_value(marker),
+            Self::Character { marker, .. } => get_marker_enum_value(marker),
+            Self::Milestone { marker, .. } => get_marker_enum_value(marker),
+            Self::Note { marker, .. } => get_marker_enum_value(marker),
+            Self::TableCell { marker, .. } => get_marker_enum_value(marker),
+            Self::Root(_)
+            | Self::Table { .. }
+            | Self::Reference { .. }
+            | Self::Periph { .. }
+            | Self::OptBreak => None,
         }
     }
 
-    pub fn marker_or_type(&self) -> &str {
-        self.marker().unwrap_or_else(|| match self {
-            Self::Root(_) => "USJ",
-            Self::Table { .. } => "table",
-            Self::Reference { .. } => "ref",
-            Self::Periph { .. } => "periph",
-            Self::OptBreak => "optbreak",
-            _ => unreachable!("All other variants should be handled by marker()"),
+    pub fn marker_or_type(&self) -> Cow<'static, str> {
+        self.marker().unwrap_or_else(|| {
+            Cow::Borrowed(match self {
+                Self::Root(_) => "USJ",
+                Self::Table { .. } => "table",
+                Self::Reference { .. } => "ref",
+                Self::Periph { .. } => "periph",
+                Self::OptBreak => "optbreak",
+                _ => unreachable!("All other variants should be handled by marker()"),
+            })
         })
     }
 
@@ -299,6 +309,6 @@ impl UsjContent {
     }
 
     pub fn is_title_para(&self) -> bool {
-        matches!(&self, Self::Paragraph { marker, .. } if is_title_marker(marker))
+        matches!(&self, Self::Paragraph { marker, .. } if is_title_marker(*marker))
     }
 }
