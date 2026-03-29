@@ -52,7 +52,7 @@ parking_lot = "0.12.5"
 enumset = { version = "1.1.10", features = ["serde"] }
 strum = { version = "0.28.0", features = ["derive"] }
 rangemap = { version = "1.7.1", features = ["serde"] }
-usfm3 = "0.1.7"
+usfm3 = "0.1.9"
 memory-stats = "1.2.0"
 enum-map = "2.7.3"
 tinyvec = { version = "1.11.0", features = ["serde"] }
