@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 use std::io::BufRead;
 use std::num::NonZeroU8;
 use std::str::FromStr;
-use usfm3::ast::{Attribute, Node};
+use usfm3::ast::{Attribute, Node, NodeSpans};
 use usfm3::builder::parse;
 use usfm3::diagnostics::Span;
 
@@ -88,7 +88,7 @@ struct LoadUsfmState {
     current_chapter: Option<NonZeroU8>,
 }
 
-fn usj_from_usfm(node: Node, state: &mut LoadUsfmState) -> (UsjContent, Option<Span>) {
+fn usj_from_usfm(node: Node, state: &mut LoadUsfmState) -> (UsjContent, Option<NodeSpans>) {
     match para_from_usfm(node, state) {
         (ParaContent::Usj(usj), span) => (usj, span),
         (ParaContent::Plain(text), span) => {
@@ -106,13 +106,13 @@ fn usj_from_usfm(node: Node, state: &mut LoadUsfmState) -> (UsjContent, Option<S
     }
 }
 
-fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option<Span>) {
+fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option<NodeSpans>) {
     match node {
         Node::Book {
             marker: _,
             code,
             content,
-            span,
+            spans,
         } => {
             #[expect(clippy::question_mark)]
             const PROPER_BOOK_REGEX: ere::Regex = ere::compile_regex!("^[A-Z0-9][A-Z][A-Z]$");
@@ -120,22 +120,31 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
                 state.diags.push(
                     MietteDiagnostic::new("Non-standard USFM book code")
                         .with_severity(Severity::Warning)
-                        .with_label(LabeledSpan::at(span.clone(), "Should be ASCII")),
+                        .with_label(LabeledSpan::at(
+                            spans.code.clone().unwrap(),
+                            "Should be ASCII",
+                        )),
                 );
             } else if !PROPER_BOOK_REGEX.test(&code) {
                 state.diags.push(
                     MietteDiagnostic::new("Non-standard USFM book code")
                         .with_severity(Severity::Warning)
                         .with_label(LabeledSpan::at(
-                            span.clone(),
+                            spans.code.clone().unwrap(),
                             format!(
                                 "Should be 3-characters uppercase ({})",
-                                &code.to_ascii_uppercase()[..3]
+                                &code.to_ascii_uppercase()[..3],
                             ),
                         )),
                 );
             }
-            let parsed_book = parse_string(&code, span.clone(), "book code", "Genesis", state);
+            let parsed_book = parse_string(
+                &code,
+                spans.code.clone().unwrap(),
+                "book code",
+                "Genesis",
+                state,
+            );
             state.current_book = Some(parsed_book);
             (
                 ParaContent::Usj(UsjContent::Book {
@@ -143,7 +152,7 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
                     code: parsed_book,
                     content: option_string_from_usfm(content, state),
                 }),
-                Some(span),
+                Some(spans),
             )
         }
         Node::Chapter {
@@ -152,15 +161,19 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
             sid: _,
             altnumber,
             pubnumber,
-            span,
+            spans,
         } => {
-            let parsed_number =
-                try_parse_string(&number, span.clone(), "chapter number", "1", state).unwrap_or(
-                    ParsedStringValue {
-                        value: nz_u8!(1),
-                        string: number,
-                    },
-                );
+            let parsed_number = try_parse_string(
+                &number,
+                spans.number.clone().unwrap_or(spans.node.clone()),
+                "chapter number",
+                "1",
+                state,
+            )
+            .unwrap_or(ParsedStringValue {
+                value: nz_u8!(1),
+                string: number,
+            });
             let chapter_number = parsed_number.value;
             state.current_chapter = Some(chapter_number);
             (
@@ -175,7 +188,7 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
                         verse: None,
                     },
                 }),
-                Some(span),
+                Some(spans),
             )
         }
         Node::Verse {
@@ -184,13 +197,19 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
             sid: _,
             altnumber,
             pubnumber,
-            span,
+            spans,
         } => {
-            let parsed_number = try_parse_string(&number, span.clone(), "verse number", "1", state)
-                .unwrap_or(ParsedStringValue {
-                    value: const { VerseRange::new_single_verse(nz_u8!(1)) },
-                    string: number,
-                });
+            let parsed_number = try_parse_string(
+                &number,
+                spans.number.clone().unwrap_or(spans.node.clone()),
+                "verse number",
+                "1",
+                state,
+            )
+            .unwrap_or(ParsedStringValue {
+                value: const { VerseRange::new_single_verse(nz_u8!(1)) },
+                string: number,
+            });
             let verse_range = parsed_number.value;
             (
                 ParaContent::Usj(UsjContent::Verse {
@@ -204,60 +223,72 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
                         verse: Some(verse_range),
                     },
                 }),
-                Some(span),
+                Some(spans),
             )
         }
         Node::Para {
             marker,
             content,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Paragraph {
-                marker: try_parse_string(&marker, span.clone(), "paragraph marker", "\\p", state)
-                    .unwrap_or(ContentMarker::P(())),
+                marker: try_parse_string(
+                    &marker,
+                    spans.node.clone(),
+                    "paragraph marker",
+                    "\\p",
+                    state,
+                )
+                .unwrap_or(ContentMarker::P(())),
                 content: paras_from_usfm(content, state),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Char {
             marker,
             content,
             attributes,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Character {
-                marker: try_parse_string(&marker, span.clone(), "character marker", "\\no", state)
-                    .unwrap_or(ContentMarker::No(())),
+                marker: try_parse_string(
+                    &marker,
+                    spans.node.clone(),
+                    "character marker",
+                    "\\no",
+                    state,
+                )
+                .unwrap_or(ContentMarker::No(())),
                 content: paras_from_usfm(content, state),
                 attributes: parse_attributes(attributes),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Note {
             marker,
             caller,
             category,
             content,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Note {
-                marker: try_parse_string(&marker, span.clone(), "note marker", "\\f", state)
+                marker: try_parse_string(&marker, spans.node.clone(), "note marker", "\\f", state)
                     .unwrap_or(NoteMarker::F(())),
                 content: paras_from_usfm(content, state),
-                caller: parse_string(&caller, span.clone(), "note caller", "+", state),
+                caller: parse_string(&caller, spans.node.clone(), "note caller", "+", state),
                 category,
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Milestone {
             marker,
             attributes,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Milestone {
                 marker: try_parse_string(
                     &marker,
-                    span.clone(),
+                    spans.node.clone(),
                     "milestone marker",
                     "\\qt1-s",
                     state,
@@ -265,110 +296,116 @@ fn para_from_usfm(node: Node, state: &mut LoadUsfmState) -> (ParaContent, Option
                 .unwrap_or(MilestoneMarker::Qt((MilestoneSide::Start, 1))),
                 attributes: parse_attributes(attributes),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Figure {
             marker: _,
             content,
             attributes,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Figure {
                 marker: MustBeStr,
                 content: option_string_from_usfm(content, state),
                 attributes: parse_attributes(attributes),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Sidebar {
             marker: _,
             category,
             content,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Sidebar {
                 marker: MustBeStr,
                 content: usjs_from_usfm(content, state),
                 category,
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Periph {
             alt,
             content,
             attributes,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Periph {
                 alt: alt.unwrap_or_else(|| {
                     state.diags.push(
                         MietteDiagnostic::new("Missing periph title")
-                            .with_label(LabeledSpan::new_with_span(None, span.clone())),
+                            .with_label(LabeledSpan::new_with_span(None, spans.node.clone())),
                     );
                     "".to_string()
                 }),
                 content: usjs_from_usfm(content, state),
                 attributes: parse_attributes(attributes),
             }),
-            Some(span),
+            Some(spans),
         ),
-        Node::Table { content, span } => (
+        Node::Table { content, spans } => (
             ParaContent::Usj(UsjContent::Table {
                 content: usjs_from_usfm(content, state),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::TableRow {
             marker: _,
             content,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::TableRow {
                 marker: MustBeStr,
                 content: usjs_from_usfm(content, state),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::TableCell {
             marker,
             align,
             content,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::TableCell {
                 marker: try_parse_string(
                     &marker,
-                    span.clone(),
+                    spans.node.clone(),
                     "table cell marker",
                     "\\tc1",
                     state,
                 )
                 .unwrap_or(ContentMarker::Tc((1, 1))),
                 content: paras_from_usfm(content, state),
-                align: parse_string(&align, span.clone(), "table cell alignment", "start", state),
+                align: parse_string(
+                    &align,
+                    spans.node.clone(),
+                    "table cell alignment",
+                    "start",
+                    state,
+                ),
             }),
-            Some(span),
+            Some(spans),
         ),
         Node::Ref {
             content,
             attributes,
-            span,
+            spans,
         } => (
             ParaContent::Usj(UsjContent::Reference {
                 content: option_string_from_usfm(content, state),
                 attributes: parse_attributes(attributes),
             }),
-            Some(span),
+            Some(spans),
         ),
-        Node::Unknown { marker, span, .. } => {
+        Node::Unknown { marker, spans, .. } => {
             if marker.starts_with('z') {
                 state.diags.push(
                     MietteDiagnostic::new("Custom markers are not supported, and are removed")
                         .with_severity(Severity::Error)
-                        .with_label(LabeledSpan::new_with_span(None, span.clone())),
+                        .with_label(LabeledSpan::new_with_span(None, spans.node.clone())),
                 );
             }
-            (ParaContent::Plain("".to_string()), Some(span))
+            (ParaContent::Plain("".to_string()), Some(spans))
         }
         Node::OptBreak => (ParaContent::Usj(UsjContent::OptBreak), None),
         Node::Text(text) => (ParaContent::Plain(text), None),
@@ -394,36 +431,40 @@ fn usjs_from_usfm(nodes: Vec<Node>, state: &mut LoadUsfmState) -> Vec<UsjContent
 }
 
 fn option_string_from_usfm(nodes: Vec<Node>, state: &mut LoadUsfmState) -> Option<String> {
+    fn combine_spans(a: Span, b: Option<Span>) -> Span {
+        if let Some(b) = b { a.start..b.end } else { a }
+    }
     let mut paras = nodes
         .into_iter()
         .map(|node| para_from_usfm(node, state))
         .collect::<SmallVec<[_; 1]>>()
         .into_iter();
-    let (para, span) = paras.next()?;
-    let result = match para {
-        ParaContent::Usj(_) if span.is_some() => {
+    let (para, spans) = paras.next()?;
+    let result = match (para, spans) {
+        (ParaContent::Usj(_), Some(spans)) => {
             state.diags.push(
-                MietteDiagnostic::new("Unexpected non-string content")
-                    .with_label(LabeledSpan::new_with_span(None, span.unwrap())),
+                MietteDiagnostic::new("Unexpected non-string content").with_label(
+                    LabeledSpan::new_with_span(None, combine_spans(spans.node, spans.close)),
+                ),
             );
             None
         }
-        ParaContent::Usj(_) => {
+        (ParaContent::Usj(_), None) => {
             state
                 .diags
                 .push(MietteDiagnostic::new("Unexpected non-string content"));
             None
         }
-        ParaContent::Plain(text) => Some(text),
+        (ParaContent::Plain(text), _) => Some(text),
     };
     let mut spans = paras.peekable();
     if spans.peek().is_some() {
         state.diags.push(
             MietteDiagnostic::new("Unexpected trailing data")
                 .with_severity(Severity::Warning)
-                .and_labels(
-                    spans.filter_map(|(_, span)| span.map(|s| LabeledSpan::new_with_span(None, s))),
-                ),
+                .and_labels(spans.filter_map(|(_, spans)| {
+                    spans.map(|s| LabeledSpan::new_with_span(None, combine_spans(s.node, s.close)))
+                })),
         )
     }
     result
