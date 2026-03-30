@@ -46,19 +46,42 @@ p.cl {
   font-weight: bold;
   font-size: 150%;
   text-align: center;
-  margin-block-start: 4pt;
-  margin-block-end: 8pt;
+  margin-block-start: 8pt;
+  margin-block-end: 4pt;
 }
 
 p.ms {
   font-weight: bold;
   font-size: 116%;
   text-align: center;
-  margin-block-start: 4pt;
-  margin-block-end: 16pt;
+  margin-block-start: 16pt;
+  margin-block-end: 4pt;
 }
 
 .ms[data-usj-indent='3'] {
+  font-style: italic;
+}
+
+.s[data-usj-indent='1'],
+.s[data-usj-indent='2'] {
+  text-align: center;
+  margin-block-start: 8pt;
+  margin-block-end: 4pt;
+}
+
+.s[data-usj-indent='3'],
+.s[data-usj-indent='4'] {
+  margin-block-start: 6pt;
+  margin-block-end: 3pt;
+}
+
+.s[data-usj-indent='1'] {
+  font-weight: bold;
+}
+
+.s[data-usj-indent='2'],
+.s[data-usj-indent='3'],
+.s[data-usj-indent='4'] {
   font-style: italic;
 }
 

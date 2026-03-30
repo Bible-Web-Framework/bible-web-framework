@@ -135,7 +135,7 @@ UnimplementedMarker.props = {
         />
       </p>
       <p
-        v-else-if="/^([pm]i[1-3]?|q[1-4]?|qm[1-3]?|li[1-4]?|ms[1-3]?)$/.test(content.marker)"
+        v-else-if="/^([pm]i[1-3]|q[1-4]|qm[1-3]|li[1-4]|ms[1-3]|s[1-4])$/.test(content.marker)"
         :dir="textDirection"
         :class="{
           'usj-content': true,
