@@ -2,12 +2,13 @@
 import arrayEqual from 'array-equal'
 import type { FunctionalComponent } from 'vue'
 import type { LocationQueryRaw } from 'vue-router'
-import type { HighlightsArray } from '~/bwfApi'
+import type { HighlightsArray, TextDirection } from '~/bwfApi'
 import { MACHINE_REFERENCE_REGEX, type ParaContent } from '~/usj'
 
 const props = withDefaults(
   defineProps<{
     contents: ParaContent[]
+    textDirection: TextDirection
     highlights?: HighlightsArray
     ignoredContentTypes?: string[]
     generateSearchQuery?: (q: string, normalize: boolean) => LocationQueryRaw
@@ -80,11 +81,12 @@ UnimplementedMarker.props = {
     />
     <template v-else-if="ignoredContentTypes.includes(content.type)"></template>
     <!-- TODO: Support \ca and \va when https://github.com/jcuenod/usfm3/issues/2 is fixed -->
-    <span v-else-if="content.type === 'chapter'" class="usj-content c">{{
+    <span v-else-if="content.type === 'chapter'" :dir="textDirection" class="usj-content c">{{
       content.pubnumber ?? content.number
     }}</span>
     <span
       v-else-if="content.type === 'verse'"
+      :dir="textDirection"
       class="usj-content v"
       :data-verse-1="(content.pubnumber ?? content.number) === '1' ? true : undefined"
       >{{ content.pubnumber ?? content.number }}</span
@@ -114,6 +116,7 @@ UnimplementedMarker.props = {
             'qd',
           ].includes(content.marker)
         "
+        :dir="textDirection"
         :class="{
           'usj-content': true,
           [content.marker]: true,
@@ -124,6 +127,7 @@ UnimplementedMarker.props = {
         <UsjContentsRenderer
           v-if="content.content"
           :contents="content.content"
+          :text-direction="textDirection"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
@@ -132,6 +136,7 @@ UnimplementedMarker.props = {
       </p>
       <p
         v-else-if="/^([pm]i[1-3]?|q[1-4]?|qm[1-3]?|li[1-4]?|ms[1-3]?)$/.test(content.marker)"
+        :dir="textDirection"
         :class="{
           'usj-content': true,
           [content.marker.replace(/\d/g, '')]: true,
@@ -143,6 +148,7 @@ UnimplementedMarker.props = {
         <UsjContentsRenderer
           v-if="content.content"
           :contents="content.content"
+          :text-direction="textDirection"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
@@ -151,6 +157,7 @@ UnimplementedMarker.props = {
       </p>
       <br
         v-else-if="['nb', 'b'].includes(content.marker)"
+        :dir="textDirection"
         :class="['usj-content', content.marker]"
       />
       <UnimplementedMarker v-else :marker="content.marker" />
@@ -181,6 +188,7 @@ UnimplementedMarker.props = {
       >
         <UsjContentsRenderer
           :contents="content.content"
+          :text-direction="textDirection"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
@@ -199,6 +207,7 @@ UnimplementedMarker.props = {
         class="usj-content jmp"
         ><UsjContentsRenderer
           :contents="content.content"
+          :text-direction="textDirection"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
@@ -207,6 +216,7 @@ UnimplementedMarker.props = {
       <ruby v-else-if="content.marker === 'rb'" class="usj-content rb"
         ><UsjContentsRenderer
           :contents="content.content"
+          :text-direction="textDirection"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"
@@ -218,6 +228,7 @@ UnimplementedMarker.props = {
       <div v-else-if="content.marker === 'qs'" class="usj-content qs">
         <UsjContentsRenderer
           :contents="content.content"
+          :text-direction="textDirection"
           :highlights="highlights"
           :ignored-content-types="ignoredContentTypes"
           :generate-search-query="generateSearchQuery"

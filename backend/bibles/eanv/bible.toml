@@ -4,6 +4,9 @@
 # If unspecified, the display name will default to the ID in all-caps.
 display_name = "EANV"
 
+# Text direction to use in frontend rendering. If unspecified, it will default to "auto".
+text_direction = "ltr"
+
 # The order in which books should be presented. If two books are next to each other in this array, they are considered
 # to be in that order. You can include an empty string to indicate a break between books. Any book not included in this
 # array is considered to be isolated and have no neighbors. The default order matches the official order of USFM books

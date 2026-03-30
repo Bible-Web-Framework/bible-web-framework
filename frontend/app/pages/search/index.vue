@@ -37,6 +37,7 @@ const { data: booksData } = await useFetch<ApiV1['bible']['books']>(
     baseURL: config.public.apiRootUrl,
   },
 )
+const bibleInfo = computed(() => biblesData.value?.bibles?.[bible.value])
 
 const query = computed(() => (route.query.q || '').toString())
 const page = computed({
@@ -249,6 +250,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         ),
         h(UsjContentsRenderer, {
           contents: element.content,
+          textDirection: bibleTextDirection.value,
           ignoredContentTypes: ['note'],
           generateSearchQuery: newQueryParamsForSearch,
         }),
@@ -294,6 +296,7 @@ async function checkForUnimplementedMarkers() {
       const rendered = mount(UsjContentsRenderer, {
         props: {
           contents,
+          textDirection: bibleTextDirection.value,
         },
       })
       const missing = rendered.findAllComponents({
@@ -347,6 +350,8 @@ async function checkForUnimplementedMarkers() {
     alert('No unimplemented markers found!')
   }
 }
+
+const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'auto')
 </script>
 
 <template>
@@ -371,11 +376,17 @@ async function checkForUnimplementedMarkers() {
       <input
         v-model="newQuery"
         placeholder="Enter search term"
+        :dir="bibleTextDirection"
         class="search-box"
         @keyup.enter="search"
       />
       <button @click="search">Search</button>
-      <select v-model="newBook" class="book-box" @change="newChapter = null">
+      <select
+        v-model="newBook"
+        :dir="bibleTextDirection"
+        class="book-box"
+        @change="newChapter = null"
+      >
         <option :value="null">----</option>
         <template v-if="booksData">
           <!-- TODO: Make the order here match the book_order field -->
@@ -437,6 +448,7 @@ async function checkForUnimplementedMarkers() {
                   isFullChapter(reference.reference) &&
                   (reference.previous_chapter || reference.next_chapter)
                 "
+                :dir="bibleTextDirection"
                 class="sided-nav"
               >
                 <NuxtLink
@@ -459,6 +471,7 @@ async function checkForUnimplementedMarkers() {
               <div class="usj-container">
                 <UsjContentsRenderer
                   :contents="reference.content"
+                  :text-direction="bibleTextDirection"
                   :generate-search-query="newQueryParamsForSearch"
                 />
               </div>
@@ -516,6 +529,7 @@ async function checkForUnimplementedMarkers() {
               <td v-if="reference.content" class="usj-container">
                 <UsjContentsRenderer
                   :contents="reference.content"
+                  :text-direction="bibleTextDirection"
                   :highlights="reference.highlights"
                   :ignored-content-types="['note', 'chapter', 'verse']"
                 />

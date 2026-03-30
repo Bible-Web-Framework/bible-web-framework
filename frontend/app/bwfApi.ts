@@ -26,6 +26,10 @@ export type ApiV1 = {
    */
   bible: {
     /**
+     * `/info`
+     */
+    info: BibleInfoResponse
+    /**
      * `/book/{book}`
      */
     book: BibleBookResponse
@@ -49,11 +53,6 @@ export type BiblesResponse = {
   bibles: Record<string, BibleInfo>
 }
 
-export type BibleInfo = {
-  display_name: string | null
-  simple_book_names: Record<Book, string>
-}
-
 export type ShortCreateResponse = {
   type: 'id' | 'encoded'
   value: string
@@ -61,12 +60,29 @@ export type ShortCreateResponse = {
 
 export type ShortResolveResponse = BibleReference[]
 
+export type BibleInfoResponse = BibleInfo
+
 export type BibleBookResponse = UsjRoot
 
 export type BibleBooksResponse = {
   books: Record<Book, BibleBookInfo>
   book_order: (Book | '')[]
 }
+
+export type BibleSearchResponse = {
+  response_type: 'search_results' | 'scripture_passages'
+  search_term: string
+  total_results: number
+  references: SearchResponseResult[]
+}
+
+export type BibleInfo = {
+  display_name: string | null
+  text_direction: TextDirection
+  simple_book_names: Record<Book, string>
+}
+
+export type TextDirection = 'auto' | 'ltr' | 'rtl'
 
 export type BibleBookInfo = {
   translated_book_info: TranslatedBookInfo
@@ -77,13 +93,6 @@ export type BibleBookChapterInfo = {
   number: string
   alt_number?: string
   pub_number?: string
-}
-
-export type BibleSearchResponse = {
-  response_type: 'search_results' | 'scripture_passages'
-  search_term: string
-  total_results: number
-  references: SearchResponseResult[]
 }
 
 export type SearchResponseResult = ReferenceContent | InvalidReference

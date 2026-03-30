@@ -27,6 +27,7 @@ use notify_debouncer_full::notify::event::{
 use parking_lot::RwLock;
 use rangemap::RangeInclusiveMap;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet, LinkedList};
@@ -67,10 +68,22 @@ pub struct BibleData {
 #[derive(Debug, Default)]
 pub struct BibleConfig {
     pub display_name: Option<String>,
+    pub text_direction: TextDirection,
     pub book_order: EnumOrderMap<Book>,
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
     pub footnotes: FootnotesTree,
+}
+
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
+pub enum TextDirection {
+    #[serde(rename = "auto")]
+    #[default]
+    Auto,
+    #[serde(rename = "ltr")]
+    LeftToRight,
+    #[serde(rename = "rtl")]
+    RightToLeft,
 }
 
 #[derive(Debug, Default)]
@@ -845,6 +858,7 @@ pub enum BibleDataError {
 pub type ConfigResult<T> = Result<T, BibleDataError>;
 
 mod unresolved {
+    use crate::bible_data::TextDirection;
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::content::UsjContent;
@@ -868,6 +882,8 @@ mod unresolved {
     pub struct BibleConfig {
         #[serde(default)]
         display_name: Option<String>,
+        #[serde(default)]
+        text_direction: TextDirection,
         #[serde_as(as = "EnumOrderMapAs<NoneAsEmptyString>")]
         #[serde(default)]
         book_order: EnumOrderMap<Book>,
@@ -952,6 +968,7 @@ mod unresolved {
 
             super::BibleConfig {
                 display_name: val.display_name,
+                text_direction: val.text_direction,
                 book_order: val.book_order,
                 book_aliases,
                 footnotes: val

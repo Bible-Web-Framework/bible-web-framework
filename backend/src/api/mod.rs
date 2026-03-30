@@ -1,5 +1,5 @@
 mod book;
-mod general;
+mod info;
 mod search;
 mod short_url;
 
@@ -79,7 +79,7 @@ pub async fn route_not_found(req: HttpRequest) -> ApiResult<()> {
 pub fn scope() -> Scope {
     web::scope("/v1")
         .app_data(QueryConfig::default().error_handler(|e, _| ApiError::from(e).into()))
-        .service(general::bibles)
+        .service(info::all_bibles)
         .service(
             web::scope("/short")
                 .service(short_url::create)
@@ -87,6 +87,7 @@ pub fn scope() -> Scope {
         )
         .service(
             web::scope("/bible/{bible}")
+                .service(info::bible_info)
                 .service(book::book)
                 .service(book::books)
                 .service(search::search)
