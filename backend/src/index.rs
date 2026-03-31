@@ -2,6 +2,7 @@ use crate::bible_data::BookData;
 use crate::book_data::Book;
 use crate::reference::BookReference;
 use crate::usj::content::ParaContent;
+use crate::usj::marker::ContentMarker;
 use crate::usj::root::UsjRoot;
 use crate::usj::{ParaIndex, content::UsjContent};
 use crate::verse_range::VerseRange;
@@ -11,8 +12,10 @@ use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, LinkedList};
+use std::mem;
 use std::num::NonZeroU8;
 use std::ops::{Range, SubAssign};
 use std::time::Instant;
@@ -248,12 +251,39 @@ impl BookIndexer {
             UsjContent::Paragraph { content, .. } | UsjContent::Character { content, .. }
                 if !usj.is_title_para() && self.current_chapter.is_some() =>
             {
+                let start_idx = self.current_text.len();
                 self.for_with_path(content, |this, child| match child {
                     ParaContent::Usj(usj) => this.index_usj(usj, tokenizer),
                     ParaContent::Plain(text) => this.push_text(text),
                 });
-                if matches!(usj, UsjContent::Paragraph { .. }) {
-                    self.flush_text(tokenizer);
+                match usj {
+                    UsjContent::Paragraph { .. } => self.flush_text(tokenizer),
+                    UsjContent::Character {
+                        marker: ContentMarker::W(()),
+                        attributes,
+                        ..
+                    } => {
+                        if self.current_verses.is_some()
+                            && let Some(lemma) = attributes.get("lemma")
+                        {
+                            let start_char = self.current_text[..start_idx].chars().count();
+                            let end_char =
+                                start_char + self.current_text[start_idx..].chars().count();
+                            let reference = self.unwrap_current_reference();
+                            for token in tokenizer.tokenize(lemma) {
+                                if !token.is_word() {
+                                    continue;
+                                }
+                                self.insert_lemma(
+                                    token.lemma,
+                                    &lemma[token.byte_start..token.byte_end],
+                                    start_char..end_char,
+                                    reference,
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
 
@@ -296,26 +326,46 @@ impl BookIndexer {
             return;
         }
         // unwrap() is safe because current_text cannot be non-empty while either is None
-        let reference = BookReference {
-            chapter: self.current_chapter.unwrap(),
-            verses: self.current_verses.unwrap(),
-        };
-        for token in tokenizer.tokenize(&self.current_text) {
+        let reference = self.unwrap_current_reference();
+        let mut text = mem::take(&mut self.current_text);
+        for token in tokenizer.tokenize(&text) {
             if !token.is_word() {
                 continue;
             }
-            let name = Some(&self.current_text[token.byte_start..token.byte_end])
-                .filter(|x| *x != token.lemma() && !x.nfd().eq(token.lemma().chars()));
-            let range = self.get_text_location(token.char_start, false)
-                ..self.get_text_location(token.char_end, true);
-            let (name_result, result) = self.results.entry(token.lemma.into_owned()).or_default();
-            if let Some(name) = name {
-                name_result.get_or_insert_with(|| name.to_string().into_boxed_str());
-            }
-            result.push((reference, range));
+            self.insert_lemma(
+                token.lemma,
+                &text[token.byte_start..token.byte_end],
+                token.char_start..token.char_end,
+                reference,
+            );
         }
-        self.current_text.clear();
+        text.clear();
+        self.current_text = text;
         self.current_paths.clear();
+    }
+
+    fn unwrap_current_reference(&self) -> BookReference {
+        BookReference {
+            chapter: self.current_chapter.unwrap(),
+            verses: self.current_verses.unwrap(),
+        }
+    }
+
+    fn insert_lemma(
+        &mut self,
+        lemma: Cow<'_, str>,
+        name: &str,
+        char_range: Range<usize>,
+        reference: BookReference,
+    ) {
+        let has_name = name != lemma && !name.nfd().eq(lemma.chars());
+        let range = self.get_text_location(char_range.start, false)
+            ..self.get_text_location(char_range.end, true);
+        let (name_result, result) = self.results.entry(lemma.into_owned()).or_default();
+        if has_name {
+            name_result.get_or_insert_with(|| name.to_string().into_boxed_str());
+        }
+        result.push((reference, range));
     }
 
     fn get_text_location(&self, char_idx: usize, is_end: bool) -> TextLocation {

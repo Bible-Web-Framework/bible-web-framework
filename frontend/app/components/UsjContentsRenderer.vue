@@ -178,7 +178,7 @@ UnimplementedMarker.props = {
             'png',
             'qt',
             'rq',
-            // TODO: Implement ref, sig, sls, tl, w, wa, wg, and wh
+            'w',
             'wj',
             'fr',
             'ft',
