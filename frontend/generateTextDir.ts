@@ -1,12 +1,12 @@
 import fs from 'fs'
 import regenerate from 'regenerate'
-import Left_To_Right from '@unicode/unicode-16.0.0/Bidi_Class/Left_To_Right/code-points.js'
-import Left_To_Right_Embedding from '@unicode/unicode-16.0.0/Bidi_Class/Left_To_Right_Embedding/code-points.js'
-import Left_To_Right_Override from '@unicode/unicode-16.0.0/Bidi_Class/Left_To_Right_Override/code-points.js'
-import Right_To_Left from '@unicode/unicode-16.0.0/Bidi_Class/Right_To_Left/code-points.js'
-import Arabic_Letter from '@unicode/unicode-16.0.0/Bidi_Class/Arabic_Letter/code-points.js'
-import Right_To_Left_Embedding from '@unicode/unicode-16.0.0/Bidi_Class/Right_To_Left_Embedding/code-points.js'
-import Right_To_Left_Override from '@unicode/unicode-16.0.0/Bidi_Class/Right_To_Left_Override/code-points.js'
+import Left_To_Right from '@unicode/unicode-17.0.0/Bidi_Class/Left_To_Right/code-points.js'
+import Left_To_Right_Embedding from '@unicode/unicode-17.0.0/Bidi_Class/Left_To_Right_Embedding/code-points.js'
+import Left_To_Right_Override from '@unicode/unicode-17.0.0/Bidi_Class/Left_To_Right_Override/code-points.js'
+import Right_To_Left from '@unicode/unicode-17.0.0/Bidi_Class/Right_To_Left/code-points.js'
+import Arabic_Letter from '@unicode/unicode-17.0.0/Bidi_Class/Arabic_Letter/code-points.js'
+import Right_To_Left_Embedding from '@unicode/unicode-17.0.0/Bidi_Class/Right_To_Left_Embedding/code-points.js'
+import Right_To_Left_Override from '@unicode/unicode-17.0.0/Bidi_Class/Right_To_Left_Override/code-points.js'
 
 const ltrRegex = regenerate()
   .add(Left_To_Right)

@@ -47,7 +47,7 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
-      '@unicode/unicode-16.0.0':
+      '@unicode/unicode-17.0.0':
         specifier: ^1.6.16
         version: 1.6.16
       '@vue/test-utils':
@@ -1991,8 +1991,8 @@ packages:
     peerDependencies:
       vue: '>=3.5.18'
 
-  '@unicode/unicode-16.0.0@1.6.16':
-    resolution: {integrity: sha512-R2Vxi0XEsCMD9WOQT85O2npa7g+i4RsJ8Xtn+/KODLqa5wH5zCTn5an6JILJhMSfFGD3t3amES2XnvUHnKjMZQ==}
+  '@unicode/unicode-17.0.0@1.6.16':
+    resolution: {integrity: sha512-advq5p36zZ+PDRUpDkWcHHR++R19kx0LYB5iG3bj0KB8mYVKg0ywS996e2bXeXxDb8XdOF7KTivcx7VkYie1pg==}
 
   '@unrs/resolver-binding-android-arm-eabi@1.11.1':
     resolution: {integrity: sha512-ppLRUgHVaGRWUx0R0Ut06Mjo9gBaBkg3v/8AxusGLhsIotbBLuRk51rAzqLC8gq6NyyAojEXglNjzf6R948DNw==}
@@ -6481,7 +6481,7 @@ snapshots:
       unhead: 2.1.12
       vue: 3.5.31(typescript@6.0.2)
 
-  '@unicode/unicode-16.0.0@1.6.16': {}
+  '@unicode/unicode-17.0.0@1.6.16': {}
 
   '@unrs/resolver-binding-android-arm-eabi@1.11.1':
     optional: true
