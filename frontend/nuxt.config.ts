@@ -10,14 +10,18 @@ export default defineNuxtConfig({
   },
   i18n: {
     strategy: 'no_prefix',
-    defaultLocale: 'en',
     experimental: {
       typedOptionsAndMessages: 'default',
     },
     baseUrl: process.env.NUXT_BASE_URL,
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'lang',
+      fallbackLocale: 'en',
+    },
     locales: [
-      { code: 'en', language: 'en-US', name: 'English', dir: 'ltr', file: 'en.json' },
-      { code: 'ur', language: 'ur-IN', name: 'اُردوٗ', dir: 'rtl', file: 'ur.json' },
+      { code: 'en', language: 'en', name: 'English', dir: 'ltr', file: 'en.json' },
+      { code: 'ur-arab', language: 'ur-Arab', name: 'اُردوٗ', dir: 'rtl', file: 'ur-arab.json' },
     ],
   },
   vite: {

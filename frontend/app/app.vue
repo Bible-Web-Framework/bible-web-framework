@@ -1,8 +1,13 @@
 <script setup lang="ts">
-const { locales, locale } = useI18n()
+const { locales, locale, setLocale } = useI18n()
 const head = useLocaleHead({
   dir: true,
   seo: false,
+})
+
+const localeModel = computed({
+  get: () => locale.value,
+  set: (locale) => setLocale(locale),
 })
 </script>
 
@@ -13,7 +18,7 @@ const head = useLocaleHead({
       <nav style="display: flex; gap: 10px">
         <NuxtLink to="/">{{ $t('page.home') }}</NuxtLink>
         <NuxtLink to="/search">{{ $t('page.search') }}</NuxtLink>
-        <select v-model="locale">
+        <select v-model="localeModel">
           <option
             v-for="localeOption in locales"
             :key="localeOption.code"
