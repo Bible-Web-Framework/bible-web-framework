@@ -35,3 +35,11 @@
   display: flex;
   justify-content: space-between;
 }
+
+.search-table {
+  border-collapse: collapse;
+
+  > tr:not(:last-child) {
+    border-bottom: 2px solid gray;
+  }
+}

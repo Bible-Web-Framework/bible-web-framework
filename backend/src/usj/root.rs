@@ -74,7 +74,14 @@ impl UsjRoot {
             }
         };
         let end = self
-            .find_verse_start_para(verse_range.last().saturating_add(1), start)
+            .find_verse_start_para(
+                verse_range.last().saturating_add(1),
+                if start == chapter_start {
+                    self.next_para_index(start)?
+                } else {
+                    start
+                },
+            )
             .and_then(|(index, range)| {
                 Some(if range.first_u8() == verse_range.last_u8() + 1 {
                     index

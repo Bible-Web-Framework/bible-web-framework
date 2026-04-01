@@ -229,6 +229,8 @@ export type MilestoneSide = '-s' | '-e'
 
 export type CellRange = number | `${number}-${number}`
 
+export type ContentMarker = (UsjContent & { type: 'para' | 'char' })['marker']
+
 export function walkUsj(elements: ParaContent[], handler: (element: ParaContent) => boolean) {
   for (const element of elements) {
     if (!handler(element)) continue
@@ -259,6 +261,14 @@ export function normalizeNoteCallers(elements: ParaContent[], startId: number = 
     return true
   })
   return startId
+}
+
+export function isTitlePara(content: UsjContent) {
+  return content.type === 'para' && isTitleMarker(content.marker)
+}
+
+export function isTitleMarker(marker: ContentMarker) {
+  return /^(mt[1-4]|mte[1-2]|ms[1-3]|mr|s[1-4]|sr|r|d|sp|sd[1-4])$/.test(marker)
 }
 
 export const bookVerseCounts: Record<Book, number[]> = Object.fromEntries(

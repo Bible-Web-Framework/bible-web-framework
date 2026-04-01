@@ -10,6 +10,7 @@ import {
 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import {
+  isTitlePara,
   MACHINE_REFERENCE_REGEX,
   normalizeNoteCallers,
   walkUsj,
@@ -267,6 +268,13 @@ NotesRenderer.props = {
   },
 }
 
+function ignoreSearchContent(content: UsjContent) {
+  if (['note', 'chapter', 'verse'].includes(content.type)) {
+    return true
+  }
+  return isTitlePara(content)
+}
+
 const scannedBooks = ref<number>()
 const totalBooks = computed(() => {
   if (!booksData.value) {
@@ -512,7 +520,7 @@ const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'au
         <h2>
           {{ searchResults.total_results }} results found for '{{ searchResults.search_term }}':
         </h2>
-        <table>
+        <table class="search-table">
           <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
             <td v-if="'invalid_reference' in reference" class="error" colspan="2">
               {{ reference.details }}
@@ -531,7 +539,7 @@ const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'au
                   :contents="reference.content"
                   :text-direction="bibleTextDirection"
                   :highlights="reference.highlights"
-                  :ignored-content-types="['note', 'chapter', 'verse']"
+                  :ignore-content="ignoreSearchContent"
                 />
               </td>
             </template>

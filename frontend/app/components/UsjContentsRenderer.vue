@@ -3,20 +3,20 @@ import arrayEqual from 'array-equal'
 import type { FunctionalComponent } from 'vue'
 import type { LocationQueryRaw } from 'vue-router'
 import type { HighlightsArray, TextDirection } from '~/bwfApi'
-import { MACHINE_REFERENCE_REGEX, type ParaContent } from '~/usj'
+import { MACHINE_REFERENCE_REGEX, type ParaContent, type UsjContent } from '~/usj'
 
 const props = withDefaults(
   defineProps<{
     contents: ParaContent[]
     textDirection: TextDirection
     highlights?: HighlightsArray
-    ignoredContentTypes?: string[]
+    ignoreContent?: (content: UsjContent) => boolean
     generateSearchQuery?: (q: string, normalize: boolean) => LocationQueryRaw
     currentPath?: number[]
   }>(),
   {
     highlights: () => [],
-    ignoredContentTypes: () => [],
+    ignoreContent: () => () => false,
     generateSearchQuery: undefined,
     currentPath: () => [],
   },
@@ -79,7 +79,7 @@ UnimplementedMarker.props = {
       :text="content"
       :text-index="contentIndex"
     />
-    <template v-else-if="ignoredContentTypes.includes(content.type)"></template>
+    <template v-else-if="ignoreContent(content)"></template>
     <!-- TODO: Support \ca and \va when https://github.com/jcuenod/usfm3/issues/2 is fixed -->
     <span v-else-if="content.type === 'chapter'" :dir="textDirection" class="usj-content c">{{
       content.pubnumber ?? content.number
@@ -129,7 +129,7 @@ UnimplementedMarker.props = {
           :contents="content.content"
           :text-direction="textDirection"
           :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
+          :ignore-content="ignoreContent"
           :generate-search-query="generateSearchQuery"
           :current-path="currentPath.concat(contentIndex)"
         />
@@ -150,7 +150,7 @@ UnimplementedMarker.props = {
           :contents="content.content"
           :text-direction="textDirection"
           :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
+          :ignore-content="ignoreContent"
           :generate-search-query="generateSearchQuery"
           :current-path="currentPath.concat(contentIndex)"
         />
@@ -190,7 +190,7 @@ UnimplementedMarker.props = {
           :contents="content.content"
           :text-direction="textDirection"
           :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
+          :ignore-content="ignoreContent"
           :generate-search-query="generateSearchQuery"
           :current-path="currentPath.concat(contentIndex)"
       /></span>
@@ -209,7 +209,7 @@ UnimplementedMarker.props = {
           :contents="content.content"
           :text-direction="textDirection"
           :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
+          :ignore-content="ignoreContent"
           :generate-search-query="generateSearchQuery"
           :current-path="currentPath.concat(contentIndex)"
       /></NuxtLink>
@@ -218,7 +218,7 @@ UnimplementedMarker.props = {
           :contents="content.content"
           :text-direction="textDirection"
           :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
+          :ignore-content="ignoreContent"
           :generate-search-query="generateSearchQuery"
           :current-path="currentPath.concat(contentIndex)"
         /><rp>(</rp><rt>{{ content.gloss }}</rt
@@ -230,7 +230,7 @@ UnimplementedMarker.props = {
           :contents="content.content"
           :text-direction="textDirection"
           :highlights="highlights"
-          :ignored-content-types="ignoredContentTypes"
+          :ignore-content="ignoreContent"
           :generate-search-query="generateSearchQuery"
           :current-path="currentPath.concat(contentIndex)"
         />

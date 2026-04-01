@@ -402,7 +402,14 @@ pub type TextRange = Range<TextLocation>;
 
 impl SubAssign<ParaIndex> for TextLocation {
     fn sub_assign(&mut self, rhs: ParaIndex) {
-        self.usj_path[0] -= rhs.0 as u16;
-        self.usj_path[1] -= rhs.1 as u16;
+        let root = rhs.0 as u16;
+        let inner = rhs.1 as u16;
+        if self.usj_path[0] == root {
+            self.usj_path[0] -= root;
+            self.usj_path[1] -= inner;
+        } else {
+            self.usj_path[0] -= root;
+            self.usj_path[1] = 0;
+        }
     }
 }
