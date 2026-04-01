@@ -1,8 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "backend"
-]
+members = ["backend"]
 
 [workspace.lints.clippy]
 bool_to_int_with_if = "warn"
