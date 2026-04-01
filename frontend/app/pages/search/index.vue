@@ -22,6 +22,7 @@ import {
 import { NuxtLink } from '#components'
 import { mount } from '@vue/test-utils'
 import { match, P } from 'ts-pattern'
+import { getAutoTextDir } from '~/utils'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -242,7 +243,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
       return true
     }
     notes.push(
-      h('div', { class: 'note-contents' }, [
+      h('div', { class: 'note-contents', dir: bibleTextDirection.value }, [
         h(
           'a',
           {
@@ -420,7 +421,7 @@ function formatInvalidReference(reference: InvalidReference) {
       <input
         v-model="newQuery"
         :placeholder="$t('search.searchPlaceholder')"
-        :dir="bibleTextDirection"
+        :dir="getAutoTextDir(newQuery)"
         class="search-box"
         @keyup.enter="search"
       />
@@ -494,7 +495,6 @@ function formatInvalidReference(reference: InvalidReference) {
                   isFullChapter(reference.reference) &&
                   (reference.previous_chapter || reference.next_chapter)
                 "
-                :dir="bibleTextDirection"
                 class="sided-nav"
               >
                 <NuxtLink

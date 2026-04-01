@@ -19,6 +19,8 @@ export default defineNuxtConfig({
       cookieKey: 'lang',
       fallbackLocale: 'en',
     },
+    // Language codes: https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes
+    // Script codes: https://en.wikipedia.org/wiki/ISO_15924
     locales: [
       { code: 'en', language: 'en', name: 'English', dir: 'ltr', file: 'en.json' },
       { code: 'ur-arab', language: 'ur-Arab', name: 'اُردوٗ', dir: 'rtl', file: 'ur-arab.json' },
@@ -26,7 +28,7 @@ export default defineNuxtConfig({
   },
   vite: {
     optimizeDeps: {
-      include: ['array-equal'],
+      include: ['array-equal', 'ts-pattern'],
     },
   },
 })

@@ -1,5 +1,5 @@
 import type { IntRange } from 'type-fest'
-import { booksData, type BooksData } from './books_data.js'
+import { booksData, type BooksData } from './data/books.js'
 import { excelColumnName } from './utils.js'
 
 export type UsjRoot = {

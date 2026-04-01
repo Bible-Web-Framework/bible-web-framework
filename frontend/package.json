@@ -10,7 +10,8 @@
         "postinstall": "nuxt prepare",
         "lint": "eslint . & prettier . --check",
         "lint:fix": "eslint . --fix & prettier . --write",
-        "books": "node generate_books.ts"
+        "books": "node generateBooks.ts",
+        "text-dir": "node generateTextDir.ts"
     },
     "dependencies": {
         "@nuxtjs/i18n": "10.2.4",
@@ -24,9 +25,11 @@
     "devDependencies": {
         "@nuxt/eslint": "^1.15.2",
         "@types/node": "^25.5.0",
+        "@unicode/unicode-16.0.0": "^1.6.16",
         "@vue/test-utils": "^2.4.6",
         "eslint": "^10.1.0",
         "json-stringify-pretty-compact": "^4.0.0",
+        "regenerate": "^1.4.2",
         "typescript": "^6.0.2"
     }
 }

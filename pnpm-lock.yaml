@@ -47,6 +47,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
+      '@unicode/unicode-16.0.0':
+        specifier: ^1.6.16
+        version: 1.6.16
       '@vue/test-utils':
         specifier: ^2.4.6
         version: 2.4.6
@@ -56,6 +59,9 @@ importers:
       json-stringify-pretty-compact:
         specifier: ^4.0.0
         version: 4.0.0
+      regenerate:
+        specifier: ^1.4.2
+        version: 1.4.2
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -1984,6 +1990,9 @@ packages:
     resolution: {integrity: sha512-zEWqg0nZM8acpuTZE40wkeUl8AhIe0tU0OkilVi1D4fmVjACrwoh5HP6aNqJ8kUnKsoy6D+R3Vi/O+fmdNGO7g==}
     peerDependencies:
       vue: '>=3.5.18'
+
+  '@unicode/unicode-16.0.0@1.6.16':
+    resolution: {integrity: sha512-R2Vxi0XEsCMD9WOQT85O2npa7g+i4RsJ8Xtn+/KODLqa5wH5zCTn5an6JILJhMSfFGD3t3amES2XnvUHnKjMZQ==}
 
   '@unrs/resolver-binding-android-arm-eabi@1.11.1':
     resolution: {integrity: sha512-ppLRUgHVaGRWUx0R0Ut06Mjo9gBaBkg3v/8AxusGLhsIotbBLuRk51rAzqLC8gq6NyyAojEXglNjzf6R948DNw==}
@@ -3976,6 +3985,9 @@ packages:
   refa@0.12.1:
     resolution: {integrity: sha512-J8rn6v4DBb2nnFqkqwy6/NnTYMcgLA+sLr0iIO41qpv0n+ngb7ksag2tMRl0inb1bbO/esUwzW1vbJi7K0sI0g==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
+
+  regenerate@1.4.2:
+    resolution: {integrity: sha512-zrceR/XhGYU/d/opr2EKO7aRHUeiBI8qjtfHqADTwZd6Szfy16la6kqD0MIUs5z5hx6AaKa+PixpPrR289+I0A==}
 
   regexp-ast-analysis@0.7.1:
     resolution: {integrity: sha512-sZuz1dYW/ZsfG17WSAG7eS85r5a0dDsvg+7BiiYR5o6lKCAtUrEwdmRmaGF6rwVj3LcmAeYkOWKEPlbPzN3Y3A==}
@@ -6469,6 +6481,8 @@ snapshots:
       unhead: 2.1.12
       vue: 3.5.31(typescript@6.0.2)
 
+  '@unicode/unicode-16.0.0@1.6.16': {}
+
   '@unrs/resolver-binding-android-arm-eabi@1.11.1':
     optional: true
 
@@ -8773,6 +8787,8 @@ snapshots:
   refa@0.12.1:
     dependencies:
       '@eslint-community/regexpp': 4.12.2
+
+  regenerate@1.4.2: {}
 
   regexp-ast-analysis@0.7.1:
     dependencies:
