@@ -16,7 +16,7 @@ const props = withDefaults(
   }>(),
   {
     highlights: () => [],
-    ignoreContent: () => () => false,
+    ignoreContent: () => false,
     generateSearchQuery: undefined,
     currentPath: () => [],
   },

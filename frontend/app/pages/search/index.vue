@@ -252,7 +252,7 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
         h(UsjContentsRenderer, {
           contents: element.content,
           textDirection: bibleTextDirection.value,
-          ignoredContentTypes: ['note'],
+          ignoreContent: (content) => content.type === 'note',
           generateSearchQuery: newQueryParamsForSearch,
         }),
       ]),
