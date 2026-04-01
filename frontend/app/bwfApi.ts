@@ -139,40 +139,52 @@ export type TranslatedBookInfo = {
 
 export type InvalidReference = {
   invalid_reference: string
-  details: ParseReferenceError
-}
+  source_reference: string
+} & ParseReferenceError
 
 export type ParseReferenceError =
   | {
-      type: 'missing_chapter'
+      error_type: 'missing_chapter'
     }
   | {
-      type: 'invalid_chapter'
-      chapter: string
+      error_type: 'invalid_chapter'
+      details: {
+        chapter: string
+      }
     }
   | {
-      type: 'invalid_verse'
-      verse: string
+      error_type: 'invalid_verse'
+      details: {
+        verse: string
+      }
     }
   | {
-      type: 'unknown_book'
-      booK: string
-      valid_otherwise: boolean
+      error_type: 'unknown_book'
+      details: {
+        book: string
+        valid_otherwise: boolean
+      }
     }
   | {
-      type: 'out_of_bounds_chapter'
-      book: string
-      chapter: number
+      error_type: 'out_of_bounds_chapter'
+      details: {
+        book: Book
+        chapter: number
+      }
     }
   | {
-      type: 'out_of_bounds_verse'
-      book: string
-      chapter: number
-      verse: number
+      error_type: 'out_of_bounds_verse'
+      details: {
+        book: Book
+        chapter: number
+        verse: number
+      }
     }
   | {
-      type: 'out_of_order_verses'
-      verses: [number, number]
+      error_type: 'out_of_order_verses'
+      details: {
+        verses: [number, number]
+      }
     }
 
 export type BibleIndexResponse = {
@@ -195,7 +207,7 @@ export function getChapterLabel(content: ReferenceContent) {
   return label
 }
 
-export function getShortBookName(info: TranslatedBookInfo | null, fallback: Book) {
+export function getShortBookName(info: TranslatedBookInfo | null | undefined, fallback: Book) {
   return (
     info?.short_book_name ??
     info?.running_header ??

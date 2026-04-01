@@ -13,8 +13,10 @@
         "books": "node generate_books.ts"
     },
     "dependencies": {
+        "@nuxtjs/i18n": "10.2.4",
         "array-equal": "^2.0.0",
         "nuxt": "^4.4.2",
+        "ts-pattern": "^5.9.0",
         "type-fest": "^5.5.0",
         "vue": "^3.5.31",
         "vue-router": "^5.0.4"

@@ -1,0 +1,24 @@
+{
+    "page": {
+        "home": "Home",
+        "search": "Search"
+    },
+    "search": {
+        "searchPlaceholder": "Enter search term",
+        "searchButton": "Search",
+        "pageSelect": "Page: {page} Results per page: {pageSize}",
+        "fullChapter": "View full chapter",
+        "noScripturePassage": "No scripture passage found for {0}",
+        "resultsCount": "{total} results found for \"{term}\":",
+        "invalidReference": "Invalid reference \"{reference}\": {details}",
+        "invalidReferenceDetail": {
+            "missing_chapter": "No chapter specified",
+            "invalid_chapter": "Invalid chapter number \"{chapter}\"",
+            "invalid_verse": "Invalid verse number \"{verse}\"",
+            "unknown_book": "Unknown book \"{book}\"",
+            "out_of_bounds_chapter": "{book} has no chapter {chapter}",
+            "out_of_bounds_verse": "{book} {chapter} has no verse {verse}",
+            "out_of_order_verses": "Verse {0} is after verse {1}"
+        }
+    }
+}

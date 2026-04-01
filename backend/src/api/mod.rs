@@ -21,8 +21,8 @@ pub enum ApiError {
     InvalidBook(String),
     #[error("No USJ found for {0:?}")]
     MissingUsj(Book),
-    #[error("Invalid reference: {0}")]
-    InvalidReference(#[from] ParseReferenceError),
+    #[error("Invalid reference {0}: {1}")]
+    InvalidReference(String, #[source] ParseReferenceError),
     #[error("Reference not found: {0}")]
     MissingReference(BibleReference),
     #[error("Invalid reference: {0}")]
@@ -49,7 +49,7 @@ impl ResponseError for ApiError {
             ApiError::UnknownBible(_) => StatusCode::NOT_FOUND,
             ApiError::InvalidBook(_) => StatusCode::BAD_REQUEST,
             ApiError::MissingUsj(_) => StatusCode::NOT_FOUND,
-            ApiError::InvalidReference(_) => StatusCode::BAD_REQUEST,
+            ApiError::InvalidReference(_, _) => StatusCode::BAD_REQUEST,
             ApiError::MissingReference(_) => StatusCode::NOT_FOUND,
             ApiError::InvalidReferenceEncoding(_) => StatusCode::NOT_FOUND,
             ApiError::MissingShortReference(_) => StatusCode::NOT_FOUND,

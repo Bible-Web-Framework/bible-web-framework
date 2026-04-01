@@ -70,7 +70,7 @@ pub async fn create(
                     }
                     Ok(r)
                 }
-                Err(e) => Err(ApiError::InvalidReference(e)),
+                Err((err, source)) => Err(ApiError::InvalidReference(source, err)),
             })
             .try_collect()?
     };

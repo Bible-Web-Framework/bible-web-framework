@@ -45,6 +45,8 @@ pub enum SearchResponseResult {
     },
     InvalidReference {
         invalid_reference: String,
+        source_reference: String,
+        #[serde(flatten)]
         details: ParseReferenceError,
     },
 }
@@ -66,7 +68,7 @@ pub fn search_bible(
     let references = parse_references(&term, &bible.book_parse_options());
     if references
         .iter()
-        .all(|r| matches!(r, Err(e) if e.is_syntax()))
+        .all(|r| matches!(r, Err((e, _)) if e.is_syntax()))
     {
         let start_time = Instant::now();
         let (total_results, results) = search_for_terms(
@@ -114,8 +116,9 @@ pub fn search_bible(
                         highlights: None,
                     }
                 }
-                Err(error) => SearchResponseResult::InvalidReference {
+                Err((error, source)) => SearchResponseResult::InvalidReference {
                     invalid_reference: error.to_string(),
+                    source_reference: source,
                     details: error,
                 },
             })

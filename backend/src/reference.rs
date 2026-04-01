@@ -221,25 +221,25 @@ impl Display for BookReference {
 }
 
 #[derive(Debug, Error, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "error_type", content = "details", rename_all = "snake_case")]
 pub enum ParseReferenceError {
     #[error("No chapter specified")]
     MissingChapter,
-    #[error("Invalid chapter '{chapter}'")]
+    #[error("Invalid chapter number \"{chapter}\"")]
     InvalidChapter { chapter: String },
-    #[error("Invalid verse number '{verse}'")]
+    #[error("Invalid verse number \"{verse}\"")]
     InvalidVerse { verse: String },
-    #[error("Unknown book '{book}'")]
+    #[error("Unknown book \"{book}\"")]
     UnknownBook { book: String, valid_otherwise: bool },
-    #[error("Unknown chapter {chapter} for book {book}")]
+    #[error("Book {book} has no chapter {chapter}")]
     OutOfBoundsChapter { book: Book, chapter: NonZeroU8 },
-    #[error("Unknown verse {verse} for chapter {book} {chapter}")]
+    #[error("{book} {chapter} has no verse {verse}")]
     OutOfBoundsVerse {
         book: Book,
         chapter: NonZeroU8,
         verse: NonZeroU8,
     },
-    #[error("Verse {} is larger than verse {}", verses.0, verses.1)]
+    #[error("Verse {} is after verse {}", verses.0, verses.1)]
     OutOfOrderVerses { verses: (NonZeroU8, NonZeroU8) },
 }
 
@@ -259,16 +259,20 @@ impl ParseReferenceError {
     }
 }
 
-pub type ReferenceResult = Result<BibleReference, ParseReferenceError>;
-
-pub fn parse_references(reference: &str, options: &impl BookParseOptions) -> Vec<ReferenceResult> {
+pub fn parse_references(
+    reference: &str,
+    options: &impl BookParseOptions,
+) -> Vec<Result<BibleReference, (ParseReferenceError, String)>> {
     let mut state = ParseState::default();
     let context = ParseContext::new(reference, options);
     context
         .normalized_str
         .split([';', ','])
         .filter(|x| !x.is_empty())
-        .map(|x| parse_reference_part(x, &context, &mut state))
+        .map(|part| {
+            parse_reference_part(part, &context, &mut state)
+                .map_err(|err| (err, string_from_char_map(part, &context)))
+        })
         .collect()
 }
 
@@ -297,6 +301,8 @@ struct ParseState {
     book: Option<Book>,
     chapter: Option<NonZeroU8>,
 }
+
+type ReferenceResult = Result<BibleReference, ParseReferenceError>;
 
 fn parse_reference_part<O: BookParseOptions>(
     reference: &str,
@@ -501,8 +507,8 @@ mod tests {
             Ok(reference_value!($book $chapter:$verse_start$(-$verse_end)?))
         };
 
-        (Err($error:expr)) => {
-            Err($error)
+        (Err($source:literal, $error:expr $(,)?)) => {
+            Err(($error, $source.to_string()))
         };
     }
 
@@ -566,45 +572,60 @@ mod tests {
     fn test_parse_failure() {
         assert_parse!(
             "John 50",
-            Err(OutOfBoundsChapter {
-                book: John,
-                chapter: nz_u8!(50),
-            }),
+            Err(
+                "John 50",
+                OutOfBoundsChapter {
+                    book: John,
+                    chapter: nz_u8!(50),
+                },
+            ),
         );
         assert_parse!(
             "John 1:134",
-            Err(OutOfBoundsVerse {
-                book: John,
-                chapter: nz_u8!(1),
-                verse: nz_u8!(134),
-            }),
+            Err(
+                "John 1:134",
+                OutOfBoundsVerse {
+                    book: John,
+                    chapter: nz_u8!(1),
+                    verse: nz_u8!(134),
+                },
+            ),
         );
         assert_parse!(
             "Beginning",
-            Err(UnknownBook {
-                book: "Beginning".to_string(),
-                valid_otherwise: false,
-            }),
+            Err(
+                "Beginning",
+                UnknownBook {
+                    book: "Beginning".to_string(),
+                    valid_otherwise: false,
+                },
+            ),
         );
         assert_parse!(
             "Beginning 1:1",
-            Err(UnknownBook {
-                book: "Beginning".to_string(),
-                valid_otherwise: true,
-            }),
+            Err(
+                "Beginning 1:1",
+                UnknownBook {
+                    book: "Beginning".to_string(),
+                    valid_otherwise: true,
+                },
+            ),
         );
         assert_parse!(
             "Beginning 1",
-            Err(UnknownBook {
-                book: "Beginning".to_string(),
-                valid_otherwise: true,
-            }),
+            Err(
+                "Beginning 1",
+                UnknownBook {
+                    book: "Beginning".to_string(),
+                    valid_otherwise: true,
+                },
+            ),
         );
-        assert_parse!("John", Err(MissingChapter));
+        assert_parse!("John", Err("John", MissingChapter));
         assert_parse!(
             "John 1:1;Hello",
             Ok(John 1:1-1),
-            Err(UnknownBook {
+            Err("Hello", UnknownBook {
                 book: "Hello".to_string(),
                 valid_otherwise: false,
             }),
@@ -612,37 +633,47 @@ mod tests {
         assert_parse!(
             "John 1:1;Acts",
             Ok(John 1:1-1),
-            Err(MissingChapter),
+            Err("Acts", MissingChapter),
         );
         assert_parse!(
             "John1;:3",
             Ok(John 1:1-51),
-            Err(InvalidChapter { chapter: "".to_string() }),
+            Err(":3", InvalidChapter { chapter: "".to_string() }),
         );
         assert_parse!(
             "John:3",
-            Err(InvalidChapter {
-                chapter: "".to_string(),
-            }),
+            Err(
+                "John:3",
+                InvalidChapter {
+                    chapter: "".to_string(),
+                },
+            ),
         );
         assert_parse!(
             "John1:1:;4",
-            Err(InvalidVerse { verse: "1:".to_string() }),
+            Err("John1:1:", InvalidVerse { verse: "1:".to_string() }),
             Ok(John 1:4-4),
         );
         assert_parse!(
             "John 1:1;3:",
             Ok(John 1:1-1),
-            Err(InvalidVerse { verse: "".to_string() }),
+            Err("3:", InvalidVerse { verse: "".to_string() }),
         );
         assert_parse!(
             "John 1:6-3",
-            Err(OutOfOrderVerses {
-                verses: (nz_u8!(6), nz_u8!(3)),
-            }),
+            Err(
+                "John 1:6-3",
+                OutOfOrderVerses {
+                    verses: (nz_u8!(6), nz_u8!(3)),
+                },
+            ),
         );
-        assert_parse!("John", Err(MissingChapter));
-        assert_parse!("John;Acts", Err(MissingChapter), Err(MissingChapter));
+        assert_parse!("John", Err("John", MissingChapter));
+        assert_parse!(
+            "John;Acts",
+            Err("John", MissingChapter),
+            Err("Acts", MissingChapter),
+        );
     }
 
     #[test]

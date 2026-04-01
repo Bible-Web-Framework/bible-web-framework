@@ -2,11 +2,20 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@nuxt/eslint'],
+  modules: ['@nuxt/eslint', '@nuxtjs/i18n'],
   runtimeConfig: {
     public: {
       apiRootUrl: 'http://127.0.0.1:8080',
     },
+  },
+  i18n: {
+    strategy: 'no_prefix',
+    defaultLocale: 'en',
+    experimental: {
+      typedOptionsAndMessages: 'default',
+    },
+    baseUrl: process.env.NUXT_BASE_URL,
+    locales: [{ code: 'en', language: 'en-US', name: 'English', dir: 'ltr', file: 'en.json' }],
   },
   vite: {
     optimizeDeps: {

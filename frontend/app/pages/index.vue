@@ -1,5 +1,5 @@
 <script setup lang="ts"></script>
 
 <template>
-  <div>Page: Home Page</div>
+  <div>{{ $t('page.home') }}</div>
 </template>

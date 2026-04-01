@@ -7,6 +7,7 @@ import {
   type ApiV1,
   type BibleReference,
   type ChapterReference,
+  type InvalidReference,
 } from '~/bwfApi'
 import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import {
@@ -20,14 +21,16 @@ import {
 } from '~/usj'
 import { NuxtLink } from '#components'
 import { mount } from '@vue/test-utils'
+import { match, P } from 'ts-pattern'
 
 const config = useRuntimeConfig()
+const route = useRoute()
+const router = useRouter()
+const { locale } = useI18n()
+
 const { data: biblesData } = await useFetch<ApiV1['bibles']>('/v1/bibles', {
   baseURL: config.public.apiRootUrl,
 })
-
-const route = useRoute()
-const router = useRouter()
 
 const bible = computed(() =>
   (route.query.bible || biblesData.value?.default_bible || '').toString(),
@@ -131,7 +134,7 @@ const pageCount = computed(() => {
 function formatReference(ref: BibleReference | ChapterReference, overrideBookName?: string) {
   let q =
     overrideBookName ??
-    getShortBookName(booksData.value?.books[ref.book]?.translated_book_info ?? null, ref.book)
+    getShortBookName(booksData.value?.books[ref.book]?.translated_book_info, ref.book)
   q += ` ${ref.chapter}`
   if ('verses' in ref) {
     const [start, end] = ref.verses
@@ -360,6 +363,39 @@ async function checkForUnimplementedMarkers() {
 }
 
 const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'auto')
+function formatInvalidReference(reference: InvalidReference) {
+  return $t('search.invalidReference', {
+    reference: reference.source_reference,
+    details: $t(
+      `search.invalidReferenceDetail.${reference.error_type}`,
+      match(reference)
+        .with({ error_type: 'missing_chapter' }, () => ({}))
+        .with(
+          {
+            error_type: P.union(
+              'invalid_chapter',
+              'invalid_verse',
+              'invalid_verse',
+              'unknown_book',
+            ),
+          },
+          ({ details }) => details,
+        )
+        .with(
+          { error_type: P.union('out_of_bounds_chapter', 'out_of_bounds_verse') },
+          ({ details }) => ({
+            ...details,
+            book: getShortBookName(
+              booksData.value?.books?.[details.book]?.translated_book_info,
+              details.book,
+            ),
+          }),
+        )
+        .with({ error_type: 'out_of_order_verses' }, ({ details: { verses } }) => verses)
+        .exhaustive(),
+    ),
+  })
+}
 </script>
 
 <template>
@@ -378,17 +414,17 @@ const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'au
       </span>
     </DevOnly>
 
-    <h1>Search Page</h1>
+    <h1>{{ $t('page.search') }}</h1>
 
     <div class="search-area">
       <input
         v-model="newQuery"
-        placeholder="Enter search term"
+        :placeholder="$t('search.searchPlaceholder')"
         :dir="bibleTextDirection"
         class="search-box"
         @keyup.enter="search"
       />
-      <button @click="search">Search</button>
+      <button @click="search">{{ $t('search.searchButton') }}</button>
       <select
         v-model="newBook"
         :dir="bibleTextDirection"
@@ -417,29 +453,31 @@ const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'au
       </select>
       <select v-if="biblesData" v-model="newBible" class="bible-box" @change="changeBible">
         <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
-          {{ info.display_name ?? id.toLocaleUpperCase() }}
+          {{ info.display_name ?? id.toLocaleUpperCase(locale) }}
         </option>
       </select>
       <span v-else />
     </div>
 
     <template v-if="query && searchResults?.response_type === 'search_results'">
-      <template v-if="pageCount > 1">
-        Page:
-        <select v-model="page">
-          <option v-for="number in pageCount" :key="number" :value="number">
-            {{ number }}
-          </option>
-        </select>
-      </template>
-      Results per page:
-      <select v-model="resultsPerPage">
-        <option :value="50">50</option>
-        <option :value="100">100</option>
-        <option :value="150">150</option>
-        <option :value="200">200</option>
-        <option :value="250">250</option>
-      </select>
+      <i18n-t v-if="pageCount > 1" keypath="search.pageSelect">
+        <template #page>
+          <select v-model="page">
+            <option v-for="number in pageCount" :key="number" :value="number">
+              {{ number }}
+            </option>
+          </select>
+        </template>
+        <template #pageSize>
+          <select v-model="resultsPerPage">
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+            <option :value="150">150</option>
+            <option :value="200">200</option>
+            <option :value="250">250</option>
+          </select>
+        </template>
+      </i18n-t>
     </template>
 
     <div v-if="searchResults">
@@ -492,15 +530,15 @@ const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'au
                       translated_book_info: null,
                     }),
                   }"
-                  >View full chapter</NuxtLink
+                  >{{ $t('search.fullChapter') }}</NuxtLink
                 >
               </div>
             </template>
             <p v-else class="error">
-              No scripture passage found for {{ formatReference(reference.reference) }}
+              {{ $t('search.noScripturePassage', [formatReference(reference.reference)]) }}
             </p>
           </template>
-          <td v-else class="error">{{ reference.details }}</td>
+          <td v-else class="error">{{ formatInvalidReference(reference) }}</td>
         </template>
         <template v-if="searchData?.noteCount">
           <hr />
@@ -518,12 +556,17 @@ const bibleTextDirection = computed(() => bibleInfo.value?.text_direction ?? 'au
       </template>
       <template v-else-if="searchResults.search_term">
         <h2>
-          {{ searchResults.total_results }} results found for '{{ searchResults.search_term }}':
+          {{
+            $t('search.resultsCount', {
+              total: searchResults.total_results,
+              term: searchResults.search_term,
+            })
+          }}
         </h2>
         <table class="search-table">
           <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
             <td v-if="'invalid_reference' in reference" class="error" colspan="2">
-              {{ reference.details }}
+              {{ formatInvalidReference(reference) }}
             </td>
             <template v-else>
               <td>
