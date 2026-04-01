@@ -17,12 +17,12 @@ export default defineNuxtConfig({
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: 'lang',
-      fallbackLocale: 'en',
+      fallbackLocale: 'en-US',
     },
     // Language codes: https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes
     // Script codes: https://en.wikipedia.org/wiki/ISO_15924
     locales: [
-      { code: 'en', language: 'en', name: 'English', dir: 'ltr', file: 'en.json' },
+      { code: 'en-US', language: 'en-US', name: 'English', dir: 'ltr', file: 'en-us.json' },
       { code: 'ur-arab', language: 'ur-Arab', name: 'اُردوٗ', dir: 'rtl', file: 'ur-arab.json' },
     ],
   },
