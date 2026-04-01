@@ -15,7 +15,10 @@ export default defineNuxtConfig({
       typedOptionsAndMessages: 'default',
     },
     baseUrl: process.env.NUXT_BASE_URL,
-    locales: [{ code: 'en', language: 'en-US', name: 'English', dir: 'ltr', file: 'en.json' }],
+    locales: [
+      { code: 'en', language: 'en-US', name: 'English', dir: 'ltr', file: 'en.json' },
+      { code: 'ur', language: 'ur-IN', name: 'اُردوٗ', dir: 'rtl', file: 'ur.json' },
+    ],
   },
   vite: {
     optimizeDeps: {
