@@ -1,0 +1,9 @@
+{
+    "page": {
+        "home": "ホーム",
+        "search": "検索"
+    },
+    "search": {
+        "searchButton": "検索する"
+    }
+}

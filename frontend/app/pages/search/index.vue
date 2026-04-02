@@ -425,7 +425,7 @@ function formatInvalidReference(reference: InvalidReference) {
         class="search-box"
         @keyup.enter="search"
       />
-      <button @click="search">{{ $t('search.searchButton') }}</button>
+      <button class="search-button" @click="search">{{ $t('search.searchButton') }}</button>
       <select
         v-model="newBook"
         :dir="bibleTextDirection"
@@ -440,7 +440,7 @@ function formatInvalidReference(reference: InvalidReference) {
           </option>
         </template>
       </select>
-      <select v-model="newChapter" @change="directGo">
+      <select v-model="newChapter" class="chapter-box" @change="directGo">
         <option :value="null">--</option>
         <template v-if="booksData && newBook">
           <option

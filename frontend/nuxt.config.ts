@@ -22,8 +22,9 @@ export default defineNuxtConfig({
     // Language codes: https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes
     // Script codes: https://en.wikipedia.org/wiki/ISO_15924
     locales: [
-      { code: 'en-US', language: 'en-US', name: 'English', dir: 'ltr', file: 'en-us.json' },
-      { code: 'ur-arab', language: 'ur-Arab', name: 'اُردوٗ', dir: 'rtl', file: 'ur-arab.json' },
+      { code: 'en-US', language: 'en-US', name: 'English', dir: 'ltr', file: 'en-US.json' },
+      { code: 'ja', language: 'ja', name: '日本語', dir: 'ltr', file: 'ja.json' },
+      { code: 'ur-arab', language: 'ur-Arab', name: 'اُردوٗ', dir: 'rtl', file: 'ur-Arab.json' },
     ],
   },
   vite: {
