@@ -3,6 +3,7 @@ use crate::utils::normalize::normalize_str;
 use charabia::Language;
 use enum_map::Enum;
 use enumset::EnumSetType;
+use oxicode::{Decode, Encode};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use std::collections::HashMap;

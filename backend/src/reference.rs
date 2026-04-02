@@ -4,6 +4,7 @@ use crate::nz_u8;
 use crate::utils::normalize::normalize_str;
 use crate::utils::serde_as::VerseRangeAsTuple;
 use crate::verse_range::VerseRange;
+use oxicode::{Decode, Encode};
 use rangemap::StepLite;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -16,7 +17,20 @@ use strum::VariantArray;
 use subslice_offset::SubsliceOffset;
 use thiserror::Error;
 
-#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+)]
 pub struct BibleReference {
     pub book: Book,
     #[serde(flatten)]
@@ -170,7 +184,9 @@ impl FromStr for BibleReference {
 }
 
 #[serde_as]
-#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize, Encode, Decode,
+)]
 pub struct BookReference {
     pub chapter: NonZeroU8,
     #[serde_as(as = "VerseRangeAsTuple")]

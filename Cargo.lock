@@ -407,6 +407,7 @@ dependencies = [
  "monostate",
  "multiset",
  "notify-debouncer-full",
+ "oxicode",
  "parking_lot",
  "permutate",
  "phf",
@@ -419,7 +420,6 @@ dependencies = [
  "serde-tuple-vec-map",
  "serde_cow",
  "serde_json",
- "serde_sqlite_jsonb",
  "serde_with",
  "smallvec",
  "sqlx",
@@ -2700,6 +2700,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c6901729fa79e91a0913333229e9ca5dc725089d1c363b2f4b4760709dc4a52"
 
 [[package]]
+name = "oxicode"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c25029524d85adf9d52b61a9cc6d2c0409ee284e6d9e21063373554cb90b8723"
+dependencies = [
+ "oxicode_derive",
+ "serde",
+]
+
+[[package]]
+name = "oxicode_derive"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b96668957815c168769d0b972205a275694b7781ccf810876ee63a77dbd660e0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.108",
+]
+
+[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3499,16 +3520,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "876ac351060d4f882bb1032b6369eb0aef79ad9df1ea8bc404874d8cc3d0cd98"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "serde_sqlite_jsonb"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b727d9bd81080738c4f01944b4cc7153cd33ce33211fcf813a874b97ad64d1c2"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]

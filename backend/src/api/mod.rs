@@ -5,7 +5,7 @@ mod short_url;
 
 use crate::api::short_url::ShortUrlValue;
 use crate::book_data::Book;
-use crate::reference::{BibleReference, ParseReferenceError};
+use crate::reference::ParseReferenceError;
 use crate::reference_encoding::ReferenceEncodingError;
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, ResponseError, Scope, web};
@@ -23,8 +23,6 @@ pub enum ApiError {
     MissingUsj(Book),
     #[error("Invalid reference {0}: {1}")]
     InvalidReference(String, #[source] ParseReferenceError),
-    #[error("Reference not found: {0}")]
-    MissingReference(BibleReference),
     #[error("Invalid reference: {0}")]
     InvalidReferenceEncoding(#[from] ReferenceEncodingError),
     #[error("Short URL not found: {0}")]
@@ -37,8 +35,8 @@ pub enum ApiError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
-    #[error("Json error: {0}")]
-    Jsonb(#[from] serde_sqlite_jsonb::Error),
+    #[error("Database serialization error: {0}")]
+    Oxicode(#[from] oxicode::Error),
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -50,7 +48,6 @@ impl ResponseError for ApiError {
             ApiError::InvalidBook(_) => StatusCode::BAD_REQUEST,
             ApiError::MissingUsj(_) => StatusCode::NOT_FOUND,
             ApiError::InvalidReference(_, _) => StatusCode::BAD_REQUEST,
-            ApiError::MissingReference(_) => StatusCode::NOT_FOUND,
             ApiError::InvalidReferenceEncoding(_) => StatusCode::NOT_FOUND,
             ApiError::MissingShortReference(_) => StatusCode::NOT_FOUND,
 
@@ -58,7 +55,7 @@ impl ResponseError for ApiError {
             ApiError::RouteNotFound(_) => StatusCode::NOT_FOUND,
 
             ApiError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::Jsonb(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Oxicode(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 

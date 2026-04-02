@@ -1,5 +1,6 @@
 use crate::nz_u8;
 use crate::utils::nfkd_str;
+use oxicode::{Decode, Encode};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
@@ -7,7 +8,7 @@ use std::ops::RangeInclusive;
 use std::str::FromStr;
 use thiserror::Error;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Encode, Decode)]
 pub struct VerseRange {
     first: NonZeroU8,
     last: NonZeroU8,

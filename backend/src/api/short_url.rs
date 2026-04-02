@@ -1,5 +1,4 @@
 use crate::api::{ApiError, ApiResult};
-use crate::bible_data::MultiBibleData;
 use crate::reference::{BibleReference, parse_references};
 use crate::reference_encoding;
 use crate::reference_encoding::{
@@ -48,39 +47,26 @@ impl FromStr for ShortUrlValue {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateShortQueryParams {
-    bible: String,
     r#ref: String,
 }
 
 #[get("/create")]
 pub async fn create(
     query: Query<CreateShortQueryParams>,
-    bibles: web::Data<MultiBibleData>,
     database: web::Data<SqlitePool>,
 ) -> ApiResult<web::Json<ShortUrl>> {
     let query = query.into_inner();
-    let references: Vec<_> = {
-        let bible = bibles.get_or_api_error(query.bible)?;
-        parse_references(&query.r#ref, &bible.book_parse_options())
-            .into_iter()
-            .map(|reference| match reference {
-                Ok(r) => {
-                    if !bible.books.contains_key(&r.book) {
-                        return Err(ApiError::MissingReference(r));
-                    }
-                    Ok(r)
-                }
-                Err((err, source)) => Err(ApiError::InvalidReference(source, err)),
-            })
-            .try_collect()?
-    };
+    let references: Vec<_> = parse_references(&query.r#ref, &())
+        .into_iter()
+        .map(|r| r.map_err(|(err, source)| ApiError::InvalidReference(source, err)))
+        .try_collect()?;
 
     let mut transaction = database.begin().await?;
 
-    let references_jsonb = serde_sqlite_jsonb::to_vec(&references)?;
+    let references_blob = oxicode::encode_to_vec(&references)?;
     if let Some(id) = sqlx::query!(
         "SELECT id FROM short_urls WHERE bible_references = $1",
-        references_jsonb
+        references_blob,
     )
     .fetch_optional(&mut *transaction)
     .await?
@@ -112,7 +98,7 @@ pub async fn create(
 
     let mut id = sqlx::query!(
         "INSERT INTO short_urls (bible_references) VALUES ($1) RETURNING id",
-        references_jsonb
+        references_blob,
     )
     .fetch_one(&mut *transaction)
     .await?
@@ -152,7 +138,7 @@ pub async fn resolve(
     let references = match short_url.r#type {
         ShortUrlType::Id => {
             let value = short_url.value.0 as i64;
-            serde_sqlite_jsonb::from_slice(
+            oxicode::decode_from_slice(
                 &sqlx::query!(
                     "SELECT bible_references FROM short_urls WHERE id = $1",
                     value
@@ -162,6 +148,7 @@ pub async fn resolve(
                 .ok_or(ApiError::MissingShortReference(short_url.value))?
                 .bible_references,
             )?
+            .0
         }
         ShortUrlType::Encoded => decode_references_from_num(short_url.value.0)?,
     };
