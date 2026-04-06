@@ -1,15 +1,16 @@
 use crate::api::{ApiError, ApiResult};
 use crate::reference::{BibleReference, parse_references};
+use crate::reference_encoding;
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
     encode_references_to_num, is_base58_swear,
 };
-use crate::{DbPool, reference_encoding};
 use actix_web::{get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
+use sqlx::{AnyPool, Row};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use validator::Validate;
@@ -52,7 +53,7 @@ pub struct CreateShortQueryParams {
 #[get("/create")]
 pub async fn create(
     query: Query<CreateShortQueryParams>,
-    database: web::Data<DbPool>,
+    database: web::Data<AnyPool>,
 ) -> ApiResult<web::Json<ShortUrl>> {
     let query = query.into_inner();
     let references: Vec<_> = parse_references(&query.r#ref, &())
@@ -63,25 +64,23 @@ pub async fn create(
     let mut transaction = database.begin().await?;
 
     let references_blob = oxicode::encode_to_vec(&references)?;
-    if let Some(id) = sqlx::query!(
-        "SELECT id FROM short_urls WHERE bible_references = $1",
-        references_blob,
-    )
-    .fetch_optional(&mut *transaction)
-    .await?
+    if let Some(id) = sqlx::query("SELECT id FROM short_urls WHERE bible_references = $1")
+        .bind(&references_blob)
+        .fetch_optional(&mut *transaction)
+        .await?
     {
         return Ok(web::Json(ShortUrl {
             r#type: ShortUrlType::Id,
-            value: ShortUrlValue(id.id as u64),
+            value: ShortUrlValue(id.get::<i32, _>("id") as u64),
         }));
     };
 
     match encode_references_to_num(&references) {
         Ok(num) => {
-            let id_guess = sqlx::query!("SELECT MAX(id) as max_id FROM short_urls")
+            let id_guess = sqlx::query("SELECT MAX(id) as max_id FROM short_urls")
                 .fetch_one(&mut *transaction)
                 .await?
-                .max_id
+                .get::<Option<i32>, _>("max_id")
                 .unwrap_or(0) as u64
                 + 1;
             if num < id_guess && !is_base58_swear(num) {
@@ -95,29 +94,24 @@ pub async fn create(
         Err(e) => return Err(ApiError::InvalidReferenceEncoding(e)),
     };
 
-    let mut id = sqlx::query!(
-        "INSERT INTO short_urls (bible_references) VALUES ($1) RETURNING id",
-        references_blob,
-    )
-    .fetch_one(&mut *transaction)
-    .await?
-    .id as u64;
+    let mut id = sqlx::query("INSERT INTO short_urls (bible_references) VALUES ($1) RETURNING id")
+        .bind(references_blob)
+        .fetch_one(&mut *transaction)
+        .await?
+        .get::<i32, _>("id") as reference_encoding::Carrier;
 
     const SWEAR_INCREMENT: u64 = 4000; // Slightly above 58^2. Should scramble the last 3 characters.
-    while is_base58_swear(id) {
-        let new_id = id + SWEAR_INCREMENT;
-
-        let id_i64 = id as i64;
-        let new_id_i64 = new_id as i64;
-        sqlx::query!(
-            "UPDATE short_urls SET id = $2 WHERE id = $1",
-            id_i64,
-            new_id_i64
-        )
-        .execute(&mut *transaction)
-        .await?;
-
-        id = new_id;
+    let mut safe_id = id;
+    while is_base58_swear(safe_id) {
+        safe_id += SWEAR_INCREMENT;
+    }
+    if safe_id != id {
+        sqlx::query("UPDATE short_urls SET id = $2 WHERE id = $1")
+            .bind(id as i64)
+            .bind(safe_id as i64)
+            .execute(&mut *transaction)
+            .await?;
+        id = safe_id;
     }
 
     transaction.commit().await?;
@@ -131,21 +125,19 @@ pub async fn create(
 #[get("/resolve")]
 pub async fn resolve(
     query: Query<ShortUrl>,
-    database: web::Data<DbPool>,
+    database: web::Data<AnyPool>,
 ) -> ApiResult<web::Json<Vec<BibleReference>>> {
     let short_url = query.into_inner();
     let references = match short_url.r#type {
         ShortUrlType::Id => {
             let value = short_url.value.0 as i64;
             oxicode::decode_from_slice(
-                &sqlx::query!(
-                    "SELECT bible_references FROM short_urls WHERE id = $1",
-                    value
-                )
-                .fetch_optional(&**database)
-                .await?
-                .ok_or(ApiError::MissingShortReference(short_url.value))?
-                .bible_references,
+                sqlx::query("SELECT bible_references FROM short_urls WHERE id = $1")
+                    .bind(value)
+                    .fetch_optional(&**database)
+                    .await?
+                    .ok_or(ApiError::MissingShortReference(short_url.value))?
+                    .get::<&[u8], _>("bible_references"),
             )?
             .0
         }

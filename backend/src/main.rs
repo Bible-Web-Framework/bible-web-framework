@@ -51,15 +51,6 @@ pub enum ServerError {
     Config(#[from] BibleDataError),
 }
 
-#[cfg(not(any(sqlx_prepare, clippy)))]
-pub type DbType = sqlx::Any;
-#[cfg(not(any(sqlx_prepare, clippy)))]
-pub type DbPool = sqlx::AnyPool;
-#[cfg(any(sqlx_prepare, clippy))]
-pub type DbType = sqlx::Sqlite;
-#[cfg(any(sqlx_prepare, clippy))]
-pub type DbPool = sqlx::SqlitePool;
-
 #[actix_web::main]
 async fn main() -> ExitCode {
     match real_main().await {
@@ -136,11 +127,11 @@ async fn real_main() -> Result<(), ServerError> {
         let db_url = var_str("DATABASE_URL")?;
         tracing::info!("Connecting to database {db_url}");
         sqlx::any::install_default_drivers();
-        if !DbType::database_exists(&db_url).await? {
+        if !sqlx::Any::database_exists(&db_url).await? {
             tracing::info!("Database doesn't exist, creating new database");
-            DbType::create_database(&db_url).await?;
+            sqlx::Any::create_database(&db_url).await?;
         }
-        let database = DbPool::connect(&db_url).await?;
+        let database = sqlx::AnyPool::connect(&db_url).await?;
         sqlx::migrate!().run(&database).await?;
         web::Data::new(database)
     };
