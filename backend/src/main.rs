@@ -11,7 +11,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{env, path};
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
@@ -64,6 +64,8 @@ async fn main() -> ExitCode {
 }
 
 async fn real_main() -> Result<(), ServerError> {
+    let init_start = Instant::now();
+
     if let Err(e) = dotenvy::dotenv()
         && !e.not_found()
     {
@@ -135,6 +137,8 @@ async fn real_main() -> Result<(), ServerError> {
         sqlx::migrate!().run(&database).await?;
         web::Data::new(database)
     };
+
+    tracing::info!("Finished loading in {:?}", init_start.elapsed());
 
     let bind_host = var_str("BIND_HOST")?;
     let bind_port = var("BIND_PORT")?;
