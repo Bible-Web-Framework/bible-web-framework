@@ -38,3 +38,5 @@ coverage
 .env
 
 .turbo
+
+bwf.db

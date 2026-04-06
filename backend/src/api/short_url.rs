@@ -1,16 +1,15 @@
 use crate::api::{ApiError, ApiResult};
 use crate::reference::{BibleReference, parse_references};
-use crate::reference_encoding;
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
     encode_references_to_num, is_base58_swear,
 };
+use crate::{DbPool, reference_encoding};
 use actix_web::{get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
-use sqlx::SqlitePool;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use validator::Validate;
@@ -53,7 +52,7 @@ pub struct CreateShortQueryParams {
 #[get("/create")]
 pub async fn create(
     query: Query<CreateShortQueryParams>,
-    database: web::Data<SqlitePool>,
+    database: web::Data<DbPool>,
 ) -> ApiResult<web::Json<ShortUrl>> {
     let query = query.into_inner();
     let references: Vec<_> = parse_references(&query.r#ref, &())
@@ -132,7 +131,7 @@ pub async fn create(
 #[get("/resolve")]
 pub async fn resolve(
     query: Query<ShortUrl>,
-    database: web::Data<SqlitePool>,
+    database: web::Data<DbPool>,
 ) -> ApiResult<web::Json<Vec<BibleReference>>> {
     let short_url = query.into_inner();
     let references = match short_url.r#type {
