@@ -41,7 +41,7 @@ serde_cow = "0.1.2"
 serde_json = "1.0.149"
 serde_with = "3.18.0"
 smallvec = "1.15.1"
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "postgres"] }
 string-interner = "0.19.0"
 strum = { version = "0.28.0", features = ["derive"] }
 subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/issues/126769 becomes stable
