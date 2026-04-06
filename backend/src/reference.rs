@@ -410,8 +410,7 @@ fn parse_book_reference<O: BookParseOptions>(
                 )
                 .map_err(|verses| ParseReferenceError::OutOfOrderVerses { verses })
             } else {
-                let verse = parse_verse(verses, None)?;
-                Ok(VerseRange::new(verse, verse).unwrap())
+                Ok(VerseRange::new_single_verse(parse_verse(verses, None)?))
             }
         })
     };
