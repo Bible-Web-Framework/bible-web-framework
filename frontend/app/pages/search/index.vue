@@ -461,7 +461,7 @@ function formatInvalidReference(reference: InvalidReference) {
     </div>
 
     <template v-if="query && searchResults?.response_type === 'search_results'">
-      <i18n-t v-if="pageCount > 1" keypath="search.pageSelect">
+      <i18n-t v-if="pageCount > 1" keypath="search.pageSelect" scope="global">
         <template #page>
           <select v-model="page">
             <option v-for="number in pageCount" :key="number" :value="number">
@@ -565,29 +565,34 @@ function formatInvalidReference(reference: InvalidReference) {
           }}
         </h2>
         <table class="search-table">
-          <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
-            <td v-if="'invalid_reference' in reference" class="error" colspan="2">
-              {{ formatInvalidReference(reference) }}
-            </td>
-            <template v-else>
-              <td>
-                <NuxtLink
-                  :to="{
-                    query: newQueryParamsForSearch(reference.reference),
-                  }"
-                  >{{ formatReference(reference.reference) }}</NuxtLink
-                >
+          <tbody>
+            <tr
+              v-for="(reference, referenceIndex) in searchResults.references"
+              :key="referenceIndex"
+            >
+              <td v-if="'invalid_reference' in reference" class="error" colspan="2">
+                {{ formatInvalidReference(reference) }}
               </td>
-              <td v-if="reference.content" class="usj-container">
-                <UsjContentsRenderer
-                  :contents="reference.content"
-                  :text-direction="bibleTextDirection"
-                  :highlights="reference.highlights"
-                  :ignore-content="ignoreSearchContent"
-                />
-              </td>
-            </template>
-          </tr>
+              <template v-else>
+                <td>
+                  <NuxtLink
+                    :to="{
+                      query: newQueryParamsForSearch(reference.reference),
+                    }"
+                    >{{ formatReference(reference.reference) }}</NuxtLink
+                  >
+                </td>
+                <td v-if="reference.content" class="usj-container">
+                  <UsjContentsRenderer
+                    :contents="reference.content"
+                    :text-direction="bibleTextDirection"
+                    :highlights="reference.highlights"
+                    :ignore-content="ignoreSearchContent"
+                  />
+                </td>
+              </template>
+            </tr>
+          </tbody>
         </table>
       </template>
     </div>

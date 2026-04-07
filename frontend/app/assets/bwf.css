@@ -51,7 +51,7 @@
 .search-table {
   border-collapse: collapse;
 
-  > tr:not(:last-child) {
+  > tbody > tr:not(:last-child) {
     border-bottom: 2px solid gray;
   }
 }
