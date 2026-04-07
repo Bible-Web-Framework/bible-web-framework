@@ -465,17 +465,17 @@ function formatInvalidReference(reference: InvalidReference) {
         <template #page>
           <select v-model="page">
             <option v-for="number in pageCount" :key="number" :value="number">
-              {{ number }}
+              {{ $n(number) }}
             </option>
           </select>
         </template>
         <template #pageSize>
           <select v-model="resultsPerPage">
-            <option :value="50">50</option>
-            <option :value="100">100</option>
-            <option :value="150">150</option>
-            <option :value="200">200</option>
-            <option :value="250">250</option>
+            <option :value="50">{{ $n(50) }}</option>
+            <option :value="100">{{ $n(100) }}</option>
+            <option :value="150">{{ $n(150) }}</option>
+            <option :value="200">{{ $n(200) }}</option>
+            <option :value="250">{{ $n(250) }}</option>
           </select>
         </template>
       </i18n-t>
@@ -558,7 +558,8 @@ function formatInvalidReference(reference: InvalidReference) {
         <h2>
           {{
             $t('search.resultsCount', {
-              total: searchResults.total_results,
+              total: $n(searchResults.total_results),
+              count: searchResults.total_results,
               term: searchResults.search_term,
             })
           }}

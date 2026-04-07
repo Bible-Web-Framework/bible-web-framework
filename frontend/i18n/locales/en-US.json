@@ -9,7 +9,7 @@
         "pageSelect": "Page: {page} Results per page: {pageSize}",
         "fullChapter": "View full chapter",
         "noScripturePassage": "No scripture passage found for {0}",
-        "resultsCount": "{total} results found for \"{term}\":",
+        "resultsCount": "{total} @:plural.results found for \"{term}\":",
         "invalidReference": "Invalid reference \"{reference}\": {details}",
         "invalidReferenceDetail": {
             "missing_chapter": "No chapter specified",
@@ -20,5 +20,8 @@
             "out_of_bounds_verse": "{book} {chapter} has no verse {verse}",
             "out_of_order_verses": "Verse {0} is after verse {1}"
         }
+    },
+    "plural": {
+        "results": "result | results"
     }
 }
