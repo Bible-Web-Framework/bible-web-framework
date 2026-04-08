@@ -56,7 +56,7 @@ unicode-normalization = "0.1.25"
 usfm3 = "0.1.9"
 validator = { version = "0.20.0", features = ["derive"] }
 walkdir = "2.5.0"
-zip = "8.4.0"
+zip = "8.5.0"
 
 [build-dependencies]
 hashlink = { version = "0.11.0", features = ["serde_impl"] }
