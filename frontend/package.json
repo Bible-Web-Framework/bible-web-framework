@@ -28,7 +28,7 @@
         "@types/regenerate": "^1.4.3",
         "@unicode/unicode-17.0.0": "^1.6.16",
         "@vue/test-utils": "^2.4.6",
-        "eslint": "^10.1.0",
+        "eslint": "^10.2.0",
         "json-stringify-pretty-compact": "^4.0.0",
         "regenerate": "^1.4.2",
         "typescript": "^6.0.2"
