@@ -1,4 +1,4 @@
-import books from '../books.json' with { type: 'json' }
+import books from '../backend/books.json' with { type: 'json' }
 import fs from 'fs'
 import stringify from 'json-stringify-pretty-compact'
 
