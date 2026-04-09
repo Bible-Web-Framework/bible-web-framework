@@ -48,7 +48,7 @@ subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/
 sync_file = "0.3.2"
 thiserror = "2.0.18"
 tinyvec = { version = "1.11.0", features = ["serde"] }
-toml = "1.1.0"
+toml = "1.1.2"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 unicase = "2.9.0"
