@@ -9,9 +9,9 @@ primary_region = 'ord'
 [build]
 
 [env]
-  DATABASE_URL=sqlite://BWF.db
-  DEFAULT_BIBLE=eanv
-  BIBLES_DIR=bibles
+  DATABASE_URL="sqlite://BWF.db"
+  DEFAULT_BIBLE="eanv"
+  BIBLES_DIR="bibles"
 
 [http_service]
   internal_port = 8080
