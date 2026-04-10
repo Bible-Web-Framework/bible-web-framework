@@ -203,6 +203,19 @@ impl BibleIndex {
                 );
             }
         }
+        Self::print_memory_stats();
+    }
+
+    pub fn clear_index(&mut self) {
+        *self = Self {
+            log_marker: mem::take(&mut self.log_marker),
+            ..Default::default()
+        };
+        tracing::info!("Cleared index{}", format_marker!(self));
+        Self::print_memory_stats();
+    }
+
+    fn print_memory_stats() {
         if let Some(memory) = memory_stats() {
             const MIB: usize = 1024 * 1024;
             tracing::info!(

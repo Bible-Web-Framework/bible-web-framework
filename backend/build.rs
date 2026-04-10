@@ -123,7 +123,7 @@ fn main() {
 }
 
 fn generate_books_data() {
-    println!("cargo::rerun-if-changed=../books.json");
+    println!("cargo::rerun-if-changed=books.json");
 
     let books = fs::read("books.json").unwrap();
     let mut books: BooksFile = serde_json::from_slice(&books).unwrap();

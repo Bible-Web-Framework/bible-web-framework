@@ -47,7 +47,7 @@ use zip::result::ZipError;
 pub struct MultiBibleData {
     pub root_dir: PathBuf,
     pub default_bible: String,
-    pub disabled_bibles: HashSet<Cow<'static, str>>,
+    pub disabled_bibles: HashSet<String>,
     pub bibles: DashMap<Cow<'static, str>, BibleData>,
     file_change_active: ExclusiveMutex,
 }
@@ -88,6 +88,7 @@ pub enum TextDirection {
 
 #[derive(Debug, Default)]
 pub struct SearchConfig {
+    pub index: bool,
     pub languages: Option<Box<[Language]>>,
     pub ignored_words: Option<fst::Set<Box<[u8]>>>,
 }
@@ -108,7 +109,7 @@ impl MultiBibleData {
     pub fn load(
         bibles_dir: PathBuf,
         default_bible: String,
-        disabled_bibles: HashSet<Cow<'static, str>>,
+        disabled_bibles: HashSet<String>,
     ) -> ConfigResult<Self> {
         let result = Self {
             root_dir: bibles_dir,
@@ -160,6 +161,21 @@ impl MultiBibleData {
             iter.as_path().to_string_lossy()
         }
 
+        fn handle_config_change(
+            bible: &BibleData,
+            path: &Path,
+            needs_reindex: bool,
+            clear_index: bool,
+        ) {
+            tracing::info!("Loaded new bible.toml from {}", path.display());
+            if needs_reindex {
+                bible.update_index(ReindexType::FullReindex);
+            }
+            if clear_index {
+                bible.index.write().clear_index();
+            }
+        }
+
         match event.kind {
             EventKind::Create(CreateKind::Any | CreateKind::File | CreateKind::Folder)
             | EventKind::Modify(ModifyKind::Name(RenameMode::To)) => {
@@ -189,11 +205,11 @@ impl MultiBibleData {
                                 .insert_from_file_or_warn(path, get_inside_bible_path(trimmed_path))
                         {
                             match load {
-                                LoadComplete::Config { needs_reindex } => {
-                                    tracing::info!("Loaded new bible.toml from {}", path.display());
-                                    if needs_reindex {
-                                        bible.update_index(ReindexType::FullReindex);
-                                    }
+                                LoadComplete::Config {
+                                    needs_reindex,
+                                    clear_index,
+                                } => {
+                                    handle_config_change(&bible, path, needs_reindex, clear_index);
                                 }
                                 LoadComplete::Book(book) => {
                                     tracing::info!(
@@ -237,11 +253,11 @@ impl MultiBibleData {
                         .and_then(|(_, b)| b.usj.unwrap_root().book_info());
                     if let Some(load) = bible.insert_from_file_or_warn(path, inside_path) {
                         match load {
-                            LoadComplete::Config { needs_reindex } => {
-                                tracing::info!("Loaded new bible.toml from {}", path.display());
-                                if needs_reindex {
-                                    bible.update_index(ReindexType::FullReindex);
-                                }
+                            LoadComplete::Config {
+                                needs_reindex,
+                                clear_index,
+                            } => {
+                                handle_config_change(&bible, path, needs_reindex, clear_index);
                             }
                             LoadComplete::Book(new_book) => {
                                 let reindex_type = if let Some(old_book) = old_book
@@ -283,7 +299,7 @@ impl MultiBibleData {
                         let new_id = get_root_bible_id(new_trimmed_path);
                         if let Some((_, bible)) = self.bibles.remove(&*old_id) {
                             tracing::info!("Detected rename of bible {old_id} to {new_id}");
-                            if self.disabled_bibles.contains(&new_id) {
+                            if self.disabled_bibles.contains(&*new_id) {
                                 tracing::info!(
                                     "Removing renamed bible {new_id} because it's disabled.",
                                 );
@@ -431,7 +447,7 @@ impl MultiBibleData {
             return false;
         }
         let bible_id = BibleData::get_file_bible_id(path);
-        if self.disabled_bibles.contains(&bible_id) {
+        if self.disabled_bibles.contains(&*bible_id) {
             tracing::info!("Skipping loading disabled bible {bible_id}");
             true
         } else {
@@ -467,11 +483,13 @@ impl BibleData {
 
         let mut index = data.index.write();
         index.log_marker = Some(data.id.clone());
-        index.update_index(
-            ReindexType::FullReindex,
-            &data.books,
-            &data.config.read().search.create_tokenizer(),
-        );
+        if data.config.read().search.index {
+            index.update_index(
+                ReindexType::FullReindex,
+                &data.books,
+                &data.config.read().search.create_tokenizer(),
+            );
+        }
         drop(index);
 
         Ok(data)
@@ -525,12 +543,15 @@ impl BibleData {
     }
 
     fn update_index(&self, reindex_type: ReindexType) {
+        if !self.config.read().search.index {
+            return;
+        }
         if matches!(reindex_type, ReindexType::Unindex(_))
             && self.has_ignored_files.load(Ordering::Acquire)
         {
             tracing::info!(
                 "Reloading all books in {} due to previously ignored files",
-                self.id
+                self.id,
             );
             return self.update_index(ReindexType::FullReindex);
         }
@@ -558,6 +579,7 @@ impl BibleData {
                         .next()
                         .is_some();
                 }
+                let indexing_changed = new_config.search.index != old_config.search.index;
                 drop(old_config);
 
                 *self.config.write() = new_config.clone();
@@ -568,7 +590,9 @@ impl BibleData {
                     }
                 }
                 Some(LoadComplete::Config {
-                    needs_reindex: tokenizer_changed,
+                    needs_reindex: tokenizer_changed
+                        || (indexing_changed && new_config.search.index),
+                    clear_index: indexing_changed && !new_config.search.index,
                 })
             }
             LoadAction::Book(mut data) => {
@@ -784,7 +808,10 @@ enum LoadAction {
 }
 
 enum LoadComplete {
-    Config { needs_reindex: bool },
+    Config {
+        needs_reindex: bool,
+        clear_index: bool,
+    },
     Book(UsjBookInfo),
 }
 
@@ -905,11 +932,17 @@ mod unresolved {
     #[serde_as]
     #[derive(Debug, Default, Deserialize)]
     struct SearchConfig {
+        #[serde(default = "default_index")]
+        index: bool,
         #[serde_as(as = "Option<Vec<LanguageAsCode>>")]
         #[serde(default)]
         languages: Option<Vec<Language>>,
         #[serde(default)]
         ignored_words: Option<Vec<String>>,
+    }
+
+    fn default_index() -> bool {
+        true
     }
 
     #[serde_as]
@@ -1002,6 +1035,7 @@ mod unresolved {
     impl From<SearchConfig> for super::SearchConfig {
         fn from(val: SearchConfig) -> Self {
             super::SearchConfig {
+                index: val.index,
                 ignored_words: val.ignored_words.map(|words| {
                     fst::Set::from_iter(
                         words

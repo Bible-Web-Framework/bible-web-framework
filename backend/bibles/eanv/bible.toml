@@ -86,10 +86,14 @@ book_order = [
 JHN = ["Example"]
 
 [search]
+# Whether to index the bible for search. If unspecified, it will default to true.
+index = true
+
 # The list of languages that are used by the bible. A list of supported ones can be found at
 # https://github.com/greyblake/whatlang-rs/blob/master/SUPPORTED_LANGUAGES.md. If any of the languages you have are not
 # in this list, do not specify any, or languages will get classified incorrectly. Specifying an empty array means no
-# language, which is distinct from specifying nothing, and is probably not what you want.
+# language, which is distinct from specifying nothing, and is probably not what you want. It is still importand to
+# specify this even if index is set to false, as it's used for book lookup and footnote generation as well.
 languages = ["eng"]
 
 # A list of words to ignore in search. Most normalizations are not run on these words, so they must match the words you

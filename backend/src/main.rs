@@ -2,10 +2,10 @@ use crate::api::route_not_found;
 use crate::bible_data::{BibleDataError, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
+use itertools::Itertools;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
-use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -93,11 +93,7 @@ async fn real_main() -> Result<(), ServerError> {
     let bible_data = web::Data::new(MultiBibleData::load(
         bibles_dir.clone(),
         var_str("DEFAULT_BIBLE")?,
-        env::var("DISABLE_BIBLES")
-            .ok()
-            .filter(|x| !x.is_empty())
-            .map(|x| x.split(',').map(|s| Cow::Owned(s.to_string())).collect())
-            .unwrap_or_default(),
+        var_comma_list("DISABLE_BIBLES")?,
     )?);
 
     let usj_watcher = {
@@ -177,12 +173,39 @@ where
     T::Err: Error + Send + 'static,
 {
     let base_value = var_str(&var_name)?;
-    let parsed_value = base_value.parse().map_err(|x| {
+    let parsed_value = base_value.parse().map_err(|err| {
         ServerError::EnvParse(
             var_name.as_ref().display().to_string(),
             base_value,
-            Box::new(x),
+            Box::new(err),
         )
     })?;
     Ok(parsed_value)
+}
+
+fn var_comma_list<T, C>(var_name: impl AsRef<OsStr>) -> Result<C, ServerError>
+where
+    T: FromStr,
+    T::Err: Error + Send + 'static,
+    C: FromIterator<T> + Default,
+{
+    env::var(var_name.as_ref())
+        .ok()
+        .filter(|x| !x.is_empty())
+        .map_or_else(
+            || Ok(C::default()),
+            |x| {
+                x.split(',')
+                    .map(|base_value| {
+                        T::from_str(base_value).map_err(|err| {
+                            ServerError::EnvParse(
+                                var_name.as_ref().display().to_string(),
+                                base_value.to_string(),
+                                Box::new(err),
+                            )
+                        })
+                    })
+                    .try_collect()
+            },
+        )
 }
