@@ -8,7 +8,7 @@
         "test": "turbo run test --continue"
     },
     "devDependencies": {
-        "prettier": "^3.8.1",
+        "prettier": "^3.8.2",
         "turbo": "^2.9.5"
     },
     "packageManager": "pnpm@10.33.0",
