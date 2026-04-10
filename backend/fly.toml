@@ -9,13 +9,15 @@ primary_region = 'ord'
 [build]
 
 [env]
-DATABASE_URL="sqlite:///bwf/bwf.db"
-DEFAULT_BIBLE="eanv"
-BIBLES_DIR="/bwf/bibles"
+BIND_HOST = '0.0.0.0'
+BIND_PORT = '8080'
+DATABASE_URL = 'sqlite:///bwf/bwf.db'
+DEFAULT_BIBLE = 'eanv'
+BIBLES_DIR = '/bwf/bibles'
 
 [mounts]
-source = "bwf"
-destination = "/bwf"
+source = 'bwf'
+destination = '/bwf'
 
 [http_service]
 internal_port = 8080
