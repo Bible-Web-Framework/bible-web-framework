@@ -1,8 +1,8 @@
 use crate::api::{ApiError, ApiResult};
 use crate::reference::{BibleReference, parse_references};
 use crate::reference_encoding::{
-    ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
-    encode_references_to_num, is_base58_swear,
+    ReferenceEncodingError, base59_decode, base59_encode, decode_references_from_num,
+    encode_references_to_num, is_base59_swear,
 };
 use crate::{DatabaseReadOnly, reference_encoding};
 use actix_web::{get, web};
@@ -33,7 +33,7 @@ pub struct ShortUrlValue(reference_encoding::Carrier);
 
 impl Display for ShortUrlValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&base58_encode(self.0))
+        f.write_str(&base59_encode(self.0))
     }
 }
 
@@ -41,7 +41,7 @@ impl FromStr for ShortUrlValue {
     type Err = ReferenceEncodingError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        base58_decode(s).map(ShortUrlValue)
+        base59_decode(s).map(ShortUrlValue)
     }
 }
 
@@ -89,7 +89,7 @@ pub async fn create(
             } else {
                 true
             };
-            if encoded_is_optimal && !is_base58_swear(num) {
+            if encoded_is_optimal && !is_base59_swear(num) {
                 return Ok(web::Json(ShortUrl {
                     r#type: ShortUrlType::Encoded,
                     value: ShortUrlValue(num),
@@ -111,7 +111,7 @@ pub async fn create(
 
     const SWEAR_INCREMENT: u64 = 4000; // Slightly above 58^2. Should scramble the last 3 characters.
     let mut safe_id = id;
-    while is_base58_swear(safe_id) {
+    while is_base59_swear(safe_id) {
         safe_id += SWEAR_INCREMENT;
     }
     if safe_id != id {

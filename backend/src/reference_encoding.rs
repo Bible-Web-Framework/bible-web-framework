@@ -11,7 +11,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ReferenceEncodingError {
-    #[error("Invalid base58 character '{0}'")]
+    #[error("Invalid base59 character '{0}'")]
     InvalidChar(char),
     #[error("Reference too big to encode/decode")]
     TooBig,
@@ -27,27 +27,41 @@ pub enum ReferenceEncodingError {
     NonExhaustedReference,
 }
 
-const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+/// This is base58 with the addition of 0.
+const BASE59_ALPHABET: [u8; 59] = *b"0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+/// O and 0 will be interpreted as a 0, and I, l, and 1 will be interpreted as 1.
+const BASE59_KEY: [u8; 256] = const {
+    let mut result = [255; 256];
+    let mut index = 0;
+    while index < BASE59_ALPHABET.len() {
+        result[BASE59_ALPHABET[index] as usize] = index as u8;
+        index += 1;
+    }
+    result[b'O' as usize] = result[b'0' as usize];
+    result[b'I' as usize] = result[b'1' as usize];
+    result[b'l' as usize] = result[b'1' as usize];
+    result
+};
 
 pub type Carrier = u64;
-const MAX_BASE58_LENGTH: usize = Carrier::MAX.ilog(58) as usize + 1;
+const MAX_BASE59_LENGTH: usize = Carrier::MAX.ilog(59) as usize + 1;
 
-pub fn base58_encode(value: Carrier) -> String {
+pub fn base59_encode(value: Carrier) -> String {
     if value == 0 {
         return "1".to_string();
     }
-    let mut result = [0u8; MAX_BASE58_LENGTH];
-    let result = base58_encode_internal(value, &mut result);
+    let mut result = [0u8; MAX_BASE59_LENGTH];
+    let result = base59_encode_internal(value, &mut result);
     // SAFETY: Every character above out_index is filled in, or else we'll have panicked by now
     unsafe { str::from_utf8_unchecked(result) }.to_string()
 }
 
-pub fn is_base58_swear(value: Carrier) -> bool {
-    if value < 58 {
+pub fn is_base59_swear(value: Carrier) -> bool {
+    if value < 59 {
         return false;
     }
-    let mut text = [0u8; MAX_BASE58_LENGTH];
-    let text = base58_encode_internal(value, &mut text);
+    let mut text = [0u8; MAX_BASE59_LENGTH];
+    let text = base59_encode_internal(value, &mut text);
     Censor::new(
         text.iter()
             .map(|x| unsafe { char::from_u32_unchecked(*x as u32) }),
@@ -56,27 +70,27 @@ pub fn is_base58_swear(value: Carrier) -> bool {
     .is(Type::ANY & !Type::SPAM)
 }
 
-fn base58_encode_internal(mut value: Carrier, output: &mut [u8; MAX_BASE58_LENGTH]) -> &[u8] {
-    let mut out_index = MAX_BASE58_LENGTH;
+fn base59_encode_internal(mut value: Carrier, output: &mut [u8; MAX_BASE59_LENGTH]) -> &[u8] {
+    let mut out_index = MAX_BASE59_LENGTH;
     while value > 0 {
         out_index -= 1;
-        output[out_index] = BASE58_ALPHABET[(value % 58) as usize];
-        value /= 58;
+        output[out_index] = BASE59_ALPHABET[(value % 59) as usize];
+        value /= 59;
     }
     &output[out_index..]
 }
 
-pub fn base58_decode(x: &str) -> Result<Carrier, ReferenceEncodingError> {
+pub fn base59_decode(x: &str) -> Result<Carrier, ReferenceEncodingError> {
     let mut result = 0;
-    for c in x.as_bytes() {
-        result = mul_add(
-            result,
-            58,
-            BASE58_ALPHABET
-                .iter()
-                .position(|x| x == c)
-                .ok_or(ReferenceEncodingError::InvalidChar(*c as char))? as Carrier,
-        )?;
+    for (i, &c) in x.as_bytes().iter().enumerate() {
+        let value = BASE59_KEY[c as usize];
+        if value == 255 {
+            // TODO: hint::cold_path() when it's stabilized in Rust 1.95.0
+            return Err(ReferenceEncodingError::InvalidChar(
+                x[i..].chars().next().unwrap(),
+            ));
+        }
+        result = mul_add(result, 59, value as Carrier)?;
     }
     Ok(result)
 }
@@ -379,20 +393,18 @@ fn div_mod_with_offset(accum: Carrier, base: Carrier, offset: Carrier) -> (Carri
 mod tests {
     use crate::reference::BibleReference;
     use crate::reference_encoding::{
-        MAX_BASE58_LENGTH, ReferenceEncodingError, base58_decode, base58_encode,
-        decode_references_from_num, encode_references_to_num,
+        ReferenceEncodingError, base59_decode, base59_encode, decode_references_from_num,
+        encode_references_to_num,
     };
     use crate::reference_value;
-    use itertools::Itertools;
     use pretty_assertions::assert_eq;
-    use unicase::UniCase;
 
     fn encode_references(references: &[BibleReference]) -> Result<String, ReferenceEncodingError> {
-        Ok(base58_encode(encode_references_to_num(references)?))
+        Ok(base59_encode(encode_references_to_num(references)?))
     }
 
     fn decode_references(references: &str) -> Result<Vec<BibleReference>, ReferenceEncodingError> {
-        decode_references_from_num(base58_decode(references)?)
+        decode_references_from_num(base59_decode(references)?)
     }
 
     macro_rules! roundtrip_test {
@@ -420,49 +432,14 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn check_swears() -> Result<(), ReferenceEncodingError> {
-        let mut count = 0usize;
-        let mut failed_count = 0usize;
-        let mut error_count = 0usize;
-        for swear in (censor::Standard + censor::Zealous + censor::Sex)
-            .list()
-            .sorted_unstable()
-        {
-            if swear.len() > MAX_BASE58_LENGTH {
-                continue;
-            }
-            let swear_unicase = UniCase::new(swear);
-            for variation in swear
-                .bytes()
-                .interleave(swear.bytes().map(|x| x.to_ascii_uppercase()))
-                .combinations(swear.len())
-                .map(|s| String::from_utf8(s).unwrap())
-                .filter(|x| UniCase::new(x) == swear_unicase)
-                .unique()
-            {
-                let Ok(decoded_num) = base58_decode(&variation) else {
-                    continue;
-                };
-                count += 1;
-                let Ok(decoded) = decode_references_from_num(decoded_num) else {
-                    error_count += 1;
-                    continue;
-                };
-                let Ok(re_encoded) = encode_references(&decoded) else {
-                    error_count += 1;
-                    continue;
-                };
-                if variation == re_encoded {
-                    println!("Swear {variation} failed check: {decoded:?}");
-                    failed_count += 1;
-                }
-            }
-        }
-        println!(
-            "Checked {count} swears. {failed_count} are real. {error_count} caused errors. {} are no issue.",
-            count - failed_count - error_count
+    fn test_alternate_chars() {
+        assert_eq!(
+            base59_decode("01234").unwrap(),
+            base59_decode("OI234").unwrap()
         );
-        Ok(())
+        assert_eq!(
+            base59_decode("01234").unwrap(),
+            base59_decode("0l234").unwrap()
+        );
     }
 }

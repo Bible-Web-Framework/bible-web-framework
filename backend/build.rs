@@ -3,7 +3,6 @@ use permutate::Permutator;
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::env::var_os;
 use std::fmt::Write;
 use std::num::NonZeroU8;
 use std::path::Path;
@@ -114,10 +113,7 @@ impl<'a> BookAlias<'a> {
 }
 
 fn main() {
-    println!("cargo::rustc-check-cfg=cfg(sqlx_prepare)");
-    if var_os("SQLX_TMP").is_some() {
-        println!("cargo::rustc-cfg=sqlx_prepare");
-    }
+    println!("cargo:rerun-if-changed=migrations");
 
     generate_books_data();
 }
