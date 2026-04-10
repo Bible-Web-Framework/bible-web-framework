@@ -27,6 +27,13 @@ auto_start_machines = true
 min_machines_running = 0
 processes = ['app']
 
+[[services.http_checks]]
+grace_period = "5s"
+interval = "5s"
+method = "get"
+path = "/v1/bibles"
+protocol = "http"
+
 [[vm]]
 memory = '1gb'
 cpu_kind = 'shared'
