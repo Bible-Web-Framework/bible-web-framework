@@ -188,9 +188,8 @@ fn var_or_default<T: FromStr + Default>(var_name: impl AsRef<OsStr>) -> Result<T
 where
     T::Err: Error + Send + 'static,
 {
-    let base_value = match env::var(&var_name) {
-        Ok(val) => val,
-        Err(_) => return Ok(T::default()),
+    let Ok(base_value) = env::var(&var_name) else {
+        return Ok(T::default());
     };
     let parsed_value = parse_var_value(var_name, Cow::Owned(base_value))?;
     Ok(parsed_value)
