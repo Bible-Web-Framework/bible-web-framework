@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
-use std::{env, path};
+use std::{env, fs, path};
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -83,6 +83,13 @@ async fn real_main() -> Result<(), ServerError> {
     tracing::debug!("Debug logging is enabled");
 
     let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
+    if !bibles_dir.try_exists()? {
+        tracing::warn!(
+            "Bibles dir {} doesn't exist. Creating.",
+            bibles_dir.display(),
+        );
+        fs::create_dir_all(&bibles_dir)?;
+    }
     let bible_data = web::Data::new(MultiBibleData::load(
         bibles_dir.clone(),
         var_str("DEFAULT_BIBLE")?,
