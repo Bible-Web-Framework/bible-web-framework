@@ -9,20 +9,24 @@ primary_region = 'ord'
 [build]
 
 [env]
-  DATABASE_URL="sqlite:///bwf/bwf.db"
-  DEFAULT_BIBLE="eanv"
-  BIBLES_DIR="/bwf/bibles"
+DATABASE_URL="sqlite:///bwf/bwf.db"
+DEFAULT_BIBLE="eanv"
+BIBLES_DIR="/bwf/bibles"
+
+[mounts]
+source = "bwf"
+destination = "/bwf"
 
 [http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'suspend'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+internal_port = 8080
+force_https = true
+auto_stop_machines = 'suspend'
+auto_start_machines = true
+min_machines_running = 0
+processes = ['app']
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 1024
+memory = '1gb'
+cpu_kind = 'shared'
+cpus = 1
+memory_mb = 1024
