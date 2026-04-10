@@ -5,7 +5,6 @@
 
 app = 'bible-web-framework'
 primary_region = 'ord'
-swap_size_mb = 1024
 
 [env]
 BIND_HOST = '0.0.0.0'
@@ -33,6 +32,6 @@ path = "/v1/bibles"
 strategy = "bluegreen"
 
 [[vm]]
-memory = '256mb'
+memory = '512mb'
 cpu_kind = 'shared'
 cpus = 1
