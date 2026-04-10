@@ -17,4 +17,6 @@ RUN cargo build --release --bin bwf-backend
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 COPY --from=builder /app/target/release/bwf-backend /usr/local/bin
+COPY ./bibles /app/bibles
+COPY ./deploy/bwf-deploy.db /app/bwf.db
 ENTRYPOINT ["/usr/local/bin/bwf-backend"]
