@@ -1,10 +1,10 @@
 use crate::api::{ApiError, ApiResult};
 use crate::reference::{BibleReference, parse_references};
-use crate::reference_encoding;
 use crate::reference_encoding::{
     ReferenceEncodingError, base58_decode, base58_encode, decode_references_from_num,
     encode_references_to_num, is_base58_swear,
 };
+use crate::{DatabaseReadOnly, reference_encoding};
 use actix_web::{get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
@@ -54,6 +54,7 @@ pub struct CreateShortQueryParams {
 pub async fn create(
     query: Query<CreateShortQueryParams>,
     database: web::Data<AnyPool>,
+    database_read_only: web::Data<DatabaseReadOnly>,
 ) -> ApiResult<web::Json<ShortUrl>> {
     let query = query.into_inner();
     let references: Vec<_> = parse_references(&query.r#ref, &())
@@ -77,13 +78,18 @@ pub async fn create(
 
     match encode_references_to_num(&references) {
         Ok(num) => {
-            let id_guess = sqlx::query("SELECT MAX(id) as max_id FROM short_urls")
-                .fetch_one(&mut *transaction)
-                .await?
-                .get::<Option<i32>, _>("max_id")
-                .unwrap_or(0) as u64
-                + 1;
-            if num < id_guess && !is_base58_swear(num) {
+            let encoded_is_optimal = if !database_read_only.0 {
+                let id_guess = sqlx::query("SELECT MAX(id) as max_id FROM short_urls")
+                    .fetch_one(&mut *transaction)
+                    .await?
+                    .get::<Option<i32>, _>("max_id")
+                    .unwrap_or(0) as u64
+                    + 1;
+                num < id_guess
+            } else {
+                true
+            };
+            if encoded_is_optimal && !is_base58_swear(num) {
                 return Ok(web::Json(ShortUrl {
                     r#type: ShortUrlType::Encoded,
                     value: ShortUrlValue(num),
@@ -93,6 +99,9 @@ pub async fn create(
         Err(ReferenceEncodingError::TooBig) => {}
         Err(e) => return Err(ApiError::InvalidReferenceEncoding(e)),
     };
+    if database_read_only.0 {
+        return Err(ApiError::ShortReferencesNotAllowed);
+    }
 
     let mut id = sqlx::query("INSERT INTO short_urls (bible_references) VALUES ($1) RETURNING id")
         .bind(references_blob)

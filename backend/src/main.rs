@@ -6,6 +6,7 @@ use itertools::Itertools;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
+use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -128,11 +129,14 @@ async fn real_main() -> Result<(), ServerError> {
         web::Data::new(usj_watcher)
     };
 
+    let database_read_only =
+        web::Data::new(DatabaseReadOnly(var_or_default("DATABASE_READ_ONLY")?));
+
     let database = {
         let db_url = var_str("DATABASE_URL")?;
         tracing::info!("Connecting to database {db_url}");
         sqlx::any::install_default_drivers();
-        if !sqlx::Any::database_exists(&db_url).await? {
+        if !database_read_only.0 && !sqlx::Any::database_exists(&db_url).await? {
             tracing::info!("Database doesn't exist, creating new database");
             sqlx::Any::create_database(&db_url).await?;
         }
@@ -149,6 +153,7 @@ async fn real_main() -> Result<(), ServerError> {
         App::new()
             .app_data(bible_data.clone())
             .app_data(usj_watcher.clone())
+            .app_data(database_read_only.clone())
             .app_data(database.clone())
             .wrap(Cors::permissive())
             .wrap(middleware::Compress::default())
@@ -162,6 +167,8 @@ async fn real_main() -> Result<(), ServerError> {
     Ok(())
 }
 
+pub struct DatabaseReadOnly(bool);
+
 fn var_str(var_name: impl AsRef<OsStr>) -> Result<String, ServerError> {
     let value = env::var(&var_name)
         .map_err(|x| ServerError::Env(var_name.as_ref().display().to_string(), x))?;
@@ -173,13 +180,19 @@ where
     T::Err: Error + Send + 'static,
 {
     let base_value = var_str(&var_name)?;
-    let parsed_value = base_value.parse().map_err(|err| {
-        ServerError::EnvParse(
-            var_name.as_ref().display().to_string(),
-            base_value,
-            Box::new(err),
-        )
-    })?;
+    let parsed_value = parse_var_value(var_name, Cow::Owned(base_value))?;
+    Ok(parsed_value)
+}
+
+fn var_or_default<T: FromStr + Default>(var_name: impl AsRef<OsStr>) -> Result<T, ServerError>
+where
+    T::Err: Error + Send + 'static,
+{
+    let base_value = match env::var(&var_name) {
+        Ok(val) => val,
+        Err(_) => return Ok(T::default()),
+    };
+    let parsed_value = parse_var_value(var_name, Cow::Owned(base_value))?;
     Ok(parsed_value)
 }
 
@@ -196,16 +209,22 @@ where
             || Ok(C::default()),
             |x| {
                 x.split(',')
-                    .map(|base_value| {
-                        T::from_str(base_value).map_err(|err| {
-                            ServerError::EnvParse(
-                                var_name.as_ref().display().to_string(),
-                                base_value.to_string(),
-                                Box::new(err),
-                            )
-                        })
-                    })
+                    .map(|base_value| parse_var_value(&var_name, Cow::Borrowed(base_value)))
                     .try_collect()
             },
         )
+}
+
+fn parse_var_value<T>(var_name: impl AsRef<OsStr>, base_value: Cow<str>) -> Result<T, ServerError>
+where
+    T: FromStr,
+    T::Err: Error + Send + 'static,
+{
+    base_value.parse().map_err(|err| {
+        ServerError::EnvParse(
+            var_name.as_ref().display().to_string(),
+            base_value.into_owned(),
+            Box::new(err),
+        )
+    })
 }

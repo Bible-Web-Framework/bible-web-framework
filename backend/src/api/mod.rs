@@ -27,6 +27,10 @@ pub enum ApiError {
     InvalidReferenceEncoding(#[from] ReferenceEncodingError),
     #[error("Short URL not found: {0}")]
     MissingShortReference(ShortUrlValue),
+    #[error(
+        "New short URLs are not allowed to be created publicly. Please contact the server admin to add new short URLs."
+    )]
+    ShortReferencesNotAllowed,
 
     #[error(transparent)]
     InvalidQueryParams(#[from] actix_web_validator::Error),
@@ -50,6 +54,7 @@ impl ResponseError for ApiError {
             ApiError::InvalidReference(_, _) => StatusCode::BAD_REQUEST,
             ApiError::InvalidReferenceEncoding(_) => StatusCode::NOT_FOUND,
             ApiError::MissingShortReference(_) => StatusCode::NOT_FOUND,
+            ApiError::ShortReferencesNotAllowed => StatusCode::CONFLICT,
 
             ApiError::InvalidQueryParams(_) => StatusCode::BAD_REQUEST,
             ApiError::RouteNotFound(_) => StatusCode::NOT_FOUND,
