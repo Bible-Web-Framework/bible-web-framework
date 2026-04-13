@@ -249,14 +249,22 @@ UnimplementedMarker.props = {
     <!-- TODO: Implement Milestones -->
     <template v-else-if="content.type === 'note'">
       <template v-if="['f', 'fe', 'x'].includes(content.marker)"
-        ><a
-          v-if="content.caller !== '-'"
-          :class="['usj-content', 'note-source', content.marker]"
-          :name="`note-source-${content.caller}`"
-          :href="`#note-contents-${content.caller}`"
-          >{{ content.caller }}</a
-        ></template
-      >
+        ><template v-if="content.caller !== '-'"
+          ><a
+            :class="['usj-content', 'note-source', content.marker]"
+            :name="`note-source-${content.caller}`"
+            :href="`#note-contents-${content.caller}`"
+            >{{ content.caller }}</a
+          >
+          <span class="usj-content note-contents note-hover">
+            <UsjContentsRenderer
+              :contents="content.content"
+              :text-direction="textDirection"
+              :highlights="highlights"
+              :ignore-content="ignoreContent"
+              :generate-search-query="generateSearchQuery"
+              :current-path="currentPath.concat(contentIndex)" /></span></template
+      ></template>
       <UnimplementedMarker v-else :marker="content.marker" />
     </template>
     <UnimplementedMarker v-else :marker="'marker' in content ? content.marker : content.type" />
