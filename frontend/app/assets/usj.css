@@ -10,7 +10,6 @@
 p.usj-content {
   margin-block: 0.25em;
   line-height: 1.4;
-  text-align: justify;
 }
 
 /* #region Chapters and Verses */
@@ -110,6 +109,11 @@ p.sp {
 /* #region Body Paragraphs */
 .p {
   text-indent: 1em;
+  text-align: justify;
+}
+
+.m {
+  text-align: justify;
 }
 
 p.po {
@@ -123,15 +127,18 @@ p.po {
 
 .pr {
   text-align: end;
+  text-align: justify;
 }
 
 .pc {
   text-align: center;
+  text-align: justify;
 }
 
 .pm {
   text-indent: 1em;
   margin-inline: 2em;
+  text-align: justify;
 }
 
 .pmo {
@@ -151,6 +158,7 @@ p.po {
   /* TODO: Figure out a way to make this work on the first verse in a chapter */
   text-indent: 1em;
   margin-inline-end: 2em;
+  text-align: justify;
 }
 
 .pi[data-usj-indent='1'] {
@@ -167,6 +175,7 @@ p.po {
 
 .mi {
   margin-inline: 2em;
+  text-align: justify;
 }
 
 .lit {
