@@ -239,34 +239,40 @@ function changeBible() {
 
 const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ contents }) => {
   const notes: VNode[] = []
-  walkUsj(contents, (element) => {
-    if (typeof element === 'string' || element.type !== 'note') {
-      return true
-    }
-    const children = [
-      h(UsjContentsRenderer, {
-        contents: element.content,
-        textDirection: bibleTextDirection.value,
-        ignoreContent: (content) => content.type === 'note',
-        generateSearchQuery: newQueryParamsForSearch,
-      }),
-    ]
-    if (element.caller !== '-') {
-      children.unshift(
-        h(
-          'a',
-          {
-            class: 'usj-content f',
-            name: `note-contents-${element.caller}`,
-            href: `#note-source-${element.caller}`,
-          },
-          [element.caller],
-        ),
-      )
-    }
-    notes.push(h('div', { class: 'note-contents', dir: bibleTextDirection.value }, children))
-    return false
-  })
+  for (const forCaller of [true, false]) {
+    walkUsj(contents, (element) => {
+      if (typeof element === 'string' || element.type !== 'note') {
+        return true
+      }
+      const hasCaller = element.caller !== '-'
+      if (hasCaller !== forCaller) {
+        return true
+      }
+      const children = [
+        h(UsjContentsRenderer, {
+          contents: element.content,
+          textDirection: bibleTextDirection.value,
+          ignoreContent: (content) => content.type === 'note',
+          generateSearchQuery: newQueryParamsForSearch,
+        }),
+      ]
+      if (hasCaller) {
+        children.unshift(
+          h(
+            'a',
+            {
+              class: 'usj-content f',
+              name: `note-contents-${element.caller}`,
+              href: `#note-source-${element.caller}`,
+            },
+            [element.caller],
+          ),
+        )
+      }
+      notes.push(h('div', { class: 'note-contents', dir: bibleTextDirection.value }, children))
+      return false
+    })
+  }
   return notes
 }
 NotesRenderer.props = {
