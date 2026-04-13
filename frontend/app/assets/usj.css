@@ -328,6 +328,10 @@ p.po {
 .xo {
   font-weight: bold;
 }
+
+.xt {
+  unicode-bidi: embed;
+}
 /* #endregion */
 
 /* #region Poetry */

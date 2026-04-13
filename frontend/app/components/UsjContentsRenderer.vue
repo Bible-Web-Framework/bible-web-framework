@@ -184,6 +184,7 @@ UnimplementedMarker.props = {
             'fr',
             'ft',
             'xo',
+            'xt',
           ].includes(content.marker)
         "
         :class="['usj-content', content.marker]"
