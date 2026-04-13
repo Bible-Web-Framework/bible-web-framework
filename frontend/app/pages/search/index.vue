@@ -243,8 +243,16 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
     if (typeof element === 'string' || element.type !== 'note') {
       return true
     }
-    notes.push(
-      h('div', { class: 'note-contents', dir: bibleTextDirection.value }, [
+    const children = [
+      h(UsjContentsRenderer, {
+        contents: element.content,
+        textDirection: bibleTextDirection.value,
+        ignoreContent: (content) => content.type === 'note',
+        generateSearchQuery: newQueryParamsForSearch,
+      }),
+    ]
+    if (element.caller !== '-') {
+      children.unshift(
         h(
           'a',
           {
@@ -254,14 +262,9 @@ const NotesRenderer: FunctionalComponent<{ contents: ParaContent[] }> = ({ conte
           },
           [element.caller],
         ),
-        h(UsjContentsRenderer, {
-          contents: element.content,
-          textDirection: bibleTextDirection.value,
-          ignoreContent: (content) => content.type === 'note',
-          generateSearchQuery: newQueryParamsForSearch,
-        }),
-      ]),
-    )
+      )
+    }
+    notes.push(h('div', { class: 'note-contents', dir: bibleTextDirection.value }, children))
     return false
   })
   return notes
