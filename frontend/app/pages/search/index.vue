@@ -13,7 +13,7 @@ import UsjContentsRenderer from '~/components/UsjContentsRenderer.vue'
 import {
   isTitlePara,
   MACHINE_REFERENCE_REGEX,
-  normalizeNoteCallers,
+  normalizeAndCountNotes,
   walkUsj,
   type Book,
   type ParaContent,
@@ -72,9 +72,10 @@ const { data: searchData } = await useAsyncData(
     })
 
     let noteId = 0
+    let noteCount = 0
     for (const reference of response.references) {
       if ('content' in reference && reference.content) {
-        noteId = normalizeNoteCallers(reference.content, noteId)
+        ;[noteId, noteCount] = normalizeAndCountNotes(reference.content, noteId, noteCount)
       }
     }
 
@@ -116,7 +117,7 @@ const { data: searchData } = await useAsyncData(
 
     return {
       results: response,
-      noteCount: noteId,
+      noteCount,
     }
   },
   {

@@ -253,14 +253,21 @@ export function walkUsj(elements: ParaContent[], handler: (element: ParaContent)
   }
 }
 
-export function normalizeNoteCallers(elements: ParaContent[], startId: number = 0) {
+export function normalizeAndCountNotes(
+  elements: ParaContent[],
+  startId: number = 0,
+  noteCount: number = 0,
+) {
   walkUsj(elements, (element) => {
-    if (typeof element !== 'string' && element.type === 'note' && element.caller === '+') {
-      element.caller = excelColumnName(++startId)
+    if (typeof element !== 'string' && element.type === 'note') {
+      noteCount++
+      if (element.caller === '+') {
+        element.caller = excelColumnName(++startId)
+      }
     }
     return true
   })
-  return startId
+  return [startId, noteCount] as const
 }
 
 export function isTitlePara(content: UsjContent) {
