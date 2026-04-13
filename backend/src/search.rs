@@ -2,7 +2,8 @@ use crate::bible_data::{BibleData, FootnotesConfig, FootnotesTree};
 use crate::book_data::Book;
 use crate::index::{BibleIndex, TextRange};
 use crate::reference::{BibleReference, BookReference, ParseReferenceError, parse_references};
-use crate::usj::content::ParaContent;
+use crate::usj::content::{AttributesMap, ParaContent};
+use crate::usj::marker::ContentMarker;
 use crate::usj::root::UsjRoot;
 use crate::usj::{TranslatedBookInfo, content::UsjContent, is_title_marker};
 use crate::verse_range::VerseRange;
@@ -300,8 +301,8 @@ struct FootnoteGenerator<'a> {
     tokenizer: Tokenizer<'a>,
     phrase_finder: PhraseFinder<'a>,
     current_book: Book,
-    current_chapter: Option<NonZeroU8>,
-    current_verses: Option<VerseRange>,
+    current_chapter: Option<(NonZeroU8, String)>,
+    current_verses: Option<(VerseRange, String)>,
     current_path: SmallVec<[usize; 4]>,
     last_text_path: Option<SmallVec<[usize; 4]>>,
     insert_at_paths: Vec<(SmallVec<[usize; 4]>, &'a UsjContent)>,
@@ -318,8 +319,14 @@ impl<'a> FootnoteGenerator<'a> {
             tokenizer,
             phrase_finder: PhraseFinder::new(footnotes, initial_reference),
             current_book: initial_reference.book,
-            current_chapter: Some(initial_reference.chapter),
-            current_verses: Some(initial_reference.verses),
+            current_chapter: Some((
+                initial_reference.chapter,
+                initial_reference.chapter.to_string(),
+            )),
+            current_verses: Some((
+                initial_reference.verses,
+                initial_reference.chapter.to_string(),
+            )),
             current_path: smallvec![],
             last_text_path: None,
             insert_at_paths: vec![],
@@ -399,13 +406,23 @@ impl FootnoteGenerator<'_> {
                 }
             }
 
-            UsjContent::Chapter { number, .. } => {
-                self.current_chapter = Some(number.value);
+            UsjContent::Chapter {
+                number, pub_number, ..
+            } => {
+                self.current_chapter = Some((
+                    number.value,
+                    pub_number.clone().unwrap_or_else(|| number.string.clone()),
+                ));
                 self.current_verses = None;
                 self.end_section();
             }
-            UsjContent::Verse { number, .. } => {
-                self.current_verses = Some(number.value);
+            UsjContent::Verse {
+                number, pub_number, ..
+            } => {
+                self.current_verses = Some((
+                    number.value,
+                    pub_number.clone().unwrap_or_else(|| number.string.clone()),
+                ));
                 self.end_section();
             }
 
@@ -414,8 +431,8 @@ impl FootnoteGenerator<'_> {
     }
 
     fn end_section(&mut self) {
-        let footnote = if let Some(chapter) = self.current_chapter
-            && let Some(verses) = self.current_verses
+        let footnote = if let Some((chapter, _)) = self.current_chapter
+            && let Some((verses, _)) = self.current_verses
         {
             self.phrase_finder.reset_to_location(BibleReference {
                 book: self.current_book,
@@ -433,9 +450,10 @@ impl FootnoteGenerator<'_> {
     }
 
     fn expand_text_section(&mut self, text: &str) -> Option<Vec<ParaContent>> {
-        if self.current_chapter.is_none() || self.current_verses.is_none() {
+        let (Some((_, chapter)), Some((_, verses))) = (&self.current_chapter, &self.current_verses)
+        else {
             return None;
-        }
+        };
         let mut result: Option<Vec<ParaContent>> = None;
         let mut text_index = 0;
         for (token_index, token) in self.tokenizer.tokenize(text).enumerate() {
@@ -468,7 +486,21 @@ impl FootnoteGenerator<'_> {
                 }
                 text_index = token.byte_start;
             }
-            result.push(ParaContent::Usj(footnote.footnote.clone()));
+            let mut note = footnote.footnote.clone();
+            match &mut note {
+                UsjContent::Note { content, .. } => {
+                    content.insert(
+                        0,
+                        ParaContent::Usj(UsjContent::Character {
+                            marker: ContentMarker::Fr(()),
+                            content: vec![ParaContent::Plain(format!("{chapter}:{verses} "))],
+                            attributes: AttributesMap::new(),
+                        }),
+                    );
+                }
+                _ => unreachable!("FootnoteUsfmAsUsj should have returned UsjContent::Note"),
+            }
+            result.push(ParaContent::Usj(note));
         }
         if let Some(result) = &mut result
             && text_index < text.len()
