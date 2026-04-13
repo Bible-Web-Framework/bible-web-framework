@@ -305,15 +305,18 @@ async function checkForUnimplementedMarkers() {
     function scan(contents: UsjContent[]) {
       const first = contents[0]
       if (first?.type !== 'chapter') return
-      const rendered = mount(UsjContentsRenderer, {
+      const missing = mount(UsjContentsRenderer, {
         props: {
           contents,
           textDirection: bibleTextDirection.value,
         },
       })
-      const missing = rendered.findAllComponents({
-        name: 'UnimplementedMarker',
-      })
+        .findAllComponents({ name: 'UnimplementedMarker' })
+        .concat(
+          mount(NotesRenderer, { props: { contents } }).findAllComponents({
+            name: 'UnimplementedMarker',
+          }),
+        )
       if (missing.length > 0) {
         totalMissing += missing.length
         console.warn(
