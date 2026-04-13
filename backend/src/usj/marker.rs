@@ -233,7 +233,7 @@ marker_enum!(
         | Pmc()
         | Pmr()
         | Pi(..=3)
-        | Mi()
+        | Mi(..=3)
         | Lit()
         | Nb()
         | B()
