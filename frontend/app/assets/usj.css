@@ -320,6 +320,14 @@ p.po {
 .wj {
   color: #d43128;
 }
+
+.fr {
+  font-weight: bold;
+}
+
+.xo {
+  font-weight: bold;
+}
 /* #endregion */
 
 /* #region Poetry */
@@ -339,10 +347,6 @@ p.po {
 
 .note-contents > .f {
   margin-inline-end: 0.2em;
-}
-
-.fr {
-  font-weight: bold;
 }
 /* #endregion */
 /* #endregion */
