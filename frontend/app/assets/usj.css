@@ -352,6 +352,10 @@ p.po {
 .note-contents > .f {
   margin-inline-end: 0.2em;
 }
+
+.fqa {
+  font-style: italic;
+}
 /* #endregion */
 /* #endregion */
 /* #endregion */

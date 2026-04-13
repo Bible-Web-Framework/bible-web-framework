@@ -182,6 +182,7 @@ UnimplementedMarker.props = {
             'w',
             'wj',
             'fr',
+            'fqa',
             'ft',
             'xo',
             'xt',
