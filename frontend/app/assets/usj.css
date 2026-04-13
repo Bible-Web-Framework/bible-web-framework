@@ -85,6 +85,12 @@ p.ms {
   font-style: italic;
 }
 
+.r {
+  font-style: italic;
+  text-align: center;
+  margin-block-end: 4pt;
+}
+
 .d {
   font-style: italic;
   text-align: center;
