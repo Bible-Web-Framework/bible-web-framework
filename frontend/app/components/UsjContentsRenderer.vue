@@ -182,9 +182,11 @@ UnimplementedMarker.props = {
             'w',
             'wj',
             'fr',
+            'fq',
             'fqa',
             'ft',
             'xo',
+            'xq',
             'xt',
           ].includes(content.marker)
         "
@@ -239,6 +241,7 @@ UnimplementedMarker.props = {
           :current-path="currentPath.concat(contentIndex)"
         />
       </div>
+      <br v-else-if="content.marker === 'fp'" :dir="textDirection" class="usj-content fp" />
       <UnimplementedMarker v-else :marker="content.marker" />
     </template>
     <!-- TODO: Implement Milestones -->

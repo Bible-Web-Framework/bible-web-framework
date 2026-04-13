@@ -363,7 +363,17 @@ p.po {
   margin-inline-end: 0.2em;
 }
 
+.fq {
+  font-style: italic;
+}
+
 .fqa {
+  font-style: italic;
+}
+/* #endregion */
+
+/* #region Cross References */
+.xq {
   font-style: italic;
 }
 /* #endregion */
