@@ -24,6 +24,7 @@ jobs:
           rustflags: ''
           components: clippy, rustfmt
           cache: true
+          rust-src-dir: backend
       - name: Install nextest
         uses: taiki-e/install-action@nextest
       - name: Install frontend dependencies
