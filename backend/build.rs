@@ -9,6 +9,20 @@ use std::path::Path;
 use std::{env, fs};
 use unicase::UniCase;
 
+fn main() {
+    println!("cargo:rerun-if-changed=migrations");
+
+    if let Some(version) = build_info_build::build_script().build().version_control
+        && let Some(git) = version.git()
+    {
+        println!("cargo::rustc-env=GIT_COMMIT_HASH={}", git.commit_id);
+    } else {
+        println!("cargo::rustc-env=GIT_COMMIT_HASH=0000000000000000000000000000000000000000");
+    }
+
+    generate_books_data();
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BooksFile<'a> {
@@ -112,12 +126,6 @@ impl<'a> BookAlias<'a> {
     }
 }
 
-fn main() {
-    println!("cargo:rerun-if-changed=migrations");
-
-    generate_books_data();
-}
-
 fn generate_books_data() {
     println!("cargo::rerun-if-changed=books.json");
 
@@ -129,8 +137,22 @@ fn generate_books_data() {
     }
 
     let mut book_names = r#"
-        #[derive(Default, Debug, Hash, Ord, PartialOrd, VariantArray, EnumSetType, Enum, Encode, Decode)]
+        #[derive(
+            Default,
+            Debug,
+            Hash,
+            Ord,
+            PartialOrd,
+            strum::VariantArray,
+            enumset::EnumSetType,
+            enum_map::Enum,
+            oxicode::Encode,
+            oxicode::Decode,
+            rkyv::Serialize,
+            rkyv::Archive,
+        )]
         #[enumset(serialize_repr = "list")]
+        #[rkyv(derive(Eq, PartialEq, Hash))]
         pub enum Book {
             #[default]
     "#

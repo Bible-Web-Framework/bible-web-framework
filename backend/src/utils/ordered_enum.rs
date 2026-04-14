@@ -1,10 +1,8 @@
 use enum_map::{EnumArray, EnumMap};
 use enumset::{EnumSet, EnumSetType};
 use serde::de::{Error, SeqAccess, Visitor};
-use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::de::DeserializeAsWrap;
-use serde_with::ser::SerializeAsWrap;
 use serde_with::{DeserializeAs, Same, SerializeAs};
 use std::fmt::{Display, Formatter};
 use std::iter;
@@ -147,15 +145,15 @@ where
     where
         S: Serializer,
     {
-        let mut seq = serializer.serialize_seq(None)?;
+        let mut output = vec![];
         let mut handled = EnumSet::new();
         for group_start in source.group_starts() {
             if !handled.is_empty() {
-                seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&None))?;
+                output.push(None);
             }
             for element in source.successors(group_start) {
                 handled.insert(element);
-                seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&Some(element)))?;
+                output.push(Some(element));
             }
         }
         if handled.len() < T::LENGTH {
@@ -164,18 +162,18 @@ where
                     continue;
                 }
                 if !handled.is_empty() {
-                    seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&None))?;
+                    output.push(None);
                 }
                 for element in source.successors(key) {
                     let was_new = handled.insert(element);
-                    seq.serialize_element(&SerializeAsWrap::<Option<T>, U>::new(&Some(element)))?;
+                    output.push(Some(element));
                     if !was_new {
                         break;
                     }
                 }
             }
         }
-        seq.end()
+        Vec::<U>::serialize_as(&output, serializer)
     }
 }
 

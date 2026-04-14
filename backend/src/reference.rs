@@ -6,71 +6,74 @@ use crate::utils::serde_as::VerseRangeAsTuple;
 use crate::verse_range::VerseRange;
 use oxicode::{Decode, Encode};
 use rangemap::StepLite;
+use rkyv::Archive;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::borrow::Cow;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::NonZeroU8;
-use std::ops::{Deref, RangeInclusive};
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 use strum::VariantArray;
 use subslice_offset::SubsliceOffset;
 use thiserror::Error;
 
+#[serde_as]
 #[derive(
-    Copy,
-    Clone,
-    Default,
-    Eq,
-    PartialEq,
-    Hash,
-    PartialOrd,
-    Ord,
-    Serialize,
-    Deserialize,
-    Encode,
-    Decode,
+    Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize, Encode, Decode,
 )]
 pub struct BibleReference {
     pub book: Book,
-    #[serde(flatten)]
-    pub reference: BookReference,
+    pub chapter: NonZeroU8,
+    #[serde_as(as = "VerseRangeAsTuple")]
+    pub verses: VerseRange,
 }
 
 impl BibleReference {
-    pub const fn split_to_range(self) -> RangeInclusive<Self> {
-        let split = self.reference.split_to_range();
+    pub const fn new(book: Book, reference: BookReference) -> Self {
         Self {
-            book: self.book,
-            reference: *split.start(),
-        }..=Self {
-            book: self.book,
-            reference: *split.end(),
+            book,
+            chapter: reference.chapter,
+            verses: reference.verses,
         }
+    }
+
+    pub const fn book_reference(self) -> BookReference {
+        BookReference {
+            chapter: self.chapter,
+            verses: self.verses,
+        }
+    }
+
+    pub const fn split_to_range(self) -> RangeInclusive<Self> {
+        let split = self.book_reference().split_to_range();
+        Self::new(self.book, *split.start())..=Self::new(self.book, *split.end())
     }
 }
 
-impl Deref for BibleReference {
-    type Target = BookReference;
-
-    fn deref(&self) -> &Self::Target {
-        &self.reference
+impl Default for BibleReference {
+    fn default() -> Self {
+        Self {
+            book: Book::default(),
+            chapter: nz_u8!(1),
+            verses: VerseRange::default(),
+        }
     }
 }
 
 impl Debug for BibleReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?} {:?}", self.book, self.reference))
+        f.write_fmt(format_args!("{:?} {:?}", self.book, self.book_reference()))
     }
 }
 
 impl Display for BibleReference {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{} {}", self.book, self.reference.chapter))?;
-        if self.reference.verses.first_u8() != 1
-            || Some(self.reference.verses.last()) != self.book.verse_count(self.reference.chapter)
+        f.write_fmt(format_args!("{} {}", self.book, self.chapter))?;
+        if self.verses.first_u8() != 1
+            || Some(self.verses.last()) != self.book.verse_count(self.chapter)
         {
-            f.write_fmt(format_args!(":{}", self.reference.verses))
+            f.write_fmt(format_args!(":{}", self.verses))
         } else {
             Ok(())
         }
@@ -90,26 +93,20 @@ impl StepLite for BibleReference {
         if self.verses.first() < self.book.verse_count(self.chapter).unwrap() {
             Self {
                 book: self.book,
-                reference: BookReference {
-                    chapter: self.chapter,
-                    verses: VerseRange::new_single_verse(self.verses.first().saturating_add(1)),
-                },
+                chapter: self.chapter,
+                verses: VerseRange::new_single_verse(self.verses.first().saturating_add(1)),
             }
         } else if self.chapter < self.book.chapter_count().unwrap() {
             Self {
                 book: self.book,
-                reference: BookReference {
-                    chapter: self.chapter.saturating_add(1),
-                    verses: VerseRange::new_single_verse(nz_u8!(1)),
-                },
+                chapter: self.chapter.saturating_add(1),
+                verses: VerseRange::new_single_verse(nz_u8!(1)),
             }
         } else if self.book < Book::LetterToTheLaodiceans {
             Self {
                 book: Book::VARIANTS[self.book as usize + 1],
-                reference: BookReference {
-                    chapter: nz_u8!(1),
-                    verses: VerseRange::new_single_verse(nz_u8!(1)),
-                },
+                chapter: nz_u8!(1),
+                verses: VerseRange::new_single_verse(nz_u8!(1)),
             }
         } else {
             #[cfg(debug_assertions)]
@@ -131,35 +128,25 @@ impl StepLite for BibleReference {
         if self.verses.first_u8() > 1 {
             Self {
                 book: self.book,
-                reference: BookReference {
-                    chapter: self.chapter,
-                    verses: VerseRange::new_single_verse(
-                        NonZeroU8::new(self.verses.first_u8() - 1).unwrap(),
-                    ),
-                },
+                chapter: self.chapter,
+                verses: VerseRange::new_single_verse(
+                    NonZeroU8::new(self.verses.first_u8() - 1).unwrap(),
+                ),
             }
         } else if self.chapter.get() > 1 {
             let new_chapter = NonZeroU8::new(self.chapter.get() - 1).unwrap();
             Self {
                 book: self.book,
-                reference: BookReference {
-                    chapter: new_chapter,
-                    verses: VerseRange::new_single_verse(
-                        self.book.verse_count(new_chapter).unwrap(),
-                    ),
-                },
+                chapter: new_chapter,
+                verses: VerseRange::new_single_verse(self.book.verse_count(new_chapter).unwrap()),
             }
         } else if self.book > Book::Genesis {
             let new_book = Book::VARIANTS[self.book as usize - 1];
             let new_chapter = new_book.chapter_count().unwrap();
             Self {
                 book: new_book,
-                reference: BookReference {
-                    chapter: new_chapter,
-                    verses: VerseRange::new_single_verse(
-                        new_book.verse_count(new_chapter).unwrap(),
-                    ),
-                },
+                chapter: new_chapter,
+                verses: VerseRange::new_single_verse(new_book.verse_count(new_chapter).unwrap()),
             }
         } else {
             #[cfg(debug_assertions)]
@@ -185,7 +172,19 @@ impl FromStr for BibleReference {
 
 #[serde_as]
 #[derive(
-    Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize, Encode, Decode,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    Encode,
+    Decode,
+    rkyv::Serialize,
+    Archive,
 )]
 pub struct BookReference {
     pub chapter: NonZeroU8,
@@ -437,19 +436,15 @@ fn parse_book_reference<O: BookParseOptions>(
             let parse_verses = process_chapter_number(chapter)?;
             BibleReference {
                 book,
-                reference: BookReference {
-                    chapter,
-                    verses: parse_verses(verses)?,
-                },
+                chapter,
+                verses: parse_verses(verses)?,
             }
         } else if let Some(chapter) = state.chapter {
             let parse_verses = process_chapter_number(chapter)?;
             BibleReference {
                 book,
-                reference: BookReference {
-                    chapter,
-                    verses: parse_verses(reference_remainder).map_err(|_| verify_not_book())?,
-                },
+                chapter,
+                verses: parse_verses(reference_remainder).map_err(|_| verify_not_book())?,
             }
         } else {
             let chapter = reference_remainder
@@ -460,10 +455,8 @@ fn parse_book_reference<O: BookParseOptions>(
                 .ok_or(ParseReferenceError::OutOfBoundsChapter { book, chapter })?;
             BibleReference {
                 book,
-                reference: BookReference {
-                    chapter,
-                    verses: VerseRange::new(nz_u8!(1), verse_count).unwrap(),
-                },
+                chapter,
+                verses: VerseRange::new(nz_u8!(1), verse_count).unwrap(),
             }
         },
     )
@@ -492,13 +485,11 @@ macro_rules! reference_value {
     ($book:ident $chapter:literal:$verse_start:literal-$verse_end:literal) => {
         $crate::reference::BibleReference {
             book: $crate::book_data::Book::$book,
-            reference: $crate::reference::BookReference {
-                chapter: $crate::nz_u8!($chapter),
-                verses: $crate::verse_range::VerseRange::const_new(
-                    $crate::nz_u8!($verse_start),
-                    $crate::nz_u8!($verse_end),
-                ),
-            },
+            chapter: $crate::nz_u8!($chapter),
+            verses: $crate::verse_range::VerseRange::const_new(
+                $crate::nz_u8!($verse_start),
+                $crate::nz_u8!($verse_end),
+            ),
         }
     };
 }

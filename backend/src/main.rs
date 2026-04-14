@@ -1,4 +1,5 @@
 use crate::api::route_not_found;
+use crate::bake::bake_bible;
 use crate::bible_data::{BibleDataError, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
@@ -9,16 +10,21 @@ use sqlx::migrate::MigrateDatabase;
 use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{env, fs, path};
+use strum::EnumString;
 use tracing::log::Level;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
 mod api;
+mod bake;
 mod bible_data;
 mod book_category;
 mod book_data;
@@ -83,6 +89,10 @@ async fn real_main() -> Result<(), ServerError> {
         .init();
     tracing::debug!("Debug logging is enabled");
 
+    let bake_mode = option_var("BIBLE_BAKE")?;
+
+    // TODO: Handle loading baked data
+
     let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
     if !bibles_dir.try_exists()? {
         tracing::warn!(
@@ -96,6 +106,25 @@ async fn real_main() -> Result<(), ServerError> {
         var_str("DEFAULT_BIBLE")?,
         var_comma_list("DISABLE_BIBLES")?,
     )?);
+
+    if bake_mode == Some(BakeMode::Generate) {
+        let bake_dir = var::<PathBuf>("BAKE_DIR")?;
+        tracing::info!(
+            "Baking {} bibles into {}",
+            bible_data.bibles.len(),
+            bake_dir.display(),
+        );
+        fs::create_dir_all(&bake_dir)?;
+
+        let start_time = Instant::now();
+        for (id, bible) in Arc::into_inner(bible_data.into_inner()).unwrap().bibles {
+            tracing::info!("Baking bible {id}");
+            let writer = BufWriter::new(File::create(bake_dir.join(format!("{id}.dat")))?);
+            bake_bible(&bible, writer).unwrap(); // TODO don't unwrap()
+        }
+        tracing::info!("Baked bibles in {:?}", start_time.elapsed());
+        return Ok(());
+    }
 
     let usj_watcher = {
         let bible_data = bible_data.clone();
@@ -126,11 +155,12 @@ async fn real_main() -> Result<(), ServerError> {
             },
         )?;
         usj_watcher.watch(bibles_dir, RecursiveMode::Recursive)?;
-        web::Data::new(usj_watcher)
+        web::Data::new(Some(usj_watcher))
     };
 
-    let database_read_only =
-        web::Data::new(DatabaseReadOnly(var_or_default("DATABASE_READ_ONLY")?));
+    let database_read_only = web::Data::new(DatabaseReadOnly(
+        option_var("DATABASE_READ_ONLY")?.unwrap_or_default(),
+    ));
 
     let database = {
         let db_url = var_str("DATABASE_URL")?;
@@ -184,15 +214,15 @@ where
     Ok(parsed_value)
 }
 
-fn var_or_default<T: FromStr + Default>(var_name: impl AsRef<OsStr>) -> Result<T, ServerError>
+fn option_var<T: FromStr>(var_name: impl AsRef<OsStr>) -> Result<Option<T>, ServerError>
 where
     T::Err: Error + Send + 'static,
 {
     let Ok(base_value) = env::var(&var_name) else {
-        return Ok(T::default());
+        return Ok(None);
     };
     let parsed_value = parse_var_value(var_name, Cow::Owned(base_value))?;
-    Ok(parsed_value)
+    Ok(Some(parsed_value))
 }
 
 fn var_comma_list<T, C>(var_name: impl AsRef<OsStr>) -> Result<C, ServerError>
@@ -226,4 +256,11 @@ where
             Box::new(err),
         )
     })
+}
+
+#[derive(PartialEq, Eq, EnumString)]
+#[strum(serialize_all = "snake_case")]
+enum BakeMode {
+    Generate,
+    Load,
 }

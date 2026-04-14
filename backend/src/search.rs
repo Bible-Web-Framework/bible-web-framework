@@ -1,7 +1,7 @@
 use crate::bible_data::{BibleData, FootnotesConfig, FootnotesTree};
 use crate::book_data::Book;
 use crate::index::{BibleIndex, TextRange};
-use crate::reference::{BibleReference, BookReference, ParseReferenceError, parse_references};
+use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::content::{AttributesMap, ParaContent};
 use crate::usj::marker::ContentMarker;
 use crate::usj::root::UsjRoot;
@@ -171,10 +171,7 @@ fn search_for_terms(
         for (book, references) in single_result {
             counted_references.clear();
             for (reference, text_location) in references {
-                let reference = BibleReference {
-                    book: *book,
-                    reference: *reference,
-                };
+                let reference = BibleReference::new(*book, *reference);
                 result
                     .entry(reference)
                     .or_default()
@@ -436,7 +433,8 @@ impl FootnoteGenerator<'_> {
         {
             self.phrase_finder.reset_to_location(BibleReference {
                 book: self.current_book,
-                reference: BookReference { chapter, verses },
+                chapter,
+                verses,
             })
         } else {
             self.phrase_finder.attempt_finish()

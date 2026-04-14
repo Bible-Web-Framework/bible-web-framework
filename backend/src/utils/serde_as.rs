@@ -11,6 +11,7 @@ use serde_with::{DeserializeAs, SerializeAs};
 use std::fmt::{Formatter, Write};
 use std::marker::PhantomData;
 use std::num::NonZeroU8;
+use unicase::UniCase;
 
 pub struct OptionAsVec;
 
@@ -19,6 +20,10 @@ pub struct LanguageAsCode;
 pub struct FootnoteUsfmAsUsj;
 
 pub struct VerseRangeAsTuple;
+
+pub struct UniCaseAs<S>(PhantomData<S>);
+
+pub struct FstSetAs<D>(PhantomData<D>);
 
 impl<T> SerializeAs<Option<T>> for OptionAsVec
 where
@@ -138,5 +143,57 @@ impl<'de> DeserializeAs<'de, VerseRange> for VerseRangeAsTuple {
                 &"values to be in order",
             )
         })
+    }
+}
+
+impl<'de, Inner, Str> DeserializeAs<'de, UniCase<Str>> for UniCaseAs<Inner>
+where
+    Inner: DeserializeAs<'de, Str>,
+    Str: AsRef<str>,
+{
+    fn deserialize_as<D>(deserializer: D) -> Result<UniCase<Str>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(UniCase::new(Inner::deserialize_as(deserializer)?))
+    }
+}
+
+impl<Inner, Str> SerializeAs<UniCase<Str>> for UniCaseAs<Inner>
+where
+    Inner: SerializeAs<Str>,
+{
+    fn serialize_as<S>(source: &UniCase<Str>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Inner::serialize_as(source, serializer)
+    }
+}
+
+impl<'de, Inner, Data> DeserializeAs<'de, fst::Set<Data>> for FstSetAs<Inner>
+where
+    Inner: DeserializeAs<'de, Data>,
+    Data: AsRef<[u8]>,
+{
+    fn deserialize_as<D>(deserializer: D) -> Result<fst::Set<Data>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        fst::Set::new(Inner::deserialize_as(deserializer)?)
+            .map_err(|err| D::Error::custom(err.to_string()))
+    }
+}
+
+impl<Inner, Data> SerializeAs<fst::Set<Data>> for FstSetAs<Inner>
+where
+    Inner: SerializeAs<Data>,
+    Data: AsRef<[u8]>,
+{
+    fn serialize_as<S>(source: &fst::Set<Data>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Inner::serialize_as(source.as_fst().as_inner(), serializer)
     }
 }

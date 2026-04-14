@@ -10,6 +10,7 @@ use crate::usj::root::UsjRoot;
 use crate::utils::normalize::normalize_str;
 use crate::utils::ordered_enum::EnumOrderMap;
 use crate::utils::prefix_tree::PrefixTree;
+use crate::utils::serde_as::{FstSetAs, UniCaseAs};
 use crate::utils::{ExclusiveMutex, ToUnicaseCow};
 use bimap::{BiMap, Overwritten};
 use charabia::{Language, Tokenizer, TokenizerBuilder};
@@ -28,6 +29,7 @@ use parking_lot::RwLock;
 use rangemap::RangeInclusiveMap;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use smallvec::smallvec;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet, LinkedList};
@@ -65,11 +67,13 @@ pub struct BibleData {
     full_reload_active: ExclusiveMutex,
 }
 
-#[derive(Debug, Default)]
+#[serde_as]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct BibleConfig {
     pub display_name: Option<String>,
     pub text_direction: TextDirection,
     pub book_order: EnumOrderMap<Book>,
+    #[serde_as(as = "HashMap<UniCaseAs<_>, _>")]
     pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
     pub search: SearchConfig,
     pub footnotes: FootnotesTree,
@@ -86,23 +90,25 @@ pub enum TextDirection {
     RightToLeft,
 }
 
-#[derive(Debug, Default)]
+#[serde_as]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct SearchConfig {
     pub index: bool,
     pub languages: Option<Box<[Language]>>,
+    #[serde_as(as = "Option<FstSetAs<_>>")]
     pub ignored_words: Option<fst::Set<Box<[u8]>>>,
 }
 
 pub type FootnotesTree = PrefixTree<String, RangeInclusiveMap<BibleReference, FootnotesConfig>>;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct FootnotesConfig {
     pub footnote: UsjContent,
 }
 
 pub struct BookData {
-    usj: UsjContent,
-    names: HashSet<UniCase<Cow<'static, str>>>,
+    pub usj: UsjContent,
+    pub names: HashSet<UniCase<Cow<'static, str>>>,
 }
 
 impl MultiBibleData {

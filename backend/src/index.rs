@@ -10,6 +10,7 @@ use charabia::Tokenizer;
 use dashmap::DashMap;
 use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rkyv::Archive;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -20,7 +21,7 @@ use std::num::NonZeroU8;
 use std::ops::{Range, SubAssign};
 use std::time::Instant;
 use string_interner::StringInterner;
-use string_interner::backend::StringBackend;
+use string_interner::backend::{Backend, StringBackend};
 use string_interner::symbol::SymbolU32;
 use tinyvec::{TinyVec, tiny_vec};
 use unicode_normalization::UnicodeNormalization;
@@ -41,7 +42,7 @@ pub enum ReindexType {
 pub struct BibleIndex {
     pub log_marker: Option<String>,
     interner: Interner,
-    references_and_names_by_word: HashMap<InternerSymbol, (BookReferenceMap, Option<Box<str>>)>,
+    references_and_names_by_word: HashMap<InternerSymbol, IndexedWord>,
     words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
 }
 
@@ -51,10 +52,11 @@ impl Default for BibleIndex {
     }
 }
 
-#[derive(Clone, Default)]
-struct BookReferenceMap {
-    total: usize,
-    by_book: SearchResultMap,
+#[derive(Clone, Default, rkyv::Serialize, Archive)]
+pub struct IndexedWord {
+    pub total: usize,
+    pub by_book: SearchResultMap,
+    pub name: Option<Box<str>>,
 }
 
 macro_rules! format_marker {
@@ -83,21 +85,28 @@ impl BibleIndex {
             .get(lemma)
             .and_then(|s| self.references_and_names_by_word.get(&s))
         {
-            Some((references, name)) => {
-                Some((&references.by_book, name.as_deref().unwrap_or(lemma)))
-            }
+            Some(word) => Some((&word.by_book, word.name.as_deref().unwrap_or(lemma))),
             None => None,
         }
+    }
+
+    pub fn iter_lemmas_and_ids(&self) -> <InternerBackend as Backend>::Iter<'_> {
+        self.interner.iter()
+    }
+
+    pub fn word_from_symbol(&self, symbol: InternerSymbol) -> Option<&IndexedWord> {
+        self.references_and_names_by_word.get(&symbol)
     }
 
     pub fn iter_names_and_counts(&self) -> impl Iterator<Item = (&str, usize)> {
         self.references_and_names_by_word
             .iter()
-            .map(|(symbol, (references, name))| {
+            .map(|(symbol, word)| {
                 (
-                    name.as_deref()
+                    word.name
+                        .as_deref()
                         .unwrap_or_else(|| self.interner.resolve(*symbol).unwrap()),
-                    references.total,
+                    word.total,
                 )
             })
     }
@@ -118,7 +127,7 @@ impl BibleIndex {
             if let Entry::Occupied(mut old_map_entry) =
                 self.references_and_names_by_word.entry(word)
             {
-                let (old_map, _) = old_map_entry.get_mut();
+                let old_map = old_map_entry.get_mut();
                 old_map.total -= old_map
                     .by_book
                     .remove(&book)
@@ -130,12 +139,12 @@ impl BibleIndex {
             }
         }
         for (word, (new_name, new_references)) in indexer.results {
-            let (references, name) = self
+            let references = self
                 .references_and_names_by_word
                 .entry(self.interner.get_or_intern(word))
                 .or_default();
-            if name.is_none() {
-                *name = new_name;
+            if references.name.is_none() {
+                references.name = new_name;
             }
             references.total += new_references.len();
             references
@@ -405,7 +414,7 @@ impl BookIndexer {
 
 pub type UsjPath = TinyVec<[u16; 4]>;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, rkyv::Serialize, Archive)]
 pub struct TextLocation {
     pub usj_path: UsjPath,
     pub char: u16,

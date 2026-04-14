@@ -1,3 +1,4 @@
+use oxicode::{Decode, Encode};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::type_name;
 use std::fmt::{Debug, Display, Formatter};
@@ -5,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct ParsedStringValue<T> {
     pub value: T,
     pub string: String,

@@ -1,3 +1,4 @@
+use oxicode::{Decode, Encode};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use std::borrow::Cow;
 use std::convert::identity;
@@ -21,7 +22,7 @@ pub trait MacroEnum: Copy {
     fn to_cow_str(self) -> Cow<'static, str>;
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, IntoStaticStr)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, IntoStaticStr, Encode, Decode)]
 pub enum MilestoneSide {
     #[strum(serialize = "-s")]
     Start,
@@ -31,7 +32,7 @@ pub enum MilestoneSide {
 
 macro_rules! marker_enum {
     ($name:ident => $(|)? $($marker:ident ($($marker_args:tt)*))|+) => {
-        #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, SerializeDisplay, DeserializeFromStr)]
+        #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, SerializeDisplay, DeserializeFromStr, Encode, Decode)]
         pub enum $name {
             $($marker(marker_enum_args!($($marker_args)*)),)+
         }
