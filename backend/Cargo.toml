@@ -25,6 +25,7 @@ fst = "0.4.7"
 identconv = "0.2.0"
 itertools = "0.14.0"
 lehmer = "3.0.0"
+memmap2 = "0.9.10"
 memory-stats = "1.2.0"
 miette = { version = "7.6.0", features = ["fancy"] }
 monostate = "1.0.2"

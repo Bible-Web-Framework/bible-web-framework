@@ -1,5 +1,5 @@
 use crate::api::route_not_found;
-use crate::bake::bake_bible;
+use crate::bake::{bake_bible, load_baked_bible};
 use crate::bible_data::{BibleDataError, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
@@ -91,7 +91,13 @@ async fn real_main() -> Result<(), ServerError> {
 
     let bake_mode = option_var("BIBLE_BAKE")?;
 
-    // TODO: Handle loading baked data
+    if bake_mode == Some(BakeMode::Load) {
+        let bake_dir = var::<PathBuf>("BAKE_DIR")?;
+        // TODO: Remove testing code
+        let eanv = load_baked_bible(&File::open(bake_dir.join("eanv.dat"))?).unwrap(); // TODO don't unwrap
+        println!("{eanv:#?}");
+        return Ok(());
+    }
 
     let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
     if !bibles_dir.try_exists()? {
