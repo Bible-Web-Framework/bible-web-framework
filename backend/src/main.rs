@@ -171,7 +171,7 @@ async fn real_main() -> Result<(), ServerError> {
                 usj_watcher
             };
 
-            let bible_data: Arc<DynMultiBibleData> = bible_data;
+            let bible_data = bible_data as Arc<DynMultiBibleData>;
             (web::Data::from(bible_data), Box::new(usj_watcher))
         };
 
