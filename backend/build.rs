@@ -6,16 +6,16 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::num::NonZeroU8;
 use std::path::Path;
-use std::{env, fs};
+use std::process::Command;
+use std::{env, fs, str};
 use unicase::UniCase;
 
 fn main() {
     println!("cargo:rerun-if-changed=migrations");
 
-    if let Some(version) = build_info_build::build_script().build().version_control
-        && let Some(git) = version.git()
-    {
-        println!("cargo::rustc-env=GIT_COMMIT_HASH={}", git.commit_id);
+    if let Ok(git) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
+        let hash = str::from_utf8(&git.stdout).unwrap().trim();
+        println!("cargo::rustc-env=GIT_COMMIT_HASH={hash}");
     } else {
         println!("cargo::rustc-env=GIT_COMMIT_HASH=0000000000000000000000000000000000000000");
     }

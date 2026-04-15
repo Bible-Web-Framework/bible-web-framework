@@ -1,20 +1,17 @@
-use crate::api::{ApiError, ApiResult};
+use crate::bible_data::config::BibleConfig;
+use crate::bible_data::{BibleData, MultiBibleData};
 use crate::book_data::{Book, BookParseOptions};
 use crate::index::{BibleIndex, ReindexType};
-use crate::reference::BibleReference;
 use crate::usj::UsjBookInfo;
 use crate::usj::content::UsjContent;
 use crate::usj::loader::load_usj;
 use crate::usj::loader::load_usj_from_usfm;
 use crate::usj::root::UsjRoot;
 use crate::utils::normalize::normalize_str;
-use crate::utils::ordered_enum::EnumOrderMap;
-use crate::utils::prefix_tree::PrefixTree;
-use crate::utils::serde_as::{FstSetAs, UniCaseAs};
 use crate::utils::{ExclusiveMutex, ToUnicaseCow};
 use bimap::{BiMap, Overwritten};
-use charabia::{Language, Tokenizer, TokenizerBuilder};
-use dashmap::mapref::one::{MappedRef, Ref};
+use charabia::Language;
+use dashmap::mapref::one::MappedRef;
 use dashmap::{DashMap, Entry};
 use enum_map::Enum;
 use ere::{Regex, compile_regex};
@@ -26,13 +23,10 @@ use notify_debouncer_full::notify::event::{
     CreateKind, EventAttributes, ModifyKind, RemoveKind, RenameMode,
 };
 use parking_lot::RwLock;
-use rangemap::RangeInclusiveMap;
 use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use smallvec::smallvec;
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet, LinkedList};
+use std::collections::{HashSet, LinkedList};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -46,72 +40,33 @@ use unicase::UniCase;
 use zip::ZipArchive;
 use zip::result::ZipError;
 
-pub struct MultiBibleData {
+pub struct MultiExpandedBibleData {
     pub root_dir: PathBuf,
     pub default_bible: String,
     pub disabled_bibles: HashSet<String>,
-    pub bibles: DashMap<Cow<'static, str>, BibleData>,
+    pub bibles: DashMap<String, ExpandedBibleData>,
     file_change_active: ExclusiveMutex,
 }
 
 #[derive(Default)]
-pub struct BibleData {
+pub struct ExpandedBibleData {
     pub source: PathBuf,
     pub source_is_zip: bool,
     pub id: String,
     pub config: RwLock<Arc<BibleConfig>>,
-    pub books: DashMap<Book, BookData>,
+    pub books: DashMap<Book, ExpandedBookData>,
     pub index: RwLock<BibleIndex>,
     sources: RwLock<BiMap<Book, Cow<'static, str>>>,
     has_ignored_files: AtomicBool,
     full_reload_active: ExclusiveMutex,
 }
 
-#[serde_as]
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct BibleConfig {
-    pub display_name: Option<String>,
-    pub text_direction: TextDirection,
-    pub book_order: EnumOrderMap<Book>,
-    #[serde_as(as = "HashMap<UniCaseAs<_>, _>")]
-    pub book_aliases: HashMap<UniCase<Cow<'static, str>>, Book>,
-    pub search: SearchConfig,
-    pub footnotes: FootnotesTree,
-}
-
-#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
-pub enum TextDirection {
-    #[serde(rename = "auto")]
-    #[default]
-    Auto,
-    #[serde(rename = "ltr")]
-    LeftToRight,
-    #[serde(rename = "rtl")]
-    RightToLeft,
-}
-
-#[serde_as]
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct SearchConfig {
-    pub index: bool,
-    pub languages: Option<Box<[Language]>>,
-    #[serde_as(as = "Option<FstSetAs<_>>")]
-    pub ignored_words: Option<fst::Set<Box<[u8]>>>,
-}
-
-pub type FootnotesTree = PrefixTree<String, RangeInclusiveMap<BibleReference, FootnotesConfig>>;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
-pub struct FootnotesConfig {
-    pub footnote: UsjContent,
-}
-
-pub struct BookData {
+pub struct ExpandedBookData {
     pub usj: UsjContent,
     pub names: HashSet<UniCase<Cow<'static, str>>>,
 }
 
-impl MultiBibleData {
+impl MultiExpandedBibleData {
     pub fn load(
         bibles_dir: PathBuf,
         default_bible: String,
@@ -126,16 +81,6 @@ impl MultiBibleData {
         };
         result.reload_everything()?;
         Ok(result)
-    }
-
-    pub fn get_or_api_error(
-        &self,
-        bible: String,
-    ) -> ApiResult<Ref<'_, Cow<'static, str>, BibleData>> {
-        let bible = Cow::Owned(bible);
-        self.bibles
-            .get(&bible)
-            .ok_or_else(|| ApiError::UnknownBible(bible.into_owned()))
     }
 
     pub fn handle_file_change(&self, mut event: notify::Event) -> ConfigResult<()> {
@@ -157,7 +102,7 @@ impl MultiBibleData {
             )
         };
         fn get_root_bible_id(trimmed_path: &Path) -> Cow<'_, str> {
-            BibleData::get_file_bible_id(Path::new(
+            ExpandedBibleData::get_file_bible_id(Path::new(
                 trimmed_path.components().next().unwrap().as_os_str(),
             ))
         }
@@ -168,7 +113,7 @@ impl MultiBibleData {
         }
 
         fn handle_config_change(
-            bible: &BibleData,
+            bible: &ExpandedBibleData,
             path: &Path,
             needs_reindex: bool,
             clear_index: bool,
@@ -201,8 +146,8 @@ impl MultiBibleData {
                     if trimmed_path.components().nth(1).is_none() {
                         if !self.check_for_disabled_load(path) {
                             tracing::info!("Loading new bible from {}", path.display());
-                            let data = BibleData::load_from_zip(path.to_owned())?;
-                            self.bibles.insert(Cow::Owned(data.id.clone()), data);
+                            let data = ExpandedBibleData::load_from_zip(path.to_owned())?;
+                            self.bibles.insert(data.id.clone(), data);
                         }
                     } else {
                         let bible_id = get_root_bible_id(trimmed_path);
@@ -234,8 +179,8 @@ impl MultiBibleData {
                     && !self.check_for_disabled_load(path)
                 {
                     tracing::info!("Loading new bible from {}", path.display());
-                    let data = BibleData::load_from_dir(path.to_owned())?;
-                    self.bibles.insert(Cow::Owned(data.id.clone()), data);
+                    let data = ExpandedBibleData::load_from_dir(path.to_owned())?;
+                    self.bibles.insert(data.id.clone(), data);
                 }
             }
             EventKind::Modify(ModifyKind::Any | ModifyKind::Data(_)) => {
@@ -310,7 +255,7 @@ impl MultiBibleData {
                                     "Removing renamed bible {new_id} because it's disabled.",
                                 );
                             } else {
-                                self.bibles.insert(Cow::Owned(new_id.into_owned()), bible);
+                                self.bibles.insert(new_id.into_owned(), bible);
                             }
                         } else {
                             let mut paths = mem::take(&mut event.paths);
@@ -410,7 +355,7 @@ impl MultiBibleData {
             .lock()
             .expect("MultiBibleData::reload_everything called while already reloading");
 
-        let mut keys_to_keep = (!self.bibles.is_empty()).then(HashSet::<Cow<str>>::new);
+        let mut keys_to_keep = (!self.bibles.is_empty()).then(HashSet::new);
         for entry in self.root_dir.read_dir()? {
             let entry = entry?;
             let path = entry.path();
@@ -433,14 +378,14 @@ impl MultiBibleData {
                 }
             };
             let data = if is_file {
-                BibleData::load_from_zip(path)?
+                ExpandedBibleData::load_from_zip(path)?
             } else {
-                BibleData::load_from_dir(path)?
+                ExpandedBibleData::load_from_dir(path)?
             };
             if let Some(keys) = &mut keys_to_keep {
-                keys.insert(Cow::Owned(data.id.clone()));
+                keys.insert(data.id.clone());
             }
-            self.bibles.insert(Cow::Owned(data.id.clone()), data);
+            self.bibles.insert(data.id.clone(), data);
         }
         if let Some(keys) = keys_to_keep {
             self.bibles.retain(|k, _| keys.contains(k));
@@ -452,7 +397,7 @@ impl MultiBibleData {
         if self.disabled_bibles.is_empty() {
             return false;
         }
-        let bible_id = BibleData::get_file_bible_id(path);
+        let bible_id = ExpandedBibleData::get_file_bible_id(path);
         if self.disabled_bibles.contains(&*bible_id) {
             tracing::info!("Skipping loading disabled bible {bible_id}");
             true
@@ -462,13 +407,27 @@ impl MultiBibleData {
     }
 }
 
+impl MultiBibleData for MultiExpandedBibleData {
+    fn default_bible(&self) -> &str {
+        &self.default_bible
+    }
+
+    fn bibles(&self) -> Vec<String> {
+        self.bibles.iter().map(|x| x.key().clone()).collect()
+    }
+
+    fn get_bible(&self, bible: &str) -> Option<BibleData<'_>> {
+        self.bibles.get(bible).map(BibleData::Expanded)
+    }
+}
+
 macro_rules! format_source {
     ($self:ident) => {
         format_args!("{}{}", $self.source.display(), path::MAIN_SEPARATOR)
     };
 }
 
-impl BibleData {
+impl ExpandedBibleData {
     pub fn load_from_dir(path: PathBuf) -> ConfigResult<Self> {
         Self::load(path, false)
     }
@@ -478,7 +437,7 @@ impl BibleData {
     }
 
     fn load(path: PathBuf, from_zip: bool) -> ConfigResult<Self> {
-        let data = BibleData {
+        let data = ExpandedBibleData {
             id: Self::get_file_bible_id(&path).into_owned(),
             source: path,
             source_is_zip: from_zip,
@@ -513,7 +472,7 @@ impl BibleData {
     pub fn book_parse_options(&self) -> impl BookParseOptions {
         struct Options<'a> {
             config: Arc<BibleConfig>,
-            books: &'a DashMap<Book, BookData>,
+            books: &'a DashMap<Book, ExpandedBookData>,
         }
 
         impl BookParseOptions for Options<'_> {
@@ -544,8 +503,10 @@ impl BibleData {
         }
     }
 
-    pub fn usj(&self, book: Book) -> Option<MappedRef<'_, Book, BookData, UsjContent>> {
-        self.books.get(&book).map(|data| data.map(BookData::usj))
+    pub fn usj(&self, book: Book) -> Option<MappedRef<'_, Book, ExpandedBookData, UsjContent>> {
+        self.books
+            .get(&book)
+            .map(|data| data.map(ExpandedBookData::usj))
     }
 
     fn update_index(&self, reindex_type: ReindexType) {
@@ -687,7 +648,7 @@ impl BibleData {
                 .map(str::to_ascii_lowercase)
                 .as_deref()
             {
-                Some("usj") => Some(LoadAction::Book(BookData::new(
+                Some("usj") => Some(LoadAction::Book(ExpandedBookData::new(
                     reader
                         .map_err(Into::into)
                         .map(BufReader::new)
@@ -730,7 +691,7 @@ impl BibleData {
                             );
                         }
                     }
-                    Some(LoadAction::Book(BookData::new(usj.usj)))
+                    Some(LoadAction::Book(ExpandedBookData::new(usj.usj)))
                 }
                 Some(ext) if IGNORED_EXTENSIONS.test(ext) => None,
                 Some(_) | None => {
@@ -810,7 +771,7 @@ impl BibleData {
 
 enum LoadAction {
     Config(Arc<BibleConfig>),
-    Book(BookData),
+    Book(ExpandedBookData),
 }
 
 enum LoadComplete {
@@ -825,25 +786,12 @@ impl BibleConfig {
     fn from_reader(mut reader: impl Read) -> ConfigResult<Self> {
         let mut data = vec![];
         reader.read_to_end(&mut data)?;
-        let unresolved: unresolved::BibleConfig = toml::from_slice(&data)?;
+        let unresolved: unresolved_config::BibleConfig = toml::from_slice(&data)?;
         Ok(unresolved.into())
     }
 }
 
-impl SearchConfig {
-    pub fn create_tokenizer(&self) -> Tokenizer<'_> {
-        let mut builder = TokenizerBuilder::new();
-        if let Some(languages) = &self.languages {
-            builder.allow_list(languages);
-        }
-        if let Some(words) = &self.ignored_words {
-            builder.stop_words(words);
-        }
-        builder.into_tokenizer()
-    }
-}
-
-impl BookData {
+impl ExpandedBookData {
     pub fn new(usj: UsjContent) -> Self {
         Self {
             usj,
@@ -890,8 +838,9 @@ pub enum BibleDataError {
 
 pub type ConfigResult<T> = Result<T, BibleDataError>;
 
-mod unresolved {
-    use crate::bible_data::TextDirection;
+mod unresolved_config {
+    use crate::bible_data::config;
+    use crate::bible_data::config::TextDirection;
     use crate::book_data::Book;
     use crate::reference::BibleReference;
     use crate::usj::content::UsjContent;
@@ -1002,7 +951,7 @@ mod unresolved {
                 }
             }
 
-            let search = super::SearchConfig::from(val.search);
+            let search = config::SearchConfig::from(val.search);
             let tokenizer = search.create_tokenizer();
 
             super::BibleConfig {
@@ -1038,9 +987,9 @@ mod unresolved {
         }
     }
 
-    impl From<SearchConfig> for super::SearchConfig {
+    impl From<SearchConfig> for config::SearchConfig {
         fn from(val: SearchConfig) -> Self {
-            super::SearchConfig {
+            Self {
                 index: val.index,
                 ignored_words: val.ignored_words.map(|words| {
                     fst::Set::from_iter(
@@ -1076,9 +1025,9 @@ mod unresolved {
         }
     }
 
-    impl From<FootnotesConfig> for super::FootnotesConfig {
+    impl From<FootnotesConfig> for config::FootnotesConfig {
         fn from(value: FootnotesConfig) -> Self {
-            super::FootnotesConfig {
+            config::FootnotesConfig {
                 footnote: value.footnote,
             }
         }

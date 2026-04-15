@@ -1,12 +1,14 @@
 use crate::api::route_not_found;
-use crate::bake::{bake_bible, load_baked_bible};
-use crate::bible_data::{BibleDataError, MultiBibleData};
+use crate::bible_data::{DynMultiBibleData, MultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
+use bible_data::baked::{bake_bible, load_baked_bible};
+use bible_data::expanded::{BibleDataError, MultiExpandedBibleData};
 use itertools::Itertools;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
 use sqlx::migrate::MigrateDatabase;
+use std::any::Any;
 use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -24,7 +26,6 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
 mod api;
-mod bake;
 mod bible_data;
 mod book_category;
 mod book_data;
@@ -91,78 +92,88 @@ async fn real_main() -> Result<(), ServerError> {
 
     let bake_mode = option_var("BIBLE_BAKE")?;
 
-    if bake_mode == Some(BakeMode::Load) {
-        let bake_dir = var::<PathBuf>("BAKE_DIR")?;
-        // TODO: Remove testing code
-        let eanv = load_baked_bible(&File::open(bake_dir.join("eanv.dat"))?).unwrap(); // TODO don't unwrap
-        println!("{eanv:#?}");
-        return Ok(());
-    }
+    // if bake_mode == Some(BakeMode::Load) {
+    //     let bake_dir = var::<PathBuf>("BAKE_DIR")?;
+    //     // TODO: Remove testing code
+    //     let eanv = load_baked_bible(&File::open(bake_dir.join("eanv.dat"))?).unwrap(); // TODO don't unwrap
+    //     println!("{eanv:#?}");
+    //     return Ok(());
+    // }
 
-    let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
-    if !bibles_dir.try_exists()? {
-        tracing::warn!(
-            "Bibles dir {} doesn't exist. Creating.",
-            bibles_dir.display(),
-        );
-        fs::create_dir_all(&bibles_dir)?;
-    }
-    let bible_data = web::Data::new(MultiBibleData::load(
-        bibles_dir.clone(),
-        var_str("DEFAULT_BIBLE")?,
-        var_comma_list("DISABLE_BIBLES")?,
-    )?);
+    let (bible_data, _extra_bible_state): (web::Data<DynMultiBibleData>, Box<dyn Any>) =
+        if bake_mode == Some(BakeMode::Load) {
+            todo!("Load bake data")
+        } else {
+            let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
+            if !bibles_dir.try_exists()? {
+                tracing::warn!(
+                    "Bibles dir {} doesn't exist. Creating.",
+                    bibles_dir.display(),
+                );
+                fs::create_dir_all(&bibles_dir)?;
+            }
+            let bible_data = MultiExpandedBibleData::load(
+                bibles_dir.clone(),
+                var_str("DEFAULT_BIBLE")?,
+                var_comma_list("DISABLE_BIBLES")?,
+            )?;
 
-    if bake_mode == Some(BakeMode::Generate) {
-        let bake_dir = var::<PathBuf>("BAKE_DIR")?;
-        tracing::info!(
-            "Baking {} bibles into {}",
-            bible_data.bibles.len(),
-            bake_dir.display(),
-        );
-        fs::create_dir_all(&bake_dir)?;
+            if bake_mode == Some(BakeMode::Generate) {
+                let bake_dir = var::<PathBuf>("BAKE_DIR")?;
+                tracing::info!(
+                    "Baking {} bibles into {}",
+                    bible_data.bibles.len(),
+                    bake_dir.display(),
+                );
+                fs::create_dir_all(&bake_dir)?;
 
-        let start_time = Instant::now();
-        for (id, bible) in Arc::into_inner(bible_data.into_inner()).unwrap().bibles {
-            tracing::info!("Baking bible {id}");
-            let writer = BufWriter::new(File::create(bake_dir.join(format!("{id}.dat")))?);
-            bake_bible(&bible, writer).unwrap(); // TODO don't unwrap()
-        }
-        tracing::info!("Baked bibles in {:?}", start_time.elapsed());
-        return Ok(());
-    }
+                let start_time = Instant::now();
+                for (id, bible) in bible_data.bibles {
+                    tracing::info!("Baking bible {id}");
+                    let writer = BufWriter::new(File::create(bake_dir.join(format!("{id}.dat")))?);
+                    bake_bible(&bible, writer).unwrap(); // TODO don't unwrap()
+                }
+                tracing::info!("Baked bibles in {:?}", start_time.elapsed());
+                return Ok(());
+            }
 
-    let usj_watcher = {
-        let bible_data = bible_data.clone();
-        let mut usj_watcher = notify_debouncer_full::new_debouncer(
-            Duration::from_secs(2),
-            None,
-            move |event: DebounceEventResult| {
-                tracing::debug!("Received file watch event {event:?}");
-                match event {
-                    Ok(evs) => {
-                        for ev in evs {
-                            if let Err(err) = bible_data.handle_file_change(ev.event) {
-                                tracing::error!(
-                                    "Failed to update loaded data from file watch event: {err}"
-                                );
+            let bible_data = Arc::new(bible_data);
+
+            let usj_watcher = {
+                let bible_data = bible_data.clone();
+                let mut usj_watcher = notify_debouncer_full::new_debouncer(
+                    Duration::from_secs(2),
+                    None,
+                    move |event: DebounceEventResult| {
+                        tracing::debug!("Received file watch event {event:?}");
+                        match event {
+                            Ok(evs) => {
+                                for ev in evs {
+                                    if let Err(err) = bible_data.handle_file_change(ev.event) {
+                                        tracing::error!(
+                                            "Failed to update loaded data from file watch event: {err}"
+                                        );
+                                    }
+                                }
                             }
-                        }
-                    }
-                    Err(errs) => {
-                        for err in errs {
-                            tracing::error!("Error in USJ file watcher: {err}");
-                        }
-                        if let Err(err) = bible_data.reload_everything() {
-                            tracing::error!("Failed to reload all USJs: {err}");
-                        }
-                    }
-                };
-            },
-        )?;
-        usj_watcher.watch(bibles_dir, RecursiveMode::Recursive)?;
-        web::Data::new(Some(usj_watcher))
-    };
+                            Err(errs) => {
+                                for err in errs {
+                                    tracing::error!("Error in USJ file watcher: {err}");
+                                }
+                                if let Err(err) = bible_data.reload_everything() {
+                                    tracing::error!("Failed to reload all USJs: {err}");
+                                }
+                            }
+                        };
+                    },
+                )?;
+                usj_watcher.watch(bibles_dir, RecursiveMode::Recursive)?;
+                usj_watcher
+            };
+
+            let bible_data: Arc<DynMultiBibleData> = bible_data;
+            (web::Data::from(bible_data), Box::new(usj_watcher))
+        };
 
     let database_read_only = web::Data::new(DatabaseReadOnly(
         option_var("DATABASE_READ_ONLY")?.unwrap_or_default(),
@@ -188,7 +199,6 @@ async fn real_main() -> Result<(), ServerError> {
     HttpServer::new(move || {
         App::new()
             .app_data(bible_data.clone())
-            .app_data(usj_watcher.clone())
             .app_data(database_read_only.clone())
             .app_data(database.clone())
             .wrap(Cors::permissive())

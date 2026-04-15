@@ -5,8 +5,9 @@ pub mod prefix_tree;
 pub mod serde_as;
 
 use std::borrow::Cow;
-use std::sync::atomic;
+use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, atomic};
 use unicase::UniCase;
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkd_quick};
 
@@ -107,6 +108,87 @@ where
 
     fn clone_to_owned(&self) -> Self::Output {
         self.as_ref().map(Cow::clone_to_owned)
+    }
+}
+
+pub trait AsBorrowed<'a> {
+    type Output;
+
+    fn as_borrowed(&'a self) -> Self::Output;
+}
+
+impl<'a, 'b: 'a, T> AsBorrowed<'a> for Cow<'b, T>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Cow<'a, T>;
+
+    fn as_borrowed(&'a self) -> Self::Output {
+        Cow::Borrowed(&*self)
+    }
+}
+
+impl<'a, 'b: 'a, T> AsBorrowed<'a> for Option<Cow<'b, T>>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Option<Cow<'a, T>>;
+
+    fn as_borrowed(&'a self) -> Self::Output {
+        self.as_ref().map(Cow::as_borrowed)
+    }
+}
+
+pub trait ToOwnedStatic {
+    type Output;
+
+    fn to_owned_static(self) -> Self::Output;
+}
+
+impl<'a, T> ToOwnedStatic for Cow<'a, T>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Cow<'static, T>;
+
+    fn to_owned_static(self) -> Self::Output {
+        Cow::Owned(self.into_owned())
+    }
+}
+
+impl<'a, T> ToOwnedStatic for Option<Cow<'a, T>>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Option<Cow<'static, T>>;
+
+    fn to_owned_static(self) -> Self::Output {
+        self.map(Cow::to_owned_static)
+    }
+}
+
+pub enum ArcOrRef<'a, T: ?Sized> {
+    Arc(Arc<T>),
+    Ref(&'a T),
+}
+
+impl<T: ?Sized> Deref for ArcOrRef<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Arc(value) => value,
+            Self::Ref(value) => value,
+        }
+    }
+}
+
+impl<T: ?Sized> Clone for ArcOrRef<'_, T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Arc(arc) => Self::Arc(arc.clone()),
+            Self::Ref(value) => Self::Ref(value),
+        }
     }
 }
 

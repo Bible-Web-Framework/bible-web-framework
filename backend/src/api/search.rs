@@ -1,5 +1,7 @@
 use crate::api::ApiResult;
-use crate::bible_data::MultiBibleData;
+use crate::bible_data::expanded::MultiExpandedBibleData;
+use crate::bible_data::{DynMultiBibleData, MultiBibleData};
+use crate::index::BibleIndex;
 use crate::search::{SearchResponse, search_bible};
 use actix_web::{HttpResponse, get, web};
 use actix_web_validator::Query;
@@ -35,7 +37,7 @@ fn default_generated_footnotes() -> bool {
 pub async fn search(
     bible: web::Path<String>,
     query: Query<SearchQueryParams>,
-    bibles: web::Data<MultiBibleData>,
+    bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<web::Json<SearchResponse>> {
     let query = query.into_inner();
     let bible = bibles.get_or_api_error(bible.into_inner())?;
@@ -52,7 +54,7 @@ pub async fn search(
 #[get("/index")]
 pub async fn index(
     bible: web::Path<String>,
-    bibles: web::Data<MultiBibleData>,
+    bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<HttpResponse> {
     #[derive(Serialize)]
     struct Response<'a> {
@@ -61,7 +63,7 @@ pub async fn index(
     }
 
     let bible = bibles.get_or_api_error(bible.into_inner())?;
-    let index = bible.index.read();
+    let index: &BibleIndex = todo!("Implement index");
     Ok(HttpResponse::Ok().json(Response {
         words: index
             .iter_names_and_counts()

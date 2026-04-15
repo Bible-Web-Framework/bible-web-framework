@@ -1,4 +1,4 @@
-use crate::bible_data::BookData;
+use crate::bible_data::expanded::ExpandedBookData;
 use crate::book_data::Book;
 use crate::reference::BookReference;
 use crate::usj::content::ParaContent;
@@ -169,7 +169,7 @@ impl BibleIndex {
     pub fn update_index(
         &mut self,
         reindex_type: ReindexType,
-        book_content: &DashMap<Book, BookData>,
+        book_content: &DashMap<Book, ExpandedBookData>,
         tokenizer: &Tokenizer,
     ) {
         match reindex_type {

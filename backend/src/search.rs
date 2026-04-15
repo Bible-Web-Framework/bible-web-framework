@@ -1,4 +1,6 @@
-use crate::bible_data::{BibleData, FootnotesConfig, FootnotesTree};
+use crate::bible_data::BibleData;
+use crate::bible_data::config::{FootnotesConfig, FootnotesTree};
+use crate::bible_data::expanded::ExpandedBibleData;
 use crate::book_data::Book;
 use crate::index::{BibleIndex, TextRange};
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
@@ -6,6 +8,7 @@ use crate::usj::content::{AttributesMap, ParaContent};
 use crate::usj::marker::ContentMarker;
 use crate::usj::root::UsjRoot;
 use crate::usj::{TranslatedBookInfo, content::UsjContent, is_title_marker};
+use crate::utils::ToOwnedStatic;
 use crate::verse_range::VerseRange;
 use charabia::{SeparatorKind, Tokenize, Tokenizer};
 use itertools::Itertools;
@@ -55,7 +58,7 @@ pub enum SearchResponseResult {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChapterReference {
     pub book: Book,
-    pub translated_book_info: Option<TranslatedBookInfo<'static>>,
+    pub translated_book_info: TranslatedBookInfo<'static>,
     pub chapter: NonZeroU8,
 }
 
@@ -77,11 +80,11 @@ pub fn search_bible(
             search_start,
             search_max_count,
             bible,
-            &bible.index.read(),
+            todo!("Implement index"),
         );
         tracing::debug!(
             "Search for \"{term}\" (max {search_max_count} results) took {:?}",
-            start_time.elapsed()
+            start_time.elapsed(),
         );
         SearchResponse {
             response_type: SearchResponseType::SearchResults,
@@ -94,11 +97,12 @@ pub fn search_bible(
             .into_iter()
             .map(|x| match x {
                 Ok(reference) => {
-                    let usj = bible.usj(reference.book);
-                    let usj = usj.as_deref().map(UsjContent::unwrap_root);
+                    let book_data = bible.book(reference.book);
                     SearchResponseResult::ReferenceContent {
                         reference,
-                        translated_book_info: get_translated_book_info(usj),
+                        translated_book_info: book_data
+                            .as_ref()
+                            .map(|d| d.translated_book_info().to_owned_static()),
                         previous_chapter: get_nearby_book(
                             bible,
                             reference.book,
@@ -111,8 +115,10 @@ pub fn search_bible(
                             reference.chapter,
                             NearbyDir::Next,
                         ),
-                        content: usj
-                            .and_then(|usj| usj.find_reference(reference.chapter, reference.verses))
+                        content: book_data
+                            .and_then(|data| {
+                                data.find_reference(reference.chapter, reference.verses)
+                            })
                             .map(|(_, c)| c),
                         highlights: None,
                     }
@@ -125,7 +131,7 @@ pub fn search_bible(
             })
             .collect_vec();
         if generate_footnotes {
-            let config = bible.config.read();
+            let config = bible.config();
             for reference in &mut references {
                 if let SearchResponseResult::ReferenceContent {
                     reference,
@@ -193,10 +199,9 @@ fn search_for_terms(
             .take(max_count)
             .map(|(reference, locations)| {
                 let mut highlights = vec![];
-                let usj = bible.usj(reference.book);
-                let usj = usj.as_deref().map(UsjContent::unwrap_root);
-                let content = if let Some(usj) = &usj {
-                    let content = usj.find_reference(reference.chapter, reference.verses);
+                let book_data = bible.book(reference.book);
+                let content = if let Some(book_data) = &book_data {
+                    let content = book_data.find_reference(reference.chapter, reference.verses);
                     if let Some((offset, _)) = &content {
                         for mut location in locations {
                             location.start -= *offset;
@@ -210,7 +215,8 @@ fn search_for_terms(
                 };
                 SearchResponseResult::ReferenceContent {
                     reference,
-                    translated_book_info: get_translated_book_info(usj),
+                    translated_book_info: book_data
+                        .map(|d| d.translated_book_info().to_owned_static()),
                     previous_chapter: get_nearby_book(
                         bible,
                         reference.book,
@@ -231,10 +237,6 @@ fn search_for_terms(
     )
 }
 
-fn get_translated_book_info(usj: Option<&UsjRoot>) -> Option<TranslatedBookInfo<'static>> {
-    usj.map(|x| x.translated_book_info().as_owned())
-}
-
 fn get_nearby_book(
     bible: &BibleData,
     mut current_book: Book,
@@ -243,8 +245,8 @@ fn get_nearby_book(
 ) -> Option<ChapterReference> {
     let mut current_chapter_count = current_book.chapter_count()?.get();
     let mut current_chapter = current_chapter.get();
-    let mut current_usj = bible.usj(current_book);
-    let book_order = bible.config.read().book_order;
+    let mut current_book_data = bible.book(current_book);
+    let book_order = bible.config().book_order;
     loop {
         match nearby_dir {
             NearbyDir::Previous => {
@@ -254,7 +256,7 @@ fn get_nearby_book(
                     current_book = pred;
                     current_chapter_count = pred.chapter_count().map_or(1, NonZeroU8::get);
                     current_chapter = current_chapter_count;
-                    current_usj = bible.usj(current_book);
+                    current_book_data = bible.book(current_book);
                 } else {
                     return None;
                 }
@@ -266,24 +268,23 @@ fn get_nearby_book(
                     current_book = succ;
                     current_chapter_count = succ.chapter_count().map_or(1, NonZeroU8::get);
                     current_chapter = 1;
-                    current_usj = bible.usj(current_book);
+                    current_book_data = bible.book(current_book);
                 } else {
                     return None;
                 }
             }
         }
-        let Some(current_usj) = &current_usj else {
+        let Some(current_book_data) = &current_book_data else {
             current_chapter = 1;
             current_chapter_count = 1;
             continue;
         };
-        if current_usj.unwrap_root().content.iter().any(
-            |x| matches!(x, UsjContent::Chapter { number, .. } if number.value.get() == current_chapter),
-        ) {
+        let chapter = NonZeroU8::new(current_chapter).unwrap();
+        if current_book_data.has_chapter(chapter) {
             return Some(ChapterReference {
                 book: current_book,
-                translated_book_info: get_translated_book_info(current_usj.as_root()),
-                chapter: NonZeroU8::new(current_chapter).unwrap(),
+                translated_book_info: current_book_data.translated_book_info().to_owned_static(),
+                chapter,
             });
         }
     }
@@ -604,7 +605,7 @@ impl<'a> PhraseFinder<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::bible_data::{FootnotesConfig, FootnotesTree};
+    use crate::bible_data::config::{FootnotesConfig, FootnotesTree};
     use crate::reference::BibleReference;
     use crate::reference_value;
     use crate::search::PhraseFinder;

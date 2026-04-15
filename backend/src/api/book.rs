@@ -1,32 +1,34 @@
 use crate::api::{ApiError, ApiResult};
-use crate::bible_data::MultiBibleData;
+use crate::bible_data::expanded::MultiExpandedBibleData;
+use crate::bible_data::{BookData, ChapterInfo, DynMultiBibleData, MultiBibleData};
 use crate::book_data::Book;
-use crate::usj::{TranslatedBookInfo, content::UsjContent};
+use crate::usj::TranslatedBookInfo;
+use crate::utils::ToOwnedStatic;
 use crate::utils::ordered_enum::EnumOrderMap;
 use actix_web::{HttpResponse, get, web};
 use serde::Serialize;
 use strum::VariantArray;
 
 #[get("/book/{book}")]
-pub async fn book(
+pub async fn book_usj(
     bible_and_book: web::Path<(String, String)>,
-    bibles: web::Data<MultiBibleData>,
+    bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<HttpResponse> {
-    let (bible, book) = bible_and_book.into_inner();
+    let (bible, book_usj) = bible_and_book.into_inner();
     let bible = bibles.get_or_api_error(bible)?;
-    let Some(book) = Book::parse(&book, &bible.book_parse_options()) else {
-        return Err(ApiError::InvalidBook(book));
+    let Some(book_usj) = Book::parse(&book_usj, &bible.book_parse_options()) else {
+        return Err(ApiError::InvalidBook(book_usj));
     };
-    let Some(usj) = bible.usj(book) else {
-        return Err(ApiError::MissingUsj(book));
+    let Some(book_usj) = bible.book(book_usj) else {
+        return Err(ApiError::MissingUsj(book_usj));
     };
-    Ok(HttpResponse::Ok().json(&*usj))
+    Ok(HttpResponse::Ok().json(book_usj.to_usj()))
 }
 
 #[get("/books")]
 pub async fn books(
     bible: web::Path<String>,
-    bibles: web::Data<MultiBibleData>,
+    bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<HttpResponse> {
     #[derive(Serialize)]
     struct Response {
@@ -38,42 +40,18 @@ pub async fn books(
     #[derive(Serialize)]
     struct BookInfo {
         translated_book_info: TranslatedBookInfo<'static>,
-        chapters: Vec<ChapterInfo>,
+        chapters: Vec<ChapterInfo<'static>>,
     }
-    impl From<&UsjContent> for BookInfo {
-        fn from(value: &UsjContent) -> Self {
-            let root = value.unwrap_root();
+    impl From<BookData<'_>> for BookInfo {
+        fn from(value: BookData<'_>) -> Self {
             Self {
-                translated_book_info: root.translated_book_info().as_owned(),
-                chapters: root.content.iter().filter_map(Into::into).collect(),
+                translated_book_info: value.translated_book_info().to_owned_static(),
+                chapters: value
+                    .chapter_infos()
+                    .into_iter()
+                    .map(|x| x.to_owned_static())
+                    .collect(),
             }
-        }
-    }
-
-    #[derive(Serialize)]
-    struct ChapterInfo {
-        number: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        alt_number: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub_number: Option<String>,
-    }
-    impl From<&UsjContent> for Option<ChapterInfo> {
-        fn from(value: &UsjContent) -> Self {
-            let UsjContent::Chapter {
-                number,
-                alt_number,
-                pub_number,
-                ..
-            } = value
-            else {
-                return None;
-            };
-            Some(ChapterInfo {
-                number: number.string.clone(),
-                alt_number: alt_number.clone(),
-                pub_number: pub_number.clone(),
-            })
         }
     }
 
@@ -81,9 +59,8 @@ pub async fn books(
     Ok(HttpResponse::Ok().json(Response {
         books: Book::VARIANTS
             .iter()
-            .filter_map(|&x| bible.usj(x))
-            .map(|x| (*x.key(), x.value().into()))
+            .filter_map(|&x| Some((x, bible.book(x)?.into())))
             .collect(),
-        book_order: bible.config.read().book_order,
+        book_order: bible.config().book_order,
     }))
 }

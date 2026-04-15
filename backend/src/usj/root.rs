@@ -10,7 +10,7 @@ use std::slice::SliceIndex;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Encode, Decode)]
 pub struct UsjRoot {
-    pub version: String,
+    pub version: Cow<'static, str>,
     pub content: Vec<UsjContent>,
 }
 
