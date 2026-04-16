@@ -1,6 +1,6 @@
 use crate::api::route_not_found;
+use crate::bible_data::DynMultiBibleData;
 use crate::bible_data::baked::{BakeError, MultiBakedBibleData};
-use crate::bible_data::{DynMultiBibleData};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
 use bible_data::baked::bake_bible;

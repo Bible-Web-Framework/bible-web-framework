@@ -1,8 +1,6 @@
 use crate::bible_data::config::BibleConfig;
 use crate::bible_data::expanded::ExpandedBibleData;
-use crate::bible_data::index::{
-    ArchivedBookSearchResult, ArchivedIndexedWord, TextRange,
-};
+use crate::bible_data::index::{ArchivedBookSearchResult, ArchivedIndexedWord, TextRange};
 use crate::bible_data::{BibleData, MultiBibleData};
 use crate::book_data::{ArchivedBook, Book};
 use crate::reference::BibleReference;

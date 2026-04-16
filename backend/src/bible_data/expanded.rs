@@ -1,14 +1,14 @@
 use crate::bible_data::config::BibleConfig;
 use crate::bible_data::index::{ExpandedBibleIndex, ReindexType};
 use crate::bible_data::{BibleData, MultiBibleData};
-use crate::book_data::{Book, BookParseOptions};
+use crate::book_data::Book;
 use crate::usj::UsjBookInfo;
 use crate::usj::content::UsjContent;
 use crate::usj::loader::load_usj;
 use crate::usj::loader::load_usj_from_usfm;
 use crate::usj::root::UsjRoot;
+use crate::utils::ExclusiveMutex;
 use crate::utils::normalize::normalize_str;
-use crate::utils::{ExclusiveMutex};
 use bimap::{BiMap, Overwritten};
 use charabia::Language;
 use dashmap::{DashMap, Entry};
