@@ -1,6 +1,5 @@
 use crate::bible_data::config::{FootnotesConfig, FootnotesTree};
-use crate::bible_data::expanded::ExpandedBibleData;
-use crate::bible_data::index::{ExpandedBibleIndex, TextRange};
+use crate::bible_data::index::TextRange;
 use crate::bible_data::{BibleData, BibleIndex};
 use crate::book_data::Book;
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};

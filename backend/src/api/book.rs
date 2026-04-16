@@ -1,6 +1,5 @@
 use crate::api::{ApiError, ApiResult};
-use crate::bible_data::expanded::MultiExpandedBibleData;
-use crate::bible_data::{BookData, ChapterInfo, DynMultiBibleData, MultiBibleData};
+use crate::bible_data::{BookData, ChapterInfo, DynMultiBibleData};
 use crate::book_data::Book;
 use crate::usj::TranslatedBookInfo;
 use crate::utils::ToOwnedStatic;

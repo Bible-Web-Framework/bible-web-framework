@@ -8,10 +8,9 @@ use crate::usj::loader::load_usj;
 use crate::usj::loader::load_usj_from_usfm;
 use crate::usj::root::UsjRoot;
 use crate::utils::normalize::normalize_str;
-use crate::utils::{ExclusiveMutex, ToUnicaseCow};
+use crate::utils::{ExclusiveMutex};
 use bimap::{BiMap, Overwritten};
 use charabia::Language;
-use dashmap::mapref::one::MappedRef;
 use dashmap::{DashMap, Entry};
 use enum_map::Enum;
 use ere::{Regex, compile_regex};
@@ -467,46 +466,6 @@ impl ExpandedBibleData {
                     .expect("BibleData::load_from_zip called with non-file path")
             })
             .to_string_lossy()
-    }
-
-    pub fn book_parse_options(&self) -> impl BookParseOptions {
-        struct Options<'a> {
-            config: Arc<BibleConfig>,
-            books: &'a DashMap<Book, ExpandedBookData>,
-        }
-
-        impl BookParseOptions for Options<'_> {
-            fn languages(&self) -> Option<&[Language]> {
-                self.config.search.languages.as_deref()
-            }
-
-            fn lookup_book(&self, str: UniCase<&str>) -> Option<Book> {
-                self.config
-                    .book_aliases
-                    .get(&str.to_cow())
-                    .copied()
-                    .or_else(|| {
-                        self.books.iter().find_map(|book| {
-                            book.names.contains(&str.to_cow()).then_some(*book.key())
-                        })
-                    })
-            }
-
-            fn book_allowed(&self, book: Book) -> bool {
-                self.books.contains_key(&book)
-            }
-        }
-
-        Options {
-            config: self.config.read().clone(),
-            books: &self.books,
-        }
-    }
-
-    pub fn usj(&self, book: Book) -> Option<MappedRef<'_, Book, ExpandedBookData, UsjContent>> {
-        self.books
-            .get(&book)
-            .map(|data| data.map(ExpandedBookData::usj))
     }
 
     fn update_index(&self, reindex_type: ReindexType) {

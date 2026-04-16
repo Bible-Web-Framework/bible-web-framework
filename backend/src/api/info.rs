@@ -1,7 +1,6 @@
 use crate::api::ApiResult;
 use crate::bible_data::config::TextDirection;
-use crate::bible_data::expanded::MultiExpandedBibleData;
-use crate::bible_data::{BibleData, DynMultiBibleData, MultiBibleData};
+use crate::bible_data::{BibleData, DynMultiBibleData};
 use crate::book_data::Book;
 use actix_web::{get, web};
 use serde::Serialize;

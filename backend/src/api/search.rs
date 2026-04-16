@@ -1,7 +1,5 @@
 use crate::api::ApiResult;
-use crate::bible_data::expanded::MultiExpandedBibleData;
-use crate::bible_data::index::ExpandedBibleIndex;
-use crate::bible_data::{BibleIndex, DynMultiBibleData, MultiBibleData};
+use crate::bible_data::{DynMultiBibleData};
 use crate::search::{SearchResponse, search_bible};
 use crate::utils::serde_as::UniCaseAs;
 use actix_web::{HttpResponse, get, web};

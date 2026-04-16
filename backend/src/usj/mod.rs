@@ -6,7 +6,7 @@ pub mod root;
 
 use crate::book_data::Book;
 use crate::usj::marker::ContentMarker;
-use crate::utils::{AsBorrowed, CloneToOwned, ToOwnedStatic};
+use crate::utils::{AsBorrowed, ToOwnedStatic};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
@@ -67,19 +67,6 @@ impl TranslatedBookInfo<'_> {
             .or(self.book_abbreviation.as_ref())
             .or(self.long_book_name.as_ref())
             .map_or(book.usfm_id(), Cow::deref)
-    }
-}
-
-impl CloneToOwned for TranslatedBookInfo<'_> {
-    type Output = TranslatedBookInfo<'static>;
-
-    fn clone_to_owned(&self) -> Self::Output {
-        TranslatedBookInfo {
-            running_header: self.running_header.clone_to_owned(),
-            long_book_name: self.long_book_name.clone_to_owned(),
-            short_book_name: self.short_book_name.clone_to_owned(),
-            book_abbreviation: self.book_abbreviation.clone_to_owned(),
-        }
     }
 }
 

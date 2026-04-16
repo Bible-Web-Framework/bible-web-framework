@@ -1,12 +1,11 @@
 use crate::bible_data::config::BibleConfig;
-use crate::bible_data::expanded::{ConfigResult, ExpandedBibleData};
+use crate::bible_data::expanded::ExpandedBibleData;
 use crate::bible_data::index::{
-    ArchivedBookSearchResult, ArchivedIndexedWord, ArchivedTextLocation, BookSearchResult,
-    IndexedWord, TextLocation, TextRange,
+    ArchivedBookSearchResult, ArchivedIndexedWord, TextRange,
 };
 use crate::bible_data::{BibleData, MultiBibleData};
 use crate::book_data::{ArchivedBook, Book};
-use crate::reference::{ArchivedBookReference, BibleReference};
+use crate::reference::BibleReference;
 use crate::usj::content::UsjContent;
 use crate::usj::loader::USJ_VERSION;
 use crate::usj::root::UsjRoot;
@@ -20,14 +19,10 @@ use oxicode::config::{legacy, standard};
 use rkyv::api::serialize_using;
 use rkyv::boxed::ArchivedBox;
 use rkyv::collections::swiss_table;
-use rkyv::collections::swiss_table::ArchivedHashMap;
-use rkyv::de::Pool;
 use rkyv::hash::FxHasher64;
-use rkyv::ops::ArchivedRange;
 use rkyv::rancor::Strategy;
 use rkyv::ser::sharing::Share;
 use rkyv::ser::writer::IoWriter;
-use rkyv::tuple::ArchivedTuple2;
 use rkyv::util::with_arena;
 use rkyv::validation::Validator;
 use rkyv::validation::archive::ArchiveValidator;
@@ -482,7 +477,6 @@ fn read_addresses(
 }
 
 fn read_address(input: &[u8], offset: usize) -> Result<usize, io::Error> {
-    let offset = offset;
     let subslice = input
         .get(offset..offset + 4)
         .ok_or(io::ErrorKind::UnexpectedEof)?;

@@ -95,34 +95,6 @@ impl<'a> ToUnicaseCow<'a> for UniCase<&'a str> {
     }
 }
 
-pub trait CloneToOwned {
-    type Output;
-
-    fn clone_to_owned(&self) -> Self::Output;
-}
-
-impl<'a, T> CloneToOwned for Cow<'a, T>
-where
-    T: ToOwned + ?Sized + 'static,
-{
-    type Output = Cow<'static, T>;
-
-    fn clone_to_owned(&self) -> Self::Output {
-        Cow::Owned(self.clone().into_owned())
-    }
-}
-
-impl<'a, T> CloneToOwned for Option<Cow<'a, T>>
-where
-    T: ToOwned + ?Sized + 'static,
-{
-    type Output = Option<Cow<'static, T>>;
-
-    fn clone_to_owned(&self) -> Self::Output {
-        self.as_ref().map(Cow::clone_to_owned)
-    }
-}
-
 pub trait AsBorrowed<'a> {
     type Output;
 
@@ -136,7 +108,7 @@ where
     type Output = Cow<'a, T>;
 
     fn as_borrowed(&'a self) -> Self::Output {
-        Cow::Borrowed(&*self)
+        Cow::Borrowed(self)
     }
 }
 

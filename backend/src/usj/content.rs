@@ -249,36 +249,6 @@ impl UsjContent {
         true
     }
 
-    pub fn get_content(&self, index: usize) -> Option<Either<&UsjContent, &str>> {
-        Some(match self {
-            UsjContent::Root(UsjRoot { content, .. })
-            | UsjContent::Table { content, .. }
-            | UsjContent::TableRow { content, .. }
-            | UsjContent::Sidebar { content, .. }
-            | UsjContent::Periph { content, .. } => Either::Left(content.get(index)?),
-
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::Note { content, .. }
-            | UsjContent::TableCell { content, .. } => match content.get(index)? {
-                ParaContent::Usj(usj) => Either::Left(usj),
-                ParaContent::Plain(text) => Either::Right(text),
-            },
-
-            UsjContent::Book { content, .. }
-            | UsjContent::Figure { content, .. }
-            | UsjContent::Reference { content, .. } => {
-                if index == 0 {
-                    Either::Right(content.as_ref()?)
-                } else {
-                    return None;
-                }
-            }
-
-            _ => return None,
-        })
-    }
-
     pub fn get_content_mut(
         &mut self,
         index: usize,

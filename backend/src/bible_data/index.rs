@@ -9,10 +9,8 @@ use crate::utils::print_memory_stats;
 use crate::verse_range::VerseRange;
 use charabia::Tokenizer;
 use dashmap::DashMap;
-use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::Archive;
-use rkyv::niche::option_box::ArchivedOptionBox;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -498,7 +496,7 @@ impl<'a> Iterator for ExpandedNamesAndCountsIter<'a> {
     type Item = (&'a str, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(Self::map_to_item(&self.interner, self.iter.next()?))
+        Some(Self::map_to_item(self.interner, self.iter.next()?))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

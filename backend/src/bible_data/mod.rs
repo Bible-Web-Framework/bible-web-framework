@@ -10,7 +10,7 @@ use crate::book_data::{Book, BookParseOptions};
 use crate::reference::BibleReference;
 use crate::usj::content::UsjContent;
 use crate::usj::{ParaIndex, TranslatedBookInfo};
-use crate::utils::{ArcOrRef, AsBorrowed, CloneToOwned, ToOwnedStatic, ToUnicaseCow};
+use crate::utils::{ArcOrRef, AsBorrowed, ToOwnedStatic, ToUnicaseCow};
 use crate::verse_range::VerseRange;
 use charabia::Language;
 use config::BibleConfig;
@@ -160,7 +160,7 @@ impl BookData<'_> {
         }
     }
 
-    pub fn chapter_infos(&self) -> Vec<ChapterInfo> {
+    pub fn chapter_infos(&self) -> Vec<ChapterInfo<'_>> {
         match self {
             Self::Expanded(data) => data
                 .usj
@@ -266,18 +266,6 @@ pub struct ChapterInfo<'a> {
     pub alt_number: Option<Cow<'a, str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pub_number: Option<Cow<'a, str>>,
-}
-
-impl CloneToOwned for ChapterInfo<'_> {
-    type Output = ChapterInfo<'static>;
-
-    fn clone_to_owned(&self) -> Self::Output {
-        ChapterInfo {
-            number: self.number.clone_to_owned(),
-            alt_number: self.alt_number.clone_to_owned(),
-            pub_number: self.pub_number.clone_to_owned(),
-        }
-    }
 }
 
 impl<'a, 'b: 'a> AsBorrowed<'a> for ChapterInfo<'b> {
