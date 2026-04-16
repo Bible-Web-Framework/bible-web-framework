@@ -31,7 +31,6 @@ mod api;
 mod bible_data;
 mod book_category;
 mod book_data;
-mod index;
 mod reference;
 mod reference_encoding;
 mod search;

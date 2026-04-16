@@ -1,18 +1,25 @@
 use crate::api::{ApiError, ApiResult};
-use crate::bible_data::baked::{BakedBibleData, BakedBookData};
+use crate::bible_data::baked::{
+    BakedBibleData, BakedBookData, BakedNamesAndCountsIter, BakedReferencesIter,
+};
 use crate::bible_data::expanded::{ExpandedBibleData, ExpandedBookData};
+use crate::bible_data::index::{
+    ExpandedBibleIndex, ExpandedNamesAndCountsIter, ExpandedReferencesIter, TextRange,
+};
 use crate::book_data::{Book, BookParseOptions};
+use crate::reference::BibleReference;
 use crate::usj::content::UsjContent;
 use crate::usj::{ParaIndex, TranslatedBookInfo};
 use crate::utils::{ArcOrRef, AsBorrowed, CloneToOwned, ToOwnedStatic, ToUnicaseCow};
 use crate::verse_range::VerseRange;
-use auto_enums::auto_enum;
 use charabia::Language;
 use config::BibleConfig;
 use dashmap::mapref;
 use enumset::EnumSet;
+use parking_lot::RwLockReadGuard;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::iter::FusedIterator;
 use std::num::NonZeroU8;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -21,6 +28,7 @@ use unicase::UniCase;
 pub mod baked;
 pub mod config;
 pub mod expanded;
+pub mod index;
 
 pub type DynMultiBibleData = dyn MultiBibleData + Send + Sync;
 
@@ -81,6 +89,13 @@ impl BibleData<'_> {
                 .iter()
                 .filter_map(|(book, data)| data.is_some().then_some(book))
                 .collect(),
+        }
+    }
+
+    pub fn index(&self) -> BibleIndex<'_> {
+        match self {
+            Self::Expanded(data) => BibleIndex::Expanded(data.index.read()),
+            Self::Baked(data) => BibleIndex::Baked(data),
         }
     }
 
@@ -214,6 +229,36 @@ impl BookData<'_> {
     }
 }
 
+pub enum BibleIndex<'a> {
+    Expanded(RwLockReadGuard<'a, ExpandedBibleIndex>),
+    Baked(&'a BakedBibleData),
+}
+
+impl BibleIndex<'_> {
+    pub fn find_by_lemma<'a, 'b: 'a>(
+        &'a self,
+        lemma: &'b str,
+    ) -> Option<(&'a str, ReferencesIter<'a>)> {
+        match self {
+            Self::Expanded(index) => index
+                .find_by_lemma(lemma)
+                .map(|(name, iter)| (name, ReferencesIter(InnerReferencesIter::Expanded(iter)))),
+            Self::Baked(index) => index
+                .find_by_lemma(lemma)
+                .map(|(name, iter)| (name, ReferencesIter(InnerReferencesIter::Baked(iter)))),
+        }
+    }
+
+    pub fn iter_names_and_counts(&self) -> NamesAndCountsIter<'_> {
+        NamesAndCountsIter(match self {
+            Self::Expanded(index) => {
+                InnerNamesAndCountsIter::Expanded(index.iter_names_and_counts())
+            }
+            Self::Baked(index) => InnerNamesAndCountsIter::Baked(index.iter_names_and_counts()),
+        })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChapterInfo<'a> {
     pub number: Cow<'a, str>,
@@ -255,6 +300,81 @@ impl ToOwnedStatic for ChapterInfo<'_> {
             number: self.number.to_owned_static(),
             alt_number: self.alt_number.to_owned_static(),
             pub_number: self.pub_number.to_owned_static(),
+        }
+    }
+}
+
+pub struct ReferencesIter<'a>(InnerReferencesIter<'a>);
+
+enum InnerReferencesIter<'a> {
+    Expanded(ExpandedReferencesIter<'a>),
+    Baked(BakedReferencesIter<'a>),
+}
+
+impl<'a> Iterator for ReferencesIter<'a> {
+    type Item = (BibleReference, TextRange);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.0 {
+            InnerReferencesIter::Expanded(iter) => iter
+                .next()
+                .map(|(reference, range)| (reference, range.clone())),
+            InnerReferencesIter::Baked(iter) => iter.next(),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match &self.0 {
+            InnerReferencesIter::Expanded(iter) => iter.size_hint(),
+            InnerReferencesIter::Baked(iter) => iter.size_hint(),
+        }
+    }
+}
+
+impl FusedIterator for ReferencesIter<'_> {}
+
+pub struct NamesAndCountsIter<'a>(InnerNamesAndCountsIter<'a>);
+
+enum InnerNamesAndCountsIter<'a> {
+    Expanded(ExpandedNamesAndCountsIter<'a>),
+    Baked(BakedNamesAndCountsIter<'a>),
+}
+
+impl<'a> Iterator for NamesAndCountsIter<'a> {
+    type Item = (Cow<'a, str>, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.0 {
+            InnerNamesAndCountsIter::Expanded(iter) => iter
+                .next()
+                .map(|(name, count)| (Cow::Borrowed(name), count)),
+            InnerNamesAndCountsIter::Baked(iter) => iter.next(),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match &self.0 {
+            InnerNamesAndCountsIter::Expanded(iter) => iter.size_hint(),
+            InnerNamesAndCountsIter::Baked(iter) => iter.size_hint(),
+        }
+    }
+
+    fn count(self) -> usize {
+        match self.0 {
+            InnerNamesAndCountsIter::Expanded(iter) => iter.count(),
+            InnerNamesAndCountsIter::Baked(iter) => iter.count(),
+        }
+    }
+
+    fn fold<B, F>(self, init: B, f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        match self.0 {
+            InnerNamesAndCountsIter::Expanded(iter) => iter
+                .map(|(name, count)| (Cow::Borrowed(name), count))
+                .fold(init, f),
+            InnerNamesAndCountsIter::Baked(iter) => iter.fold(init, f),
         }
     }
 }

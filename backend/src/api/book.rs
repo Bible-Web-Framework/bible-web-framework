@@ -7,6 +7,7 @@ use crate::utils::ToOwnedStatic;
 use crate::utils::ordered_enum::EnumOrderMap;
 use actix_web::{HttpResponse, get, web};
 use serde::Serialize;
+use serde_with::{Map, serde_as};
 use strum::VariantArray;
 
 #[get("/book/{book}")]
@@ -30,9 +31,10 @@ pub async fn books(
     bible: web::Path<String>,
     bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<HttpResponse> {
+    #[serde_as]
     #[derive(Serialize)]
     struct Response {
-        #[serde(with = "tuple_vec_map")]
+        #[serde_as(as = "Map<_, _>")]
         books: Vec<(Book, BookInfo)>,
         book_order: EnumOrderMap<Book>,
     }

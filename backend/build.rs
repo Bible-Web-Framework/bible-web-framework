@@ -149,6 +149,7 @@ fn generate_books_data() {
             oxicode::Encode,
             oxicode::Decode,
             rkyv::Serialize,
+            rkyv::Deserialize,
             rkyv::Archive,
         )]
         #[enumset(serialize_repr = "list")]

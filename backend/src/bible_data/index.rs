@@ -1,6 +1,6 @@
 use crate::bible_data::expanded::ExpandedBookData;
 use crate::book_data::Book;
-use crate::reference::BookReference;
+use crate::reference::{BibleReference, BookReference};
 use crate::usj::content::ParaContent;
 use crate::usj::marker::ContentMarker;
 use crate::usj::root::UsjRoot;
@@ -12,22 +12,26 @@ use dashmap::DashMap;
 use memory_stats::memory_stats;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::Archive;
+use rkyv::niche::option_box::ArchivedOptionBox;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, LinkedList};
-use std::mem;
+use std::collections::{HashMap, LinkedList, hash_map};
+use std::iter::FusedIterator;
 use std::num::NonZeroU8;
 use std::ops::{Range, SubAssign};
 use std::time::Instant;
+use std::{mem, slice};
 use string_interner::StringInterner;
 use string_interner::backend::{Backend, StringBackend};
 use string_interner::symbol::SymbolU32;
 use tinyvec::{TinyVec, tiny_vec};
 use unicode_normalization::UnicodeNormalization;
 
-pub type SearchResultMap = HashMap<Book, Box<[(BookReference, TextRange)]>>;
+pub type BookSearchResult = (BookReference, TextRange);
+pub type ArchivedBookSearchResult = <BookSearchResult as Archive>::Archived;
+pub type SearchResultMap = HashMap<Book, Box<[BookSearchResult]>>;
 
 type InternerSymbol = SymbolU32;
 type InternerBackend = StringBackend<InternerSymbol>;
@@ -40,14 +44,14 @@ pub enum ReindexType {
     FullReindex,
 }
 
-pub struct BibleIndex {
+pub struct ExpandedBibleIndex {
     pub log_marker: Option<String>,
     interner: Interner,
     references_and_names_by_word: HashMap<InternerSymbol, IndexedWord>,
     words_by_book: HashMap<Book, Box<[InternerSymbol]>>,
 }
 
-impl Default for BibleIndex {
+impl Default for ExpandedBibleIndex {
     fn default() -> Self {
         Self::new()
     }
@@ -57,6 +61,7 @@ impl Default for BibleIndex {
 pub struct IndexedWord {
     pub total: usize,
     pub by_book: SearchResultMap,
+    #[rkyv(with = rkyv::with::Niche)]
     pub name: Option<Box<str>>,
 }
 
@@ -70,7 +75,7 @@ macro_rules! format_marker {
     };
 }
 
-impl BibleIndex {
+impl ExpandedBibleIndex {
     pub fn new() -> Self {
         Self {
             log_marker: None,
@@ -80,14 +85,32 @@ impl BibleIndex {
         }
     }
 
-    pub fn find<'a, 'b: 'a>(&'a self, lemma: &'b str) -> Option<(&'a SearchResultMap, &'a str)> {
-        match self
+    pub fn find_by_lemma<'a, 'b: 'a>(
+        &'a self,
+        lemma: &'b str,
+    ) -> Option<(&'a str, ExpandedReferencesIter<'a>)> {
+        let word = self
             .interner
             .get(lemma)
-            .and_then(|s| self.references_and_names_by_word.get(&s))
-        {
-            Some(word) => Some((&word.by_book, word.name.as_deref().unwrap_or(lemma))),
-            None => None,
+            .and_then(|s| self.references_and_names_by_word.get(&s))?;
+
+        let name = word.name.as_deref().unwrap_or(lemma);
+
+        let mut map_iter = word.by_book.iter();
+        let (first_book, first_book_results) = map_iter.next().unwrap();
+        let references = ExpandedReferencesIter {
+            map_iter,
+            book_iter: first_book_results.iter(),
+            current_book: *first_book,
+        };
+
+        Some((name, references))
+    }
+
+    pub fn iter_names_and_counts(&self) -> ExpandedNamesAndCountsIter<'_> {
+        ExpandedNamesAndCountsIter {
+            iter: self.references_and_names_by_word.iter(),
+            interner: &self.interner,
         }
     }
 
@@ -97,19 +120,6 @@ impl BibleIndex {
 
     pub fn word_from_symbol(&self, symbol: InternerSymbol) -> Option<&IndexedWord> {
         self.references_and_names_by_word.get(&symbol)
-    }
-
-    pub fn iter_names_and_counts(&self) -> impl Iterator<Item = (&str, usize)> {
-        self.references_and_names_by_word
-            .iter()
-            .map(|(symbol, word)| {
-                (
-                    word.name
-                        .as_deref()
-                        .unwrap_or_else(|| self.interner.resolve(*symbol).unwrap()),
-                    word.total,
-                )
-            })
     }
 
     pub fn replace_from_indexer(&mut self, book: Book, indexer: BookIndexer) {
@@ -404,7 +414,7 @@ impl BookIndexer {
 
 pub type UsjPath = TinyVec<[u16; 4]>;
 
-#[derive(Clone, Debug, Serialize, Deserialize, rkyv::Serialize, Archive)]
+#[derive(Clone, Debug, Serialize, Deserialize, rkyv::Serialize, rkyv::Deserialize, Archive)]
 pub struct TextLocation {
     pub usj_path: UsjPath,
     pub char: u16,
@@ -425,3 +435,95 @@ impl SubAssign<ParaIndex> for TextLocation {
         }
     }
 }
+
+pub struct ExpandedReferencesIter<'a> {
+    map_iter: hash_map::Iter<'a, Book, Box<[BookSearchResult]>>,
+    book_iter: slice::Iter<'a, BookSearchResult>,
+    current_book: Book,
+}
+
+impl<'a> Iterator for ExpandedReferencesIter<'a> {
+    type Item = (BibleReference, &'a TextRange);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.book_iter.next() {
+            Some(result) => Some((BibleReference::new(self.current_book, result.0), &result.1)),
+            None => match self.map_iter.next() {
+                Some((book, result_box)) => {
+                    self.current_book = *book;
+                    self.book_iter = result_box.iter();
+                    let result = self.book_iter.next().unwrap();
+                    Some((BibleReference::new(*book, result.0), &result.1))
+                }
+                None => None,
+            },
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let books_remaining = self.map_iter.len();
+        let refs_remaining = self.book_iter.len();
+        let lower = books_remaining.saturating_add(refs_remaining);
+        let upper = if books_remaining == 0 {
+            Some(refs_remaining)
+        } else {
+            None
+        };
+        (lower, upper)
+    }
+}
+
+impl FusedIterator for ExpandedReferencesIter<'_> {}
+
+pub struct ExpandedNamesAndCountsIter<'a> {
+    iter: hash_map::Iter<'a, InternerSymbol, IndexedWord>,
+    interner: &'a Interner,
+}
+
+impl<'a> ExpandedNamesAndCountsIter<'a> {
+    fn map_to_item(
+        interner: &'a Interner,
+        (symbol, word): (&'a InternerSymbol, &'a IndexedWord),
+    ) -> (&'a str, usize) {
+        (
+            word.name
+                .as_deref()
+                .unwrap_or_else(|| interner.resolve(*symbol).unwrap()),
+            word.total,
+        )
+    }
+}
+
+impl<'a> Iterator for ExpandedNamesAndCountsIter<'a> {
+    type Item = (&'a str, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(Self::map_to_item(&self.interner, self.iter.next()?))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    fn count(self) -> usize {
+        self.iter.len()
+    }
+
+    fn fold<B, F>(self, init: B, f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let interner = self.interner;
+        self.iter
+            .map(|x| Self::map_to_item(interner, x))
+            .fold(init, f)
+    }
+}
+
+impl ExactSizeIterator for ExpandedNamesAndCountsIter<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl FusedIterator for ExpandedNamesAndCountsIter<'_> {}

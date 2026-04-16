@@ -184,6 +184,7 @@ impl FromStr for BibleReference {
     Encode,
     Decode,
     rkyv::Serialize,
+    rkyv::Deserialize,
     Archive,
 )]
 pub struct BookReference {

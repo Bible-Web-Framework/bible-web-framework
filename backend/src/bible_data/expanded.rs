@@ -1,7 +1,7 @@
 use crate::bible_data::config::BibleConfig;
+use crate::bible_data::index::{ExpandedBibleIndex, ReindexType};
 use crate::bible_data::{BibleData, MultiBibleData};
 use crate::book_data::{Book, BookParseOptions};
-use crate::index::{BibleIndex, ReindexType};
 use crate::usj::UsjBookInfo;
 use crate::usj::content::UsjContent;
 use crate::usj::loader::load_usj;
@@ -55,7 +55,7 @@ pub struct ExpandedBibleData {
     pub id: String,
     pub config: RwLock<Arc<BibleConfig>>,
     pub books: DashMap<Book, ExpandedBookData>,
-    pub index: RwLock<BibleIndex>,
+    pub index: RwLock<ExpandedBibleIndex>,
     sources: RwLock<BiMap<Book, Cow<'static, str>>>,
     has_ignored_files: AtomicBool,
     full_reload_active: ExclusiveMutex,

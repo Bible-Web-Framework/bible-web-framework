@@ -1,8 +1,8 @@
-use crate::bible_data::BibleData;
 use crate::bible_data::config::{FootnotesConfig, FootnotesTree};
 use crate::bible_data::expanded::ExpandedBibleData;
+use crate::bible_data::index::{ExpandedBibleIndex, TextRange};
+use crate::bible_data::{BibleData, BibleIndex};
 use crate::book_data::Book;
-use crate::index::{BibleIndex, TextRange};
 use crate::reference::{BibleReference, ParseReferenceError, parse_references};
 use crate::usj::content::{AttributesMap, ParaContent};
 use crate::usj::marker::ContentMarker;
@@ -75,13 +75,8 @@ pub fn search_bible(
         .all(|r| matches!(r, Err((e, _)) if e.is_syntax()))
     {
         let start_time = Instant::now();
-        let (total_results, results) = search_for_terms(
-            &term,
-            search_start,
-            search_max_count,
-            bible,
-            todo!("Implement index"),
-        );
+        let (total_results, results) =
+            search_for_terms(&term, search_start, search_max_count, bible, &bible.index());
         tracing::debug!(
             "Search for \"{term}\" (max {search_max_count} results) took {:?}",
             start_time.elapsed(),
@@ -168,25 +163,17 @@ fn search_for_terms(
     let mut reference_counts: HashMap<_, u32> = HashMap::new();
 
     let mut counted_terms = 0u32;
-    let mut counted_references = HashSet::new();
     for term in terms.tokenize() {
-        let Some((single_result, _)) = index.find(term.lemma()) else {
+        let Some((_, single_result)) = index.find_by_lemma(term.lemma()) else {
             continue;
         };
         counted_terms += 1;
-        for (book, references) in single_result {
-            counted_references.clear();
-            for (reference, text_location) in references {
-                let reference = BibleReference::new(*book, *reference);
-                result
-                    .entry(reference)
-                    .or_default()
-                    .push(text_location.clone());
-                counted_references.insert(reference);
-            }
-            for reference in &counted_references {
-                *reference_counts.entry(*reference).or_default() += 1;
-            }
+        for (reference, text_location) in single_result {
+            result
+                .entry(reference)
+                .or_default()
+                .push(text_location.clone());
+            *reference_counts.entry(reference).or_default() += 1;
         }
     }
 

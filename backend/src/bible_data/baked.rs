@@ -1,8 +1,12 @@
 use crate::bible_data::config::BibleConfig;
 use crate::bible_data::expanded::{ConfigResult, ExpandedBibleData};
+use crate::bible_data::index::{
+    ArchivedBookSearchResult, ArchivedIndexedWord, ArchivedTextLocation, BookSearchResult,
+    IndexedWord, TextLocation, TextRange,
+};
 use crate::bible_data::{BibleData, MultiBibleData};
-use crate::book_data::Book;
-use crate::index::ArchivedIndexedWord;
+use crate::book_data::{ArchivedBook, Book};
+use crate::reference::{ArchivedBookReference, BibleReference};
 use crate::usj::content::UsjContent;
 use crate::usj::loader::USJ_VERSION;
 use crate::usj::root::UsjRoot;
@@ -14,21 +18,33 @@ use enum_map::{Enum, EnumMap};
 use memmap2::{Mmap, MmapAsRawDesc};
 use oxicode::config::{legacy, standard};
 use rkyv::api::serialize_using;
+use rkyv::boxed::ArchivedBox;
+use rkyv::collections::swiss_table;
+use rkyv::collections::swiss_table::ArchivedHashMap;
+use rkyv::de::Pool;
+use rkyv::hash::FxHasher64;
+use rkyv::ops::ArchivedRange;
+use rkyv::rancor::Strategy;
 use rkyv::ser::sharing::Share;
 use rkyv::ser::writer::IoWriter;
+use rkyv::tuple::ArchivedTuple2;
 use rkyv::util::with_arena;
-use rkyv::{Portable, rancor};
+use rkyv::validation::Validator;
+use rkyv::validation::archive::ArchiveValidator;
+use rkyv::validation::shared::SharedValidator;
+use rkyv::{Deserialize as RkyvDeserialize, Portable, rancor};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io;
 use std::io::{Seek, SeekFrom, Write};
+use std::iter::FusedIterator;
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Instant;
+use std::{io, slice};
 use strum::VariantArray;
 use thiserror::Error;
 use trie_rs::map::{Trie, TrieBuilder};
@@ -133,6 +149,7 @@ pub fn bake_bible<W: Write + Seek>(bible: &ExpandedBibleData, mut output: W) -> 
         }
         builder.build()
     };
+    symbols.sort_by_key(|(_, x)| *x);
     let trie_start = output.stream_position()?;
     // legacy() because we need fixed-size integers because we'll be changing the values later
     let original_trie_size =
@@ -223,7 +240,7 @@ impl MultiBakedBibleData {
             bibles.insert(bible_id.to_string(), bible);
         }
         tracing::info!(
-            "Loaded {} baked bibles in {:?}",
+            "Loaded {} baked bible(s) in {:?}",
             bibles.len(),
             start.elapsed(),
         );
@@ -341,9 +358,17 @@ pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> BakeResult<BakedBibleDat
         end_address = address;
     }
 
-    let index_trie = oxicode::serde::decode_owned_from_slice(&memory[end_address..], legacy())?.0;
+    let index_trie: Trie<_, _> =
+        oxicode::serde::decode_owned_from_slice(&memory[end_address..], legacy())?.0;
 
-    // TODO: Validate index trie and index data
+    let mut validator = Validator::new(ArchiveValidator::new(&memory), SharedValidator::new());
+    for (_, &address) in index_trie.iter::<String, _>() {
+        rkyv::api::check_pos_with_context::<ArchivedIndexedWord, _, rancor::Error>(
+            &memory,
+            address as usize,
+            &mut validator,
+        )?;
+    }
 
     Ok(BakedBibleData {
         memory,
@@ -366,6 +391,35 @@ impl BakedBibleData {
         UsjRoot {
             version: Cow::Borrowed(USJ_VERSION),
             content,
+        }
+    }
+
+    pub fn find_by_lemma<'a, 'b: 'a>(
+        &'a self,
+        lemma: &'b str,
+    ) -> Option<(&'a str, BakedReferencesIter<'a>)> {
+        let address = *self.index_trie.exact_match(lemma)? as usize;
+        let word = unsafe {
+            rkyv::api::access_pos_unchecked::<ArchivedIndexedWord>(&self.memory, address)
+        };
+
+        let name = word.name.as_deref().unwrap_or(lemma);
+
+        let mut table_iter = word.by_book.iter();
+        let (first_book, first_book_results) = table_iter.next().unwrap();
+        let references = BakedReferencesIter {
+            table_iter,
+            book_iter: first_book_results.iter(),
+            current_book: assert_deser(first_book),
+        };
+
+        Some((name, references))
+    }
+
+    pub fn iter_names_and_counts(&self) -> BakedNamesAndCountsIter<'_> {
+        BakedNamesAndCountsIter {
+            iter: self.index_trie.iter(),
+            memory: &self.memory,
         }
     }
 }
@@ -438,4 +492,80 @@ fn read_address(input: &[u8], offset: usize) -> Result<usize, io::Error> {
 #[inline]
 fn chapter_count(book: Book) -> usize {
     book.chapter_count().map_or(0, NonZeroU8::get) as usize
+}
+
+pub struct BakedReferencesIter<'a> {
+    table_iter: swiss_table::map::Iter<
+        'a,
+        ArchivedBook,
+        ArchivedBox<[ArchivedBookSearchResult]>,
+        FxHasher64,
+    >,
+    book_iter: slice::Iter<'a, ArchivedBookSearchResult>,
+    current_book: Book,
+}
+
+impl Iterator for BakedReferencesIter<'_> {
+    type Item = (BibleReference, TextRange);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        fn parse_ref(book: Book, result: &ArchivedBookSearchResult) -> (BibleReference, TextRange) {
+            let (book_ref, range) = assert_deser(result);
+            (BibleReference::new(book, book_ref), range)
+        }
+
+        match self.book_iter.next() {
+            Some(arch) => Some(parse_ref(self.current_book, arch)),
+            None => match self.table_iter.next() {
+                Some((book, arch_box)) => {
+                    let book = assert_deser(book);
+                    self.current_book = book;
+                    self.book_iter = arch_box.iter();
+                    Some(parse_ref(book, self.book_iter.next().unwrap()))
+                }
+                None => None,
+            },
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let books_remaining = self.table_iter.len();
+        let refs_remaining = self.book_iter.len();
+        let lower = books_remaining.saturating_add(refs_remaining);
+        let upper = if books_remaining == 0 {
+            Some(refs_remaining)
+        } else {
+            None
+        };
+        (lower, upper)
+    }
+}
+
+impl FusedIterator for BakedReferencesIter<'_> {}
+
+pub struct BakedNamesAndCountsIter<'a> {
+    // StringCollect is #[doc(hidden)], but I need to specify the type
+    iter: trie_rs::iter::PostfixIter<'a, u8, u32, String, trie_rs::try_collect::StringCollect>,
+    memory: &'a [u8],
+}
+
+impl<'a> Iterator for BakedNamesAndCountsIter<'a> {
+    type Item = (Cow<'a, str>, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (lemma, address) = self.iter.next()?;
+        let data = unsafe {
+            rkyv::api::access_pos_unchecked::<ArchivedIndexedWord>(self.memory, *address as usize)
+        };
+        let name = data
+            .name
+            .as_deref()
+            .map_or(Cow::Owned(lemma), Cow::Borrowed);
+        let total = assert_deser(&data.total);
+        Some((name, total))
+    }
+}
+
+fn assert_deser<T, A: RkyvDeserialize<T, Strategy<(), ()>>>(arch: &A) -> T {
+    arch.deserialize(Strategy::wrap(&mut ())).unwrap()
 }

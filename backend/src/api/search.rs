@@ -1,13 +1,15 @@
 use crate::api::ApiResult;
 use crate::bible_data::expanded::MultiExpandedBibleData;
-use crate::bible_data::{DynMultiBibleData, MultiBibleData};
-use crate::index::BibleIndex;
+use crate::bible_data::index::ExpandedBibleIndex;
+use crate::bible_data::{BibleIndex, DynMultiBibleData, MultiBibleData};
 use crate::search::{SearchResponse, search_bible};
+use crate::utils::serde_as::UniCaseAs;
 use actix_web::{HttpResponse, get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde_with::{Map, serde_as};
+use std::borrow::Cow;
 use unicase::UniCase;
 use validator::Validate;
 
@@ -56,18 +58,20 @@ pub async fn index(
     bible: web::Path<String>,
     bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<HttpResponse> {
+    #[serde_as]
     #[derive(Serialize)]
     struct Response<'a> {
-        #[serde(with = "tuple_vec_map")]
-        words: Vec<(&'a str, usize)>,
+        #[serde_as(as = "Map<UniCaseAs<_>, _>")]
+        words: Vec<(UniCase<Cow<'a, str>>, usize)>,
     }
 
     let bible = bibles.get_or_api_error(bible.into_inner())?;
-    let index: &BibleIndex = todo!("Implement index");
+    let index = bible.index();
     Ok(HttpResponse::Ok().json(Response {
         words: index
             .iter_names_and_counts()
-            .sorted_by_cached_key(|(name, _)| UniCase::new(*name))
+            .map(|(name, count)| (UniCase::new(name), count))
+            .sorted()
             .collect(),
     }))
 }

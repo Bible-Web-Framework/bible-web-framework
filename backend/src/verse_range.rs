@@ -10,7 +10,18 @@ use std::str::FromStr;
 use thiserror::Error;
 
 #[derive(
-    Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Encode, Decode, rkyv::Serialize, Archive,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Encode,
+    Decode,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    Archive,
 )]
 pub struct VerseRange {
     first: NonZeroU8,
