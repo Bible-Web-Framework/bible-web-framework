@@ -1,5 +1,7 @@
 use crate::api::route_not_found;
+use crate::bible_data::baked::{BakeError, MultiBakedBibleData};
 use crate::bible_data::{DynMultiBibleData, MultiBibleData};
+use crate::utils::print_memory_stats;
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
 use bible_data::baked::{bake_bible, load_baked_bible};
@@ -47,7 +49,7 @@ pub enum ServerError {
     EnvParse(String, String, #[source] Box<dyn Error + Send + 'static>),
     #[error("Invalid logging configuration: {0}")]
     TracingEnv(#[from] tracing_subscriber::filter::FromEnvError),
-    #[error("IO error: {0}")]
+    #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("File watcher error: {0}")]
     Notify(#[from] notify_debouncer_full::notify::Error),
@@ -57,6 +59,8 @@ pub enum ServerError {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("Configuration error: {0}")]
     Config(#[from] BibleDataError),
+    #[error("Baking error: {0}")]
+    Bake(#[from] BakeError),
 }
 
 #[actix_web::main]
@@ -92,17 +96,19 @@ async fn real_main() -> Result<(), ServerError> {
 
     let bake_mode = option_var("BIBLE_BAKE")?;
 
-    // if bake_mode == Some(BakeMode::Load) {
-    //     let bake_dir = var::<PathBuf>("BAKE_DIR")?;
-    //     // TODO: Remove testing code
-    //     let eanv = load_baked_bible(&File::open(bake_dir.join("eanv.dat"))?).unwrap(); // TODO don't unwrap
-    //     println!("{eanv:#?}");
-    //     return Ok(());
-    // }
-
+    let default_bible = var_str("DEFAULT_BIBLE")?;
+    let disabled_bibles = var_comma_list("DISABLE_BIBLES")?;
     let (bible_data, _extra_bible_state): (web::Data<DynMultiBibleData>, Box<dyn Any>) =
         if bake_mode == Some(BakeMode::Load) {
-            todo!("Load bake data")
+            let bible_data = Arc::new(MultiBakedBibleData::load(
+                var::<PathBuf>("BAKE_DIR")?,
+                default_bible,
+                disabled_bibles,
+            )?);
+            (
+                web::Data::from(bible_data as Arc<DynMultiBibleData>),
+                Box::new(()),
+            )
         } else {
             let bibles_dir = path::absolute(var::<PathBuf>("BIBLES_DIR")?)?;
             if !bibles_dir.try_exists()? {
@@ -112,11 +118,8 @@ async fn real_main() -> Result<(), ServerError> {
                 );
                 fs::create_dir_all(&bibles_dir)?;
             }
-            let bible_data = MultiExpandedBibleData::load(
-                bibles_dir.clone(),
-                var_str("DEFAULT_BIBLE")?,
-                var_comma_list("DISABLE_BIBLES")?,
-            )?;
+            let bible_data =
+                MultiExpandedBibleData::load(bibles_dir.clone(), default_bible, disabled_bibles)?;
 
             if bake_mode == Some(BakeMode::Generate) {
                 let bake_dir = var::<PathBuf>("BAKE_DIR")?;
@@ -131,7 +134,7 @@ async fn real_main() -> Result<(), ServerError> {
                 for (id, bible) in bible_data.bibles {
                     tracing::info!("Baking bible {id}");
                     let writer = BufWriter::new(File::create(bake_dir.join(format!("{id}.dat")))?);
-                    bake_bible(&bible, writer).unwrap(); // TODO don't unwrap()
+                    bake_bible(&bible, writer)?;
                 }
                 tracing::info!("Baked bibles in {:?}", start_time.elapsed());
                 return Ok(());
@@ -171,8 +174,10 @@ async fn real_main() -> Result<(), ServerError> {
                 usj_watcher
             };
 
-            let bible_data = bible_data as Arc<DynMultiBibleData>;
-            (web::Data::from(bible_data), Box::new(usj_watcher))
+            (
+                web::Data::from(bible_data as Arc<DynMultiBibleData>),
+                Box::new(usj_watcher),
+            )
         };
 
     let database_read_only = web::Data::new(DatabaseReadOnly(

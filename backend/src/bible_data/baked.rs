@@ -1,11 +1,13 @@
 use crate::bible_data::config::BibleConfig;
-use crate::bible_data::expanded::ExpandedBibleData;
+use crate::bible_data::expanded::{ConfigResult, ExpandedBibleData};
+use crate::bible_data::{BibleData, MultiBibleData};
 use crate::book_data::Book;
 use crate::index::ArchivedIndexedWord;
 use crate::usj::content::UsjContent;
 use crate::usj::loader::USJ_VERSION;
 use crate::usj::root::UsjRoot;
 use crate::usj::{ParaIndex, TranslatedBookInfo};
+use crate::utils::print_memory_stats;
 use crate::utils::serde_as::UniCaseAs;
 use crate::verse_range::VerseRange;
 use enum_map::{Enum, EnumMap};
@@ -19,11 +21,14 @@ use rkyv::{Portable, rancor};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
 use std::io;
 use std::io::{Seek, SeekFrom, Write};
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::ops::Range;
+use std::path::PathBuf;
+use std::time::Instant;
 use strum::VariantArray;
 use thiserror::Error;
 use trie_rs::map::{Trie, TrieBuilder};
@@ -38,13 +43,13 @@ const BAKE_VERSION: BakeVersion =
 
 #[derive(Debug, Error)]
 pub enum BakeError {
-    #[error(transparent)]
+    #[error("General I/O error: {0}")]
     Io(#[from] io::Error),
-    #[error(transparent)]
+    #[error("Config serialization error: {0}")]
     Cbor(#[from] serde_cbor::Error),
-    #[error(transparent)]
+    #[error("General serialization error: {0}")]
     Oxicode(#[from] oxicode::Error),
-    #[error(transparent)]
+    #[error("Index serialization error: {0}")]
     Rancor(#[from] rancor::Error),
     #[error("Baked file exceeds maximum size of 4 GB.")]
     FileTooBig,
@@ -58,10 +63,9 @@ pub enum BakeError {
     OutOfBoundsChapter(Book, NonZeroU8, usize),
 }
 
-pub fn bake_bible<W: Write + Seek>(
-    bible: &ExpandedBibleData,
-    mut output: W,
-) -> Result<(), BakeError> {
+pub type BakeResult<T> = Result<T, BakeError>;
+
+pub fn bake_bible<W: Write + Seek>(bible: &ExpandedBibleData, mut output: W) -> BakeResult<()> {
     output.write_all(&BAKE_VERSION)?;
 
     bible
@@ -146,7 +150,7 @@ pub fn bake_bible<W: Write + Seek>(
             let address = serialize_using::<_, rancor::Error>(word, &mut serializer)?;
             *interner_trie.exact_match_mut(lemma).unwrap() = address as u32;
         }
-        <Result<(), BakeError>>::Ok(())
+        BakeResult::Ok(())
     })?;
 
     output.seek(SeekFrom::Start(trie_start))?;
@@ -162,10 +166,10 @@ pub fn bake_bible<W: Write + Seek>(
     Ok(())
 }
 
-fn write_with_addresses<W, F>(mut output: W, count: usize, action: F) -> Result<(), BakeError>
+fn write_with_addresses<W, F>(mut output: W, count: usize, action: F) -> BakeResult<()>
 where
     W: Write + Seek,
-    F: FnOnce(&mut W, &mut Vec<u32>) -> Result<(), BakeError>,
+    F: FnOnce(&mut W, &mut Vec<u32>) -> BakeResult<()>,
 {
     let mut addresses = vec![0; count];
     let addresses_address = output.stream_position()?;
@@ -179,12 +183,72 @@ where
     Ok(())
 }
 
-fn write_address(mut output: impl Write, address: u32) -> Result<(), BakeError> {
+fn write_address(mut output: impl Write, address: u32) -> BakeResult<()> {
     output.write_all(&address.to_le_bytes())?;
     Ok(())
 }
 
-#[derive(Debug)]
+pub struct MultiBakedBibleData {
+    pub default_bible: String,
+    pub bibles: HashMap<String, BakedBibleData>,
+}
+
+impl MultiBakedBibleData {
+    pub fn load(
+        bibles_dir: PathBuf,
+        default_bible: String,
+        disabled_bibles: HashSet<String>,
+    ) -> BakeResult<Self> {
+        let mut bibles = HashMap::new();
+        let start = Instant::now();
+        for entry in bibles_dir.read_dir()? {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            let file_name = file_name.to_string_lossy();
+            let Some(bible_id) = file_name.strip_suffix(".dat") else {
+                tracing::info!("Skipping non-baked bible file {file_name}");
+                continue;
+            };
+            if disabled_bibles.contains(bible_id) {
+                tracing::info!("Skipping loading disabled bible {bible_id}");
+                continue;
+            }
+            tracing::info!("Loading baked bible {bible_id}");
+            let bible = File::open(entry.path())
+                .map_err(BakeError::Io)
+                .and_then(|f| load_baked_bible(&f))
+                .inspect_err(|_| {
+                    tracing::error!("Error while loading bible {bible_id}");
+                })?;
+            bibles.insert(bible_id.to_string(), bible);
+        }
+        tracing::info!(
+            "Loaded {} baked bibles in {:?}",
+            bibles.len(),
+            start.elapsed(),
+        );
+        print_memory_stats();
+        Ok(Self {
+            default_bible,
+            bibles,
+        })
+    }
+}
+
+impl MultiBibleData for MultiBakedBibleData {
+    fn default_bible(&self) -> &str {
+        &self.default_bible
+    }
+
+    fn bibles(&self) -> Vec<String> {
+        self.bibles.keys().cloned().collect()
+    }
+
+    fn get_bible(&self, bible: &str) -> Option<BibleData<'_>> {
+        self.bibles.get(bible).map(BibleData::Baked)
+    }
+}
+
 pub struct BakedBibleData {
     memory: Mmap,
     pub config: BibleConfig,
@@ -201,7 +265,7 @@ pub struct BakedBookData {
     chapter_address_indices: Vec<Option<(NonZeroUsize, usize)>>,
 }
 
-pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> Result<BakedBibleData, BakeError> {
+pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> BakeResult<BakedBibleData> {
     let memory = unsafe { Mmap::map(source) }?;
     if memory.len() > u32::MAX as usize {
         return Err(BakeError::FileTooBig);
@@ -248,8 +312,7 @@ pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> Result<BakedBibleData, B
         let mut chapter_address_indices = vec![None; chapter_count(book)];
         let mut last_encountered_chapter = 0;
         for i in 0..usj_len {
-            let (element, element_len) =
-                oxicode::serde::decode_owned_from_slice(&memory[address..], standard())?;
+            let (element, element_len) = oxicode::decode_from_slice(&memory[address..])?;
             if let UsjContent::Chapter { number, .. } = element
                 && number.value.get() > last_encountered_chapter
             {
@@ -316,9 +379,7 @@ impl BakedBookData {
         self.chapter_address_indices
             .iter()
             .filter_map(|address| *address)
-            .map(|(address, _)| {
-                oxicode::serde::decode_serde(&bible.memory[address.get()..]).unwrap()
-            })
+            .map(|(address, _)| oxicode::decode_value(&bible.memory[address.get()..]).unwrap())
     }
 
     pub fn find_reference(

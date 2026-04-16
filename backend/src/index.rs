@@ -5,6 +5,7 @@ use crate::usj::content::ParaContent;
 use crate::usj::marker::ContentMarker;
 use crate::usj::root::UsjRoot;
 use crate::usj::{ParaIndex, content::UsjContent};
+use crate::utils::print_memory_stats;
 use crate::verse_range::VerseRange;
 use charabia::Tokenizer;
 use dashmap::DashMap;
@@ -212,7 +213,7 @@ impl BibleIndex {
                 );
             }
         }
-        Self::print_memory_stats();
+        print_memory_stats();
     }
 
     pub fn clear_index(&mut self) {
@@ -221,18 +222,7 @@ impl BibleIndex {
             ..Default::default()
         };
         tracing::info!("Cleared index{}", format_marker!(self));
-        Self::print_memory_stats();
-    }
-
-    fn print_memory_stats() {
-        if let Some(memory) = memory_stats() {
-            const MIB: usize = 1024 * 1024;
-            tracing::info!(
-                "Process memory usage: physical: {} MiB | virtual: {} MiB",
-                memory.physical_mem / MIB,
-                memory.virtual_mem / MIB,
-            );
-        }
+        print_memory_stats();
     }
 }
 

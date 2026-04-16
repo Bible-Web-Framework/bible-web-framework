@@ -4,6 +4,7 @@ pub mod parsed_string_value;
 pub mod prefix_tree;
 pub mod serde_as;
 
+use memory_stats::memory_stats;
 use std::borrow::Cow;
 use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
@@ -40,6 +41,17 @@ macro_rules! serde_display_and_parse {
             }
         }
     };
+}
+
+pub fn print_memory_stats() {
+    if let Some(memory) = memory_stats() {
+        const MIB: usize = 1024 * 1024;
+        tracing::info!(
+            "Process memory usage: physical: {} MiB | virtual: {} MiB",
+            memory.physical_mem / MIB,
+            memory.virtual_mem / MIB,
+        );
+    }
 }
 
 #[derive(Default)]
