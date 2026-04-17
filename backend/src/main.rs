@@ -5,6 +5,7 @@ use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
 use bible_data::baked::bake_bible;
 use bible_data::expanded::{BibleDataError, MultiExpandedBibleData};
+use const_format::str_repeat;
 use itertools::Itertools;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
@@ -61,6 +62,15 @@ pub enum ServerError {
     Bake(#[from] BakeError),
 }
 
+// as_bytes is required because you can't compare &str in const, but you can compare &[u8]
+pub const GIT_SHA: &str = {
+    let sha = env!("VERGEN_GIT_SHA");
+    match sha.as_bytes() {
+        b"VERGEN_IDEMPOTENT_OUTPUT" => str_repeat!("0", 40),
+        _ => sha,
+    }
+};
+
 #[actix_web::main]
 async fn main() -> ExitCode {
     match real_main().await {
@@ -94,7 +104,11 @@ async fn real_main() -> Result<(), ServerError> {
 
     let bake_mode = option_var("BIBLE_BAKE")?;
 
-    let default_bible = var_str("DEFAULT_BIBLE")?;
+    let default_bible = if bake_mode != Some(BakeMode::Generate) {
+        var_str("DEFAULT_BIBLE")?
+    } else {
+        "".to_string()
+    };
     let disabled_bibles = var_comma_list("DISABLE_BIBLES")?;
     let (bible_data, _extra_bible_state): (web::Data<DynMultiBibleData>, Box<dyn Any>) =
         if bake_mode == Some(BakeMode::Load) {

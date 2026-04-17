@@ -1,3 +1,4 @@
+use crate::GIT_SHA;
 use crate::bible_data::config::BibleConfig;
 use crate::bible_data::expanded::ExpandedBibleData;
 use crate::bible_data::index::{ArchivedBookSearchResult, ArchivedIndexedWord, TextRange};
@@ -44,11 +45,10 @@ use trie_rs::map::{Trie, TrieBuilder};
 use unicase::UniCase;
 
 type BakeVersion = [u8; 20];
-const BAKE_VERSION: BakeVersion =
-    match const_hex::const_decode_to_array(env!("VERGEN_GIT_SHA").as_bytes()) {
-        Ok(version) => version,
-        Err(_) => panic!("Invalid VERGEN_GIT_SHA"),
-    };
+const BAKE_VERSION: BakeVersion = match const_hex::const_decode_to_array(GIT_SHA.as_bytes()) {
+    Ok(version) => version,
+    Err(_) => panic!("Invalid GIT_SHA"),
+};
 
 #[derive(Debug, Error)]
 pub enum BakeError {
