@@ -3,24 +3,24 @@ use permutate::Permutator;
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fmt::Write;
 use std::num::NonZeroU8;
 use std::path::Path;
-use std::process::Command;
 use std::{env, fs, str};
 use unicase::UniCase;
+use vergen_git2::{Emitter, Git2Builder};
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed=migrations");
 
-    if let Ok(git) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
-        let hash = str::from_utf8(&git.stdout).unwrap().trim();
-        println!("cargo::rustc-env=GIT_COMMIT_HASH={hash}");
-    } else {
-        println!("cargo::rustc-env=GIT_COMMIT_HASH=0000000000000000000000000000000000000000");
-    }
+    Emitter::new()
+        .add_instructions(&Git2Builder::default().sha(false).build()?)?
+        .emit()?;
 
-    generate_books_data();
+    generate_books_data()?;
+
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,11 +126,11 @@ impl<'a> BookAlias<'a> {
     }
 }
 
-fn generate_books_data() {
+fn generate_books_data() -> Result<(), Box<dyn Error>> {
     println!("cargo::rerun-if-changed=books.json");
 
-    let books = fs::read("books.json").unwrap();
-    let mut books: BooksFile = serde_json::from_slice(&books).unwrap();
+    let books = fs::read("books.json")?;
+    let mut books: BooksFile = serde_json::from_slice(&books)?;
 
     for (alias_name, aliases) in &mut books.common_aliases {
         aliases.insert(0, alias_name);
@@ -208,21 +208,19 @@ fn generate_books_data() {
     fs::write(
         Path::new(&env::var_os("OUT_DIR").unwrap()).join("book.rs"),
         book_names,
-    )
-    .unwrap();
+    )?;
     fs::write(
         Path::new(&env::var_os("OUT_DIR").unwrap()).join("verse_counts.rs"),
         verse_counts_result,
-    )
-    .unwrap();
+    )?;
     fs::write(
         Path::new(&env::var_os("OUT_DIR").unwrap()).join("usfm_ids.rs"),
         usfm_ids_result,
-    )
-    .unwrap();
+    )?;
     fs::write(
         Path::new(&env::var_os("OUT_DIR").unwrap()).join("book_aliases.rs"),
         book_aliases_result.build().to_string(),
-    )
-    .unwrap();
+    )?;
+
+    Ok(())
 }

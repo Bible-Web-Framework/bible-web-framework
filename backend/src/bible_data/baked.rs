@@ -45,9 +45,9 @@ use unicase::UniCase;
 
 type BakeVersion = [u8; 20];
 const BAKE_VERSION: BakeVersion =
-    match const_hex::const_decode_to_array(env!("GIT_COMMIT_HASH").as_bytes()) {
+    match const_hex::const_decode_to_array(env!("VERGEN_GIT_SHA").as_bytes()) {
         Ok(version) => version,
-        Err(_) => panic!("Invalid GIT_COMMIT_HASH"),
+        Err(_) => panic!("Invalid VERGEN_GIT_SHA"),
     };
 
 #[derive(Debug, Error)]
