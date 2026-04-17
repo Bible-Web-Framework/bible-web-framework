@@ -31,6 +31,6 @@
         "eslint": "^10.2.0",
         "json-stringify-pretty-compact": "^4.0.0",
         "regenerate": "^1.4.2",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     }
 }
