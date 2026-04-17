@@ -215,7 +215,7 @@ impl MultiBakedBibleData {
             .read_dir()?
             .par_bridge()
             .map(|entry| {
-                let entry = entry?;
+                let entry = entry.map_err(|err| (None, BakeError::Io(err)))?;
                 let file_name = entry.file_name();
                 let file_name = file_name.to_string_lossy();
                 let Some(bible_id) = file_name.strip_suffix(".dat") else {
@@ -230,14 +230,18 @@ impl MultiBakedBibleData {
                 let bible = File::open(entry.path())
                     .map_err(BakeError::Io)
                     .and_then(|f| load_baked_bible(&f))
-                    .inspect_err(|_| {
-                        tracing::error!("Error while loading bible {bible_id}");
-                    })?;
+                    .map_err(|err| (Some(bible_id.to_string()), err))?;
                 tracing::info!("Loaded bible {bible_id} in {:?}", load_start.elapsed());
                 Ok(Some((bible_id.to_string(), bible)))
             })
             .filter_map(Result::transpose)
-            .collect::<BakeResult<_>>()?;
+            .collect::<Result<_, _>>()
+            .map_err(|(bible_id, err)| {
+                if let Some(bible_id) = bible_id {
+                    tracing::error!("Error while loading bible {bible_id}");
+                }
+                err
+            })?;
         tracing::info!(
             "Loaded {} baked bible(s) in {:?}",
             bibles.len(),
