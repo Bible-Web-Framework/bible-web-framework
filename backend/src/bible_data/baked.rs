@@ -15,6 +15,7 @@ use crate::verse_range::VerseRange;
 use enum_map::{Enum, EnumMap};
 use memmap2::{Mmap, MmapAsRawDesc};
 use oxicode::config::{legacy, standard};
+use rayon::prelude::{ParallelBridge, ParallelIterator};
 use rkyv::api::serialize_using;
 use rkyv::boxed::ArchivedBox;
 use rkyv::collections::swiss_table;
@@ -209,29 +210,34 @@ impl MultiBakedBibleData {
         default_bible: String,
         disabled_bibles: HashSet<String>,
     ) -> BakeResult<Self> {
-        let mut bibles = HashMap::new();
         let start = Instant::now();
-        for entry in bibles_dir.read_dir()? {
-            let entry = entry?;
-            let file_name = entry.file_name();
-            let file_name = file_name.to_string_lossy();
-            let Some(bible_id) = file_name.strip_suffix(".dat") else {
-                tracing::info!("Skipping non-baked bible file {file_name}");
-                continue;
-            };
-            if disabled_bibles.contains(bible_id) {
-                tracing::info!("Skipping loading disabled bible {bible_id}");
-                continue;
-            }
-            tracing::info!("Loading baked bible {bible_id}");
-            let bible = File::open(entry.path())
-                .map_err(BakeError::Io)
-                .and_then(|f| load_baked_bible(&f))
-                .inspect_err(|_| {
-                    tracing::error!("Error while loading bible {bible_id}");
-                })?;
-            bibles.insert(bible_id.to_string(), bible);
-        }
+        let bibles: HashMap<_, _> = bibles_dir
+            .read_dir()?
+            .par_bridge()
+            .map(|entry| {
+                let entry = entry?;
+                let file_name = entry.file_name();
+                let file_name = file_name.to_string_lossy();
+                let Some(bible_id) = file_name.strip_suffix(".dat") else {
+                    tracing::info!("Skipping non-baked bible file {file_name}");
+                    return Ok(None);
+                };
+                if disabled_bibles.contains(bible_id) {
+                    tracing::info!("Skipping loading disabled bible {bible_id}");
+                    return Ok(None);
+                }
+                let load_start = Instant::now();
+                let bible = File::open(entry.path())
+                    .map_err(BakeError::Io)
+                    .and_then(|f| load_baked_bible(&f))
+                    .inspect_err(|_| {
+                        tracing::error!("Error while loading bible {bible_id}");
+                    })?;
+                tracing::info!("Loaded bible {bible_id} in {:?}", load_start.elapsed());
+                Ok(Some((bible_id.to_string(), bible)))
+            })
+            .filter_map(Result::transpose)
+            .collect::<BakeResult<_>>()?;
         tracing::info!(
             "Loaded {} baked bible(s) in {:?}",
             bibles.len(),
