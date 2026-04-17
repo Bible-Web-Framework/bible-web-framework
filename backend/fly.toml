@@ -20,7 +20,7 @@ processes = ['app']
 [[http_service.checks]]
 grace_period = "10s"
 interval = "5s"
-timeout = "60s"
+timeout = "2s"
 path = "/v1/bibles"
 
 [deploy]
