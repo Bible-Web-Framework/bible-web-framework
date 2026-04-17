@@ -7,12 +7,7 @@ app = 'bible-web-framework'
 primary_region = 'ord'
 
 [env]
-BIND_HOST = '0.0.0.0'
-BIND_PORT = '8080'
-DATABASE_URL = 'sqlite:///app/bwf.db?immutable=true'
 DEFAULT_BIBLE = 'eanv'
-BIBLES_DIR = '/app/bibles'
-DATABASE_READ_ONLY = 'true'
 
 [http_service]
 internal_port = 8080
@@ -32,6 +27,6 @@ path = "/v1/bibles"
 strategy = "bluegreen"
 
 [[vm]]
-memory = '512mb'
+memory = '256mb'
 cpu_kind = 'shared'
 cpus = 1

@@ -1,9 +1,6 @@
 use crate::utils::ToUnicaseCow;
 use crate::utils::normalize::normalize_str;
 use charabia::Language;
-use enum_map::Enum;
-use enumset::EnumSetType;
-use oxicode::{Decode, Encode};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -73,7 +70,11 @@ impl Serialize for Book {
     where
         S: Serializer,
     {
-        serializer.serialize_str(self.usfm_id())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(self.usfm_id())
+        } else {
+            serializer.serialize_u8(*self as u8)
+        }
     }
 }
 
@@ -89,6 +90,17 @@ impl<'de> Deserialize<'de> for Book {
 
             fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
                 formatter.write_str("a book name, USFM ID, or English alias")
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                usize::try_from(v)
+                    .ok()
+                    .and_then(|v| Book::VARIANTS.get(v))
+                    .copied()
+                    .ok_or_else(|| E::custom("Invalid book variant ID"))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>

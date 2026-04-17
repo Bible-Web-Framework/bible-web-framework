@@ -6,7 +6,7 @@ pub mod root;
 
 use crate::book_data::Book;
 use crate::usj::marker::ContentMarker;
-use crate::utils::CloneToOwned;
+use crate::utils::{AsBorrowed, ToOwnedStatic};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
@@ -48,15 +48,6 @@ impl TranslatedBookInfo<'_> {
         .filter_map(Option::as_deref)
     }
 
-    pub fn as_owned(&self) -> TranslatedBookInfo<'static> {
-        TranslatedBookInfo {
-            running_header: self.running_header.clone_to_owned(),
-            long_book_name: self.long_book_name.clone_to_owned(),
-            short_book_name: self.short_book_name.clone_to_owned(),
-            book_abbreviation: self.book_abbreviation.clone_to_owned(),
-        }
-    }
-
     pub fn is_full(&self) -> bool {
         matches!(
             (
@@ -76,6 +67,32 @@ impl TranslatedBookInfo<'_> {
             .or(self.book_abbreviation.as_ref())
             .or(self.long_book_name.as_ref())
             .map_or(book.usfm_id(), Cow::deref)
+    }
+}
+
+impl<'a, 'b: 'a> AsBorrowed<'a> for TranslatedBookInfo<'b> {
+    type Output = TranslatedBookInfo<'a>;
+
+    fn as_borrowed(&'a self) -> Self::Output {
+        TranslatedBookInfo {
+            running_header: self.running_header.as_borrowed(),
+            long_book_name: self.long_book_name.as_borrowed(),
+            short_book_name: self.short_book_name.as_borrowed(),
+            book_abbreviation: self.book_abbreviation.as_borrowed(),
+        }
+    }
+}
+
+impl ToOwnedStatic for TranslatedBookInfo<'_> {
+    type Output = TranslatedBookInfo<'static>;
+
+    fn to_owned_static(self) -> Self::Output {
+        TranslatedBookInfo {
+            running_header: self.running_header.to_owned_static(),
+            long_book_name: self.long_book_name.to_owned_static(),
+            short_book_name: self.short_book_name.to_owned_static(),
+            book_abbreviation: self.book_abbreviation.to_owned_static(),
+        }
     }
 }
 

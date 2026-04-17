@@ -1,7 +1,8 @@
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PrefixTree<K, V> {
     children: Vec<(K, Self)>,
     value: Option<V>,

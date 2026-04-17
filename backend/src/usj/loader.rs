@@ -1,4 +1,4 @@
-use crate::bible_data::BibleDataError;
+use crate::bible_data::expanded::BibleDataError;
 use crate::book_data::Book;
 use crate::nz_u8;
 use crate::usj::content::{AttributesMap, ParaContent, UsjContent};
@@ -11,12 +11,15 @@ use itertools::Itertools;
 use miette::{LabeledSpan, MietteDiagnostic, Severity};
 use monostate::MustBeStr;
 use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::io::BufRead;
 use std::num::NonZeroU8;
 use std::str::FromStr;
 use usfm3::ast::{Attribute, Node, NodeSpans};
 use usfm3::builder::parse;
 use usfm3::diagnostics::Span;
+
+pub const USJ_VERSION: &str = "3.1";
 
 pub fn load_usj(reader: impl BufRead) -> Result<UsjContent, BibleDataError> {
     Ok(serde_json::from_reader(reader)?)
@@ -54,7 +57,7 @@ pub fn load_usj_from_usfm(content: String) -> Result<LoadedUsjFromUsfm, BibleDat
 
     Ok(LoadedUsjFromUsfm {
         usj: UsjContent::Root(UsjRoot {
-            version: "3.1".to_string(),
+            version: Cow::Borrowed(USJ_VERSION),
             content: usjs_from_usfm(parse_results.document.content, &mut state),
         }),
         source: content,
@@ -518,7 +521,7 @@ fn parse_attributes(attributes: Vec<Attribute>) -> AttributesMap {
 
 #[cfg(test)]
 mod test {
-    use crate::bible_data::BibleDataError;
+    use crate::bible_data::expanded::BibleDataError;
     use crate::usj::content::UsjContent;
     use crate::usj::content::{AttributesMap, NoteCaller, ParaContent};
     use crate::usj::loader::load_footnote_from_usfm;

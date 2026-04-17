@@ -14,6 +14,8 @@ actix-web = "4.13.0"
 actix-web-validator = "7.0.0"
 bimap = "0.6.3"
 charabia = "0.9.9"
+const-hex = "1.18.1"
+const_format = "0.2.36"
 dashmap = { version = "6.1.0", features = ["rayon"] }
 dotenvy = "0.15.7"
 either = "1.15.0"
@@ -24,24 +26,27 @@ fst = "0.4.7"
 identconv = "0.2.0"
 itertools = "0.14.0"
 lehmer = "3.0.0"
+memmap2 = "0.9.10"
 memory-stats = "1.2.0"
 miette = { version = "7.6.0", features = ["fancy"] }
 monostate = "1.0.2"
 notify-debouncer-full = "0.7.0"
-oxicode = "0.2.1"
+oxicode = { version = "0.2.1", features = ["serde"] }
 parking_lot = "0.12.5"
 permutate = "0.3.2"
 phf = { version = "0.13.1", features = ["unicase", "macros"] }
-rangemap = { version = "1.7.1", features = ["serde"] }
+rangemap = { version = "1.7.1", features = ["serde1"] }
 rayon = "1.11.0"
+rkyv = { version = "0.8.15", features = ["tinyvec-1"] }
 rustrict = "0.7.38"
 serde = { version = "1.0.228", features = ["derive"] }
-serde-tuple-vec-map = "1.0.1"
+serde_cbor = "0.11.2"
 serde_cow = "0.1.2"
 serde_json = "1.0.149"
 serde_with = "3.18.0"
 smallvec = "1.15.1"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "postgres"] }
+static_assertions = "1.1.0"
 string-interner = "0.19.0"
 strum = { version = "0.28.0", features = ["derive"] }
 subslice-offset = "0.1.1" # TODO: Remove when https://github.com/rust-lang/rust/issues/126769 becomes stable
@@ -51,6 +56,7 @@ tinyvec = { version = "1.11.0", features = ["serde"] }
 toml = "1.1.2"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+trie-rs = { version = "0.4.2", features = ["serde"] }
 unicase = "2.9.0"
 unicode-normalization = "0.1.25"
 usfm3 = "0.1.9"
@@ -65,9 +71,9 @@ phf_codegen = "0.13.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 unicase = "2.9.0"
+vergen-git2 = "9.1.0"
 
 [dev-dependencies]
-censor = "0.3.0"
 cool_asserts = "2.0.4"
 multiset = "0.0.5"
 pretty_assertions = "1.4.1"

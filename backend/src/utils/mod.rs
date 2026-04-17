@@ -4,9 +4,11 @@ pub mod parsed_string_value;
 pub mod prefix_tree;
 pub mod serde_as;
 
+use memory_stats::memory_stats;
 use std::borrow::Cow;
-use std::sync::atomic;
+use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, atomic};
 use unicase::UniCase;
 use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfkd_quick};
 
@@ -39,6 +41,17 @@ macro_rules! serde_display_and_parse {
             }
         }
     };
+}
+
+pub fn print_memory_stats() {
+    if let Some(memory) = memory_stats() {
+        const MIB: usize = 1024 * 1024;
+        tracing::info!(
+            "Process memory usage: physical: {} MiB | virtual: {} MiB",
+            memory.physical_mem / MIB,
+            memory.virtual_mem / MIB,
+        );
+    }
 }
 
 #[derive(Default)]
@@ -82,31 +95,84 @@ impl<'a> ToUnicaseCow<'a> for UniCase<&'a str> {
     }
 }
 
-pub trait CloneToOwned {
+pub trait AsBorrowed<'a> {
     type Output;
 
-    fn clone_to_owned(&self) -> Self::Output;
+    fn as_borrowed(&'a self) -> Self::Output;
 }
 
-impl<'a, T> CloneToOwned for Cow<'a, T>
+impl<'a, 'b: 'a, T> AsBorrowed<'a> for Cow<'b, T>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Cow<'a, T>;
+
+    fn as_borrowed(&'a self) -> Self::Output {
+        Cow::Borrowed(self)
+    }
+}
+
+impl<'a, 'b: 'a, T> AsBorrowed<'a> for Option<Cow<'b, T>>
+where
+    T: ToOwned + ?Sized + 'static,
+{
+    type Output = Option<Cow<'a, T>>;
+
+    fn as_borrowed(&'a self) -> Self::Output {
+        self.as_ref().map(Cow::as_borrowed)
+    }
+}
+
+pub trait ToOwnedStatic {
+    type Output;
+
+    fn to_owned_static(self) -> Self::Output;
+}
+
+impl<'a, T> ToOwnedStatic for Cow<'a, T>
 where
     T: ToOwned + ?Sized + 'static,
 {
     type Output = Cow<'static, T>;
 
-    fn clone_to_owned(&self) -> Self::Output {
-        Cow::Owned(self.clone().into_owned())
+    fn to_owned_static(self) -> Self::Output {
+        Cow::Owned(self.into_owned())
     }
 }
 
-impl<'a, T> CloneToOwned for Option<Cow<'a, T>>
+impl<'a, T> ToOwnedStatic for Option<Cow<'a, T>>
 where
     T: ToOwned + ?Sized + 'static,
 {
     type Output = Option<Cow<'static, T>>;
 
-    fn clone_to_owned(&self) -> Self::Output {
-        self.as_ref().map(Cow::clone_to_owned)
+    fn to_owned_static(self) -> Self::Output {
+        self.map(Cow::to_owned_static)
+    }
+}
+
+pub enum ArcOrRef<'a, T: ?Sized> {
+    Arc(Arc<T>),
+    Ref(&'a T),
+}
+
+impl<T: ?Sized> Deref for ArcOrRef<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Arc(value) => value,
+            Self::Ref(value) => value,
+        }
+    }
+}
+
+impl<T: ?Sized> Clone for ArcOrRef<'_, T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Arc(arc) => Self::Arc(arc.clone()),
+            Self::Ref(value) => Self::Ref(value),
+        }
     }
 }
 

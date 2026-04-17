@@ -1,11 +1,13 @@
 use crate::api::ApiResult;
-use crate::bible_data::MultiBibleData;
+use crate::bible_data::DynMultiBibleData;
 use crate::search::{SearchResponse, search_bible};
+use crate::utils::serde_as::UniCaseAs;
 use actix_web::{HttpResponse, get, web};
 use actix_web_validator::Query;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde_with::{Map, serde_as};
+use std::borrow::Cow;
 use unicase::UniCase;
 use validator::Validate;
 
@@ -35,7 +37,7 @@ fn default_generated_footnotes() -> bool {
 pub async fn search(
     bible: web::Path<String>,
     query: Query<SearchQueryParams>,
-    bibles: web::Data<MultiBibleData>,
+    bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<web::Json<SearchResponse>> {
     let query = query.into_inner();
     let bible = bibles.get_or_api_error(bible.into_inner())?;
@@ -52,20 +54,22 @@ pub async fn search(
 #[get("/index")]
 pub async fn index(
     bible: web::Path<String>,
-    bibles: web::Data<MultiBibleData>,
+    bibles: web::Data<DynMultiBibleData>,
 ) -> ApiResult<HttpResponse> {
+    #[serde_as]
     #[derive(Serialize)]
     struct Response<'a> {
-        #[serde(with = "tuple_vec_map")]
-        words: Vec<(&'a str, usize)>,
+        #[serde_as(as = "Map<UniCaseAs<_>, _>")]
+        words: Vec<(UniCase<Cow<'a, str>>, usize)>,
     }
 
     let bible = bibles.get_or_api_error(bible.into_inner())?;
-    let index = bible.index.read();
+    let index = bible.index();
     Ok(HttpResponse::Ok().json(Response {
         words: index
             .iter_names_and_counts()
-            .sorted_by_cached_key(|(name, _)| UniCase::new(*name))
+            .map(|(name, count)| (UniCase::new(name), count))
+            .sorted()
             .collect(),
     }))
 }

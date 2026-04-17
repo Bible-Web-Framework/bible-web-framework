@@ -2,14 +2,15 @@ use crate::usj::content::{ParaContent, UsjContent};
 use crate::usj::marker::ContentMarker;
 use crate::usj::{ParaIndex, TranslatedBookInfo, UsjBookInfo};
 use crate::verse_range::VerseRange;
+use oxicode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::num::NonZeroU8;
 use std::slice::SliceIndex;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Encode, Decode)]
 pub struct UsjRoot {
-    pub version: String,
+    pub version: Cow<'static, str>,
     pub content: Vec<UsjContent>,
 }
 

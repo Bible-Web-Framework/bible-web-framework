@@ -1,12 +1,15 @@
 use crate::book_data::{Book, BookFromStrError};
 use crate::verse_range::{VerseRange, VerseRangeParseError};
+use oxicode::{Decode, Encode};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use std::fmt::{Display, Formatter};
 use std::num::{NonZeroU8, ParseIntError};
 use std::str::FromStr;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, SerializeDisplay, DeserializeFromStr)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, SerializeDisplay, DeserializeFromStr, Encode, Decode,
+)]
 pub struct UsjIdentifier {
     pub book: Book,
     pub chapter: NonZeroU8,

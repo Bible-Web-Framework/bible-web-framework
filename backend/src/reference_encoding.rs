@@ -1,6 +1,6 @@
 use crate::book_category::{APOCRYPHA_BOOKS, NEW_TESTAMENT_BOOKS, OLD_TESTAMENT_BOOKS};
 use crate::book_data::Book;
-use crate::reference::{BibleReference, BookReference};
+use crate::reference::BibleReference;
 use crate::verse_range::VerseRange;
 use itertools::Itertools;
 use lehmer::Lehmer;
@@ -353,10 +353,8 @@ pub fn decode_references_from_num(
 
         result.push(BibleReference {
             book,
-            reference: BookReference {
-                chapter: chapter_num,
-                verses: VerseRange::new(first_verse_num, last_verse_num).unwrap(),
-            },
+            chapter: chapter_num,
+            verses: VerseRange::new(first_verse_num, last_verse_num).unwrap(),
         });
 
         verse_offset = last_verse_num.get() as Carrier + 1;

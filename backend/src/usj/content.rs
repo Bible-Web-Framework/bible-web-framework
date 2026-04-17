@@ -8,6 +8,7 @@ use crate::utils::{parsed_string_value::ParsedStringValue, serde_as::OptionAsVec
 use crate::verse_range::VerseRange;
 use either::Either;
 use monostate::MustBe;
+use oxicode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 use std::borrow::Cow;
@@ -16,7 +17,7 @@ use std::num::NonZeroU8;
 
 #[serde_as]
 #[skip_serializing_none]
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Encode, Decode)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum UsjContent {
     #[serde(rename = "USJ")]
@@ -38,6 +39,7 @@ pub enum UsjContent {
     },
 
     Book {
+        #[oxicode(skip)]
         marker: MustBe!("id"),
         #[serde_as(as = "OptionAsVec")]
         content: Option<String>,
@@ -45,6 +47,7 @@ pub enum UsjContent {
     },
 
     Chapter {
+        #[oxicode(skip)]
         marker: MustBe!("c"),
         number: ParsedStringValue<NonZeroU8>,
         #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
@@ -55,6 +58,7 @@ pub enum UsjContent {
     },
 
     Verse {
+        #[oxicode(skip)]
         marker: MustBe!("v"),
         number: ParsedStringValue<VerseRange>,
         #[serde(rename = "altnumber", skip_serializing_if = "Option::is_none")]
@@ -84,6 +88,7 @@ pub enum UsjContent {
 
     #[serde(rename = "table:row")]
     TableRow {
+        #[oxicode(skip)]
         marker: MustBe!("tr"),
         content: Vec<UsjContent>,
     },
@@ -96,12 +101,14 @@ pub enum UsjContent {
     },
 
     Sidebar {
+        #[oxicode(skip)]
         marker: MustBe!("esb"),
         content: Vec<UsjContent>,
         category: Option<String>,
     },
 
     Figure {
+        #[oxicode(skip)]
         marker: MustBe!("fig"),
         #[serde_as(as = "OptionAsVec")]
         content: Option<String>,
@@ -127,14 +134,16 @@ pub enum UsjContent {
     OptBreak,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Encode, Decode)]
 #[serde(untagged)]
 pub enum ParaContent {
     Usj(UsjContent),
     Plain(String),
 }
 
-#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize, Encode, Decode,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum TableCellAlignment {
     #[default]
@@ -145,7 +154,9 @@ pub enum TableCellAlignment {
 
 serde_display_and_parse!(TableCellAlignment);
 
-#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize, Encode, Decode,
+)]
 pub enum NoteCaller {
     #[serde(rename = "+")]
     #[default]
@@ -236,36 +247,6 @@ impl UsjContent {
             _ => return false,
         }
         true
-    }
-
-    pub fn get_content(&self, index: usize) -> Option<Either<&UsjContent, &str>> {
-        Some(match self {
-            UsjContent::Root(UsjRoot { content, .. })
-            | UsjContent::Table { content, .. }
-            | UsjContent::TableRow { content, .. }
-            | UsjContent::Sidebar { content, .. }
-            | UsjContent::Periph { content, .. } => Either::Left(content.get(index)?),
-
-            UsjContent::Paragraph { content, .. }
-            | UsjContent::Character { content, .. }
-            | UsjContent::Note { content, .. }
-            | UsjContent::TableCell { content, .. } => match content.get(index)? {
-                ParaContent::Usj(usj) => Either::Left(usj),
-                ParaContent::Plain(text) => Either::Right(text),
-            },
-
-            UsjContent::Book { content, .. }
-            | UsjContent::Figure { content, .. }
-            | UsjContent::Reference { content, .. } => {
-                if index == 0 {
-                    Either::Right(content.as_ref()?)
-                } else {
-                    return None;
-                }
-            }
-
-            _ => return None,
-        })
     }
 
     pub fn get_content_mut(
