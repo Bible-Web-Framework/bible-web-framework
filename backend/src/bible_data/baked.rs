@@ -276,16 +276,18 @@ pub struct BakedBookData {
 }
 
 pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> BakeResult<BakedBibleData> {
+    // SAFETY: Mmap in inherently unsafe, but everything is safe so long as the file isn't modified
+    // while the server is running.
     let memory = unsafe { Mmap::map(source) }?;
     if memory.len() > u32::MAX as usize {
         return Err(BakeError::FileTooBig);
     }
 
-    let version = &memory[..20];
+    let version = &memory[..BAKE_VERSION.len()];
     if version != BAKE_VERSION {
         return Err(BakeError::VersionMismatch(*version.as_array().unwrap()));
     }
-    let mut address = 20;
+    let mut address = BAKE_VERSION.len();
 
     let mut config_deserializer = serde_cbor::Deserializer::from_slice(&memory[20..]);
     let config = BibleConfig::deserialize(&mut config_deserializer)?;
@@ -303,13 +305,12 @@ pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> BakeResult<BakedBibleDat
     let (book_addresses, addresses_len) = read_addresses(&memory, address, Book::LENGTH)?;
     address += addresses_len;
 
-    let mut end_address = address;
     let mut books = EnumMap::default();
     for (idx, &book) in Book::VARIANTS.iter().enumerate() {
-        let mut address = book_addresses[idx];
-        if address == 0 {
-            continue;
-        }
+        address = match book_addresses[idx] {
+            0 => continue,
+            addr => addr,
+        };
 
         let (translated_book_info, i18n_len) =
             oxicode::serde::decode_owned_from_slice(&memory[address..], standard())?;
@@ -348,11 +349,10 @@ pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> BakeResult<BakedBibleDat
             translated_book_info,
             chapter_address_indices,
         });
-        end_address = address;
     }
 
     let index_trie: Trie<_, _> =
-        oxicode::serde::decode_owned_from_slice(&memory[end_address..], legacy())?.0;
+        oxicode::serde::decode_owned_from_slice(&memory[address..], legacy())?.0;
 
     let mut validator = Validator::new(ArchiveValidator::new(&memory), SharedValidator::new());
     for (_, &address) in index_trie.iter::<String, _>() {
@@ -392,6 +392,7 @@ impl BakedBibleData {
         lemma: &'b str,
     ) -> Option<(&'a str, BakedReferencesIter<'a>)> {
         let address = *self.index_trie.exact_match(lemma)? as usize;
+        // SAFETY: We verified that the words are valid when loading the data initially.
         let word = unsafe {
             rkyv::api::access_pos_unchecked::<ArchivedIndexedWord>(&self.memory, address)
         };
@@ -471,7 +472,7 @@ fn read_addresses(
     for i in 0..count {
         addresses.push(read_address(input, offset + (4 * i))?);
     }
-    Ok((addresses, offset + (4 * count)))
+    Ok((addresses, 4 * count))
 }
 
 fn read_address(input: &[u8], offset: usize) -> Result<usize, io::Error> {
@@ -546,6 +547,7 @@ impl<'a> Iterator for BakedNamesAndCountsIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let (lemma, address) = self.iter.next()?;
+        // SAFETY: We verified that the words are valid when loading the data initially.
         let data = unsafe {
             rkyv::api::access_pos_unchecked::<ArchivedIndexedWord>(self.memory, *address as usize)
         };
