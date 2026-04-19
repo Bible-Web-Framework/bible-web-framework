@@ -17,6 +17,7 @@ macro_rules! nz_u8 {
     ($e:expr) => {
         const {
             ::std::assert!($e != 0);
+            // SAFETY: Just asserted $e is non-zero
             unsafe { ::std::num::NonZeroU8::new_unchecked($e) }
         }
     };
@@ -195,5 +196,6 @@ pub fn nfkd_str<'a, const N: usize>(s: &str, arr: &'a mut [u8; N]) -> Option<&'a
         }
         N - remaining.len()
     };
+    // SAFETY: index bytes have been filled based on the above code
     Some(unsafe { str::from_utf8_unchecked_mut(&mut arr[..index]) })
 }

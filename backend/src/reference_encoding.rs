@@ -64,6 +64,7 @@ pub fn is_base59_swear(value: Carrier) -> bool {
     let text = base59_encode_internal(value, &mut text);
     Censor::new(
         text.iter()
+            // SAFETY: base59_encode_internal only returns ASCII, which is always valid in char
             .map(|x| unsafe { char::from_u32_unchecked(*x as u32) }),
     )
     .analyze()
