@@ -185,7 +185,7 @@ pub fn nfkd_str<'a, const N: usize>(s: &str, arr: &'a mut [u8; N]) -> Option<&'a
         arr[..s.len()].copy_from_slice(s.as_bytes());
         s.len()
     } else {
-        let mut remaining = arr as &mut [u8];
+        let mut remaining = &mut arr[..];
         for normalized in s.nfkd() {
             let len = normalized.len_utf8();
             if len > remaining.len() {
