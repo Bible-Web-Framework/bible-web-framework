@@ -7,7 +7,7 @@ app = 'bible-web-framework'
 primary_region = 'ord'
 
 [env]
-DEFAULT_BIBLE = 'eanv'
+DEFAULT_BIBLE = 'webbe'
 
 [http_service]
 internal_port = 8080
@@ -18,13 +18,13 @@ min_machines_running = 0
 processes = ['app']
 
 [[http_service.checks]]
-grace_period = "10s"
-interval = "5s"
-timeout = "2s"
-path = "/v1/bibles"
+grace_period = '10s'
+interval = '5s'
+timeout = '2s'
+path = '/v1/bibles'
 
 [deploy]
-strategy = "bluegreen"
+strategy = 'bluegreen'
 
 [[vm]]
 memory = '256mb'
