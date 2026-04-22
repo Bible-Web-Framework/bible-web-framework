@@ -14,7 +14,7 @@ use crate::utils::serde_as::UniCaseAs;
 use crate::verse_range::VerseRange;
 use enum_map::{Enum, EnumMap};
 use memmap2::{Mmap, MmapAsRawDesc};
-use oxicode::config::{legacy, standard};
+use oxicode::config::standard;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use rkyv::api::serialize_using;
 use rkyv::boxed::ArchivedBox;
@@ -144,10 +144,8 @@ pub fn bake_bible<W: Write + Seek>(bible: &ExpandedBibleData, mut output: W) -> 
         builder.build()
     };
     symbols.sort_by_key(|(_, x)| *x);
-    let trie_start = output.stream_position()?;
-    // legacy() because we need fixed-size integers because we'll be changing the values later
-    let original_trie_size =
-        oxicode::serde::encode_into_std_write(&interner_trie, &mut output, legacy())?;
+    let trie_ref_addr = output.stream_position()?;
+    write_address(&mut output, 0)?;
 
     with_arena(|arena| {
         let data_start = output.stream_position()?;
@@ -164,15 +162,15 @@ pub fn bake_bible<W: Write + Seek>(bible: &ExpandedBibleData, mut output: W) -> 
         BakeResult::Ok(())
     })?;
 
-    output.seek(SeekFrom::Start(trie_start))?;
-    let new_trie_size =
-        oxicode::serde::encode_into_std_write(&interner_trie, &mut output, legacy())?;
-    let final_size = output.seek(SeekFrom::End(0))?;
-    assert_eq!(original_trie_size, new_trie_size);
-
-    if final_size > u32::MAX as u64 {
+    let trie_addr = output.stream_position()?;
+    if trie_addr > u32::MAX as u64 {
         return Err(BakeError::FileTooBig);
     }
+
+    oxicode::serde::encode_into_std_write(&interner_trie, &mut output, standard())?;
+    output.seek(SeekFrom::Start(trie_ref_addr))?;
+    write_address(&mut output, trie_addr as u32)?;
+    output.seek(SeekFrom::End(0))?;
 
     Ok(())
 }
@@ -361,8 +359,8 @@ pub fn load_baked_bible<S: MmapAsRawDesc>(source: S) -> BakeResult<BakedBibleDat
         });
     }
 
-    let index_trie: Trie<_, _> =
-        oxicode::serde::decode_owned_from_slice(&memory[address..], legacy())?.0;
+    let index_trie_addr = read_address(&memory, address)?;
+    let index_trie: Trie<_, _> = oxicode::serde::decode_serde(&memory[index_trie_addr..])?;
 
     let mut validator = Validator::new(ArchiveValidator::new(&memory), SharedValidator::new());
     for (_, &address) in index_trie.iter::<String, _>() {
