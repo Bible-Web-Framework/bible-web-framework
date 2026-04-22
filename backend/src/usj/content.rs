@@ -270,12 +270,10 @@ impl UsjContent {
 
             UsjContent::Book { content, .. }
             | UsjContent::Figure { content, .. }
-            | UsjContent::Reference { content, .. } => {
-                if index == 0 {
-                    Either::Right(content.as_mut()?)
-                } else {
-                    return None;
-                }
+            | UsjContent::Reference { content, .. }
+                if index == 0 =>
+            {
+                Either::Right(content.as_mut()?)
             }
 
             _ => return None,

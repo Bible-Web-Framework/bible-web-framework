@@ -208,10 +208,7 @@ impl UsjRoot {
                         }
                     })
             })?;
-        loop {
-            let Some(prev_index) = self.prev_para_index(verse_start) else {
-                break;
-            };
+        while let Some(prev_index) = self.prev_para_index(verse_start) {
             if prev_index.1 > 0 || !self.content[prev_index.0].is_title_para() {
                 break;
             }

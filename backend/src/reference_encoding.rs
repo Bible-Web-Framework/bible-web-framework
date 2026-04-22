@@ -5,6 +5,7 @@ use crate::verse_range::VerseRange;
 use itertools::Itertools;
 use lehmer::Lehmer;
 use rustrict::{Censor, Type};
+use std::hint;
 use std::num::NonZeroU8;
 use strum::VariantArray;
 use thiserror::Error;
@@ -86,7 +87,7 @@ pub fn base59_decode(x: &str) -> Result<Carrier, ReferenceEncodingError> {
     for (i, &c) in x.as_bytes().iter().enumerate() {
         let value = BASE59_KEY[c as usize];
         if value == 255 {
-            // TODO: hint::cold_path() when it's stabilized in Rust 1.95.0
+            hint::cold_path();
             return Err(ReferenceEncodingError::InvalidChar(
                 x[i..].chars().next().unwrap(),
             ));
