@@ -17,7 +17,6 @@ const localeModel = computed({
     <NuxtLayout>
       <nav style="display: flex; gap: 10px">
         <NuxtLink to="/">{{ $t('page.home') }}</NuxtLink>
-        <NuxtLink to="/search">{{ $t('page.search') }}</NuxtLink>
         <select v-model="localeModel">
           <option
             v-for="localeOption in locales"

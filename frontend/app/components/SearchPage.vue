@@ -411,201 +411,194 @@ function formatInvalidReference(reference: InvalidReference) {
 </script>
 
 <template>
-  <div>
-    <DevOnly>
-      <span>
-        <button @click="checkForUnimplementedMarkers">
-          Check for unimplemented markers in selected bible
-        </button>
-        <template v-if="scannedBooks !== undefined">
-          Scanned {{ scannedBooks }}/{{ totalBooks }} books
-        </template>
-        <template v-if="currentlyScanning !== undefined">
-          Currently scanning {{ currentlyScanning }}
-        </template>
-      </span>
-    </DevOnly>
+  <DevOnly>
+    <p>
+      <button @click="checkForUnimplementedMarkers">
+        Check for unimplemented markers in selected bible
+      </button>
+      <template v-if="scannedBooks !== undefined">
+        Scanned {{ scannedBooks }}/{{ totalBooks }} books
+      </template>
+      <template v-if="currentlyScanning !== undefined">
+        Currently scanning {{ currentlyScanning }}
+      </template>
+    </p>
+  </DevOnly>
 
-    <h1>{{ $t('page.search') }}</h1>
-
-    <div class="search-area">
-      <input
-        v-model="newQuery"
-        :placeholder="$t('search.searchPlaceholder')"
-        :dir="getAutoTextDir(newQuery)"
-        class="search-box"
-        @keyup.enter="search"
-      />
-      <button class="search-button" @click="search">{{ $t('search.searchButton') }}</button>
-      <select
-        v-model="newBook"
-        :dir="bibleTextDirection"
-        class="book-box"
-        @change="newChapter = null"
-      >
-        <option :value="null">----</option>
-        <template v-if="booksData">
-          <!-- TODO: Make the order here match the book_order field -->
-          <option v-for="(info, book) in booksData.books" :key="book" :value="book">
-            {{ getShortBookName(info.translated_book_info, book) }}
-          </option>
-        </template>
-      </select>
-      <select v-model="newChapter" class="chapter-box" @change="directGo">
-        <option :value="null">--</option>
-        <template v-if="booksData && newBook">
-          <option
-            v-for="chapter in booksData.books[newBook].chapters"
-            :key="chapter.number"
-            :value="chapter.number"
-          >
-            {{ chapter.pub_number ?? chapter.number }}
-          </option>
-        </template>
-      </select>
-      <select v-if="biblesData" v-model="newBible" class="bible-box" @change="changeBible">
-        <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
-          {{ info.display_name ?? id.toLocaleUpperCase(locale) }}
+  <div class="search-area">
+    <input
+      v-model="newQuery"
+      :placeholder="$t('search.searchPlaceholder')"
+      :dir="getAutoTextDir(newQuery)"
+      class="search-box"
+      @keyup.enter="search"
+    />
+    <button class="search-button" @click="search">{{ $t('search.searchButton') }}</button>
+    <select
+      v-model="newBook"
+      :dir="bibleTextDirection"
+      class="book-box"
+      @change="newChapter = null"
+    >
+      <option :value="null">----</option>
+      <template v-if="booksData">
+        <!-- TODO: Make the order here match the book_order field -->
+        <option v-for="(info, book) in booksData.books" :key="book" :value="book">
+          {{ getShortBookName(info.translated_book_info, book) }}
         </option>
-      </select>
-      <span v-else />
-    </div>
+      </template>
+    </select>
+    <select v-model="newChapter" class="chapter-box" @change="directGo">
+      <option :value="null">--</option>
+      <template v-if="booksData && newBook">
+        <option
+          v-for="chapter in booksData.books[newBook].chapters"
+          :key="chapter.number"
+          :value="chapter.number"
+        >
+          {{ chapter.pub_number ?? chapter.number }}
+        </option>
+      </template>
+    </select>
+    <select v-if="biblesData" v-model="newBible" class="bible-box" @change="changeBible">
+      <option v-for="(info, id) in biblesData.bibles" :key="id" :value="id">
+        {{ info.display_name ?? id.toLocaleUpperCase(locale) }}
+      </option>
+    </select>
+    <span v-else />
+  </div>
 
-    <template v-if="query && searchResults?.response_type === 'search_results'">
-      <i18n-t v-if="pageCount > 1" keypath="search.pageSelect" scope="global">
-        <template #page>
-          <select v-model="page">
-            <option v-for="number in pageCount" :key="number" :value="number">
-              {{ $n(number) }}
-            </option>
-          </select>
-        </template>
-        <template #pageSize>
-          <select v-model="resultsPerPage">
-            <option :value="50">{{ $n(50) }}</option>
-            <option :value="100">{{ $n(100) }}</option>
-            <option :value="150">{{ $n(150) }}</option>
-            <option :value="200">{{ $n(200) }}</option>
-            <option :value="250">{{ $n(250) }}</option>
-          </select>
-        </template>
-      </i18n-t>
-    </template>
+  <template v-if="query && searchResults?.response_type === 'search_results'">
+    <i18n-t v-if="pageCount > 1" keypath="search.pageSelect" scope="global">
+      <template #page>
+        <select v-model="page">
+          <option v-for="number in pageCount" :key="number" :value="number">
+            {{ $n(number) }}
+          </option>
+        </select>
+      </template>
+      <template #pageSize>
+        <select v-model="resultsPerPage">
+          <option :value="50">{{ $n(50) }}</option>
+          <option :value="100">{{ $n(100) }}</option>
+          <option :value="150">{{ $n(150) }}</option>
+          <option :value="200">{{ $n(200) }}</option>
+          <option :value="250">{{ $n(250) }}</option>
+        </select>
+      </template>
+    </i18n-t>
+  </template>
 
-    <div v-if="searchResults">
-      <template v-if="searchResults.response_type === 'scripture_passages'">
-        <template
+  <div v-if="searchResults">
+    <template v-if="searchResults.response_type === 'scripture_passages'">
+      <template
+        v-for="(reference, referenceIndex) in searchResults.references"
+        :key="referenceIndex"
+      >
+        <hr v-if="referenceIndex > 0" />
+        <template v-if="'content' in reference">
+          <template v-if="reference.content">
+            <div
+              v-if="
+                isFullChapter(reference.reference) &&
+                (reference.previous_chapter || reference.next_chapter)
+              "
+              class="sided-nav"
+            >
+              <NuxtLink
+                v-if="reference.previous_chapter"
+                :to="{
+                  query: newQueryParamsForSearch(reference.previous_chapter),
+                }"
+                >❮ {{ formatReference(reference.previous_chapter) }}</NuxtLink
+              >
+              <div v-else />
+              <NuxtLink
+                v-if="reference.next_chapter"
+                :to="{
+                  query: newQueryParamsForSearch(reference.next_chapter),
+                }"
+                >{{ formatReference(reference.next_chapter) }} ❯</NuxtLink
+              >
+              <div v-else />
+            </div>
+            <div class="usj-container">
+              <UsjContentsRenderer
+                :contents="reference.content"
+                :text-direction="bibleTextDirection"
+                :generate-search-query="newQueryParamsForSearch"
+              />
+            </div>
+            <div v-if="!isFullChapter(reference.reference)" class="center-nav">
+              <NuxtLink
+                :to="{
+                  query: newQueryParamsForSearch({
+                    book: reference.reference.book,
+                    chapter: reference.reference.chapter,
+                    translated_book_info: null,
+                  }),
+                }"
+                >{{ $t('search.fullChapter') }}</NuxtLink
+              >
+            </div>
+          </template>
+          <p v-else class="error">
+            {{ $t('search.noScripturePassage', [formatReference(reference.reference)]) }}
+          </p>
+        </template>
+        <td v-else class="error">{{ formatInvalidReference(reference) }}</td>
+      </template>
+      <template v-if="searchData?.noteCount">
+        <hr />
+        <div
           v-for="(reference, referenceIndex) in searchResults.references"
           :key="referenceIndex"
+          class="usj-container"
         >
-          <hr v-if="referenceIndex > 0" />
-          <template v-if="'content' in reference">
-            <template v-if="reference.content">
-              <div
-                v-if="
-                  isFullChapter(reference.reference) &&
-                  (reference.previous_chapter || reference.next_chapter)
-                "
-                class="sided-nav"
-              >
+          <NotesRenderer
+            v-if="'content' in reference && reference.content"
+            :contents="reference.content"
+          />
+        </div>
+      </template>
+    </template>
+    <template v-else-if="searchResults.search_term">
+      <h2>
+        {{
+          $t('search.resultsCount', {
+            total: $n(searchResults.total_results),
+            count: searchResults.total_results,
+            term: searchResults.search_term,
+          })
+        }}
+      </h2>
+      <table class="search-table">
+        <tbody>
+          <tr v-for="(reference, referenceIndex) in searchResults.references" :key="referenceIndex">
+            <td v-if="'invalid_reference' in reference" class="error" colspan="2">
+              {{ formatInvalidReference(reference) }}
+            </td>
+            <template v-else>
+              <td>
                 <NuxtLink
-                  v-if="reference.previous_chapter"
                   :to="{
-                    query: newQueryParamsForSearch(reference.previous_chapter),
+                    query: newQueryParamsForSearch(reference.reference),
                   }"
-                  >❮ {{ formatReference(reference.previous_chapter) }}</NuxtLink
+                  >{{ formatReference(reference.reference) }}</NuxtLink
                 >
-                <div v-else />
-                <NuxtLink
-                  v-if="reference.next_chapter"
-                  :to="{
-                    query: newQueryParamsForSearch(reference.next_chapter),
-                  }"
-                  >{{ formatReference(reference.next_chapter) }} ❯</NuxtLink
-                >
-                <div v-else />
-              </div>
-              <div class="usj-container">
+              </td>
+              <td v-if="reference.content" class="usj-container">
                 <UsjContentsRenderer
                   :contents="reference.content"
                   :text-direction="bibleTextDirection"
-                  :generate-search-query="newQueryParamsForSearch"
+                  :highlights="reference.highlights"
+                  :ignore-content="ignoreSearchContent"
                 />
-              </div>
-              <div v-if="!isFullChapter(reference.reference)" class="center-nav">
-                <NuxtLink
-                  :to="{
-                    query: newQueryParamsForSearch({
-                      book: reference.reference.book,
-                      chapter: reference.reference.chapter,
-                      translated_book_info: null,
-                    }),
-                  }"
-                  >{{ $t('search.fullChapter') }}</NuxtLink
-                >
-              </div>
-            </template>
-            <p v-else class="error">
-              {{ $t('search.noScripturePassage', [formatReference(reference.reference)]) }}
-            </p>
-          </template>
-          <td v-else class="error">{{ formatInvalidReference(reference) }}</td>
-        </template>
-        <template v-if="searchData?.noteCount">
-          <hr />
-          <div
-            v-for="(reference, referenceIndex) in searchResults.references"
-            :key="referenceIndex"
-            class="usj-container"
-          >
-            <NotesRenderer
-              v-if="'content' in reference && reference.content"
-              :contents="reference.content"
-            />
-          </div>
-        </template>
-      </template>
-      <template v-else-if="searchResults.search_term">
-        <h2>
-          {{
-            $t('search.resultsCount', {
-              total: $n(searchResults.total_results),
-              count: searchResults.total_results,
-              term: searchResults.search_term,
-            })
-          }}
-        </h2>
-        <table class="search-table">
-          <tbody>
-            <tr
-              v-for="(reference, referenceIndex) in searchResults.references"
-              :key="referenceIndex"
-            >
-              <td v-if="'invalid_reference' in reference" class="error" colspan="2">
-                {{ formatInvalidReference(reference) }}
               </td>
-              <template v-else>
-                <td>
-                  <NuxtLink
-                    :to="{
-                      query: newQueryParamsForSearch(reference.reference),
-                    }"
-                    >{{ formatReference(reference.reference) }}</NuxtLink
-                  >
-                </td>
-                <td v-if="reference.content" class="usj-container">
-                  <UsjContentsRenderer
-                    :contents="reference.content"
-                    :text-direction="bibleTextDirection"
-                    :highlights="reference.highlights"
-                    :ignore-content="ignoreSearchContent"
-                  />
-                </td>
-              </template>
-            </tr>
-          </tbody>
-        </table>
-      </template>
-    </div>
+            </template>
+          </tr>
+        </tbody>
+      </table>
+    </template>
   </div>
 </template>

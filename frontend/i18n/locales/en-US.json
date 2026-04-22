@@ -1,7 +1,6 @@
 {
     "page": {
-        "home": "Home",
-        "search": "Search"
+        "home": "Home"
     },
     "search": {
         "searchPlaceholder": "Enter search term",
