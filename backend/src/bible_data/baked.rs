@@ -443,6 +443,9 @@ impl BakedBookData {
         chapter: NonZeroU8,
         verse_range: VerseRange,
     ) -> Option<(ParaIndex, Vec<UsjContent>)> {
+        if chapter.get() == 3 && verse_range.first_u8() == 10 {
+            print!("");
+        }
         let (base_address, base_index) = (*self
             .chapter_address_indices
             .get(chapter.get() as usize - 1)?)?;
@@ -453,7 +456,7 @@ impl BakedBookData {
                 match self.chapter_address_indices.get(index) {
                     Some(Some((address, index))) => break (address.get(), *index),
                     Some(None) => index += 1,
-                    None => break (self.usj_address_range.end, index),
+                    None => break (self.usj_address_range.end, self.usj_len),
                 }
             }
         };
