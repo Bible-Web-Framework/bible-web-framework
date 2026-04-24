@@ -160,6 +160,7 @@ fn search_for_terms(
 ) -> (usize, Vec<SearchResponseResult>) {
     let mut result: BTreeMap<_, Vec<_>> = BTreeMap::new();
     let mut reference_counts: HashMap<_, u32> = HashMap::new();
+    let mut found_references_for_term = HashSet::new();
 
     let mut counted_terms = 0u32;
     for term in terms.tokenize() {
@@ -167,12 +168,15 @@ fn search_for_terms(
             continue;
         };
         counted_terms += 1;
+        found_references_for_term.clear();
         for (reference, text_location) in single_result {
             result
                 .entry(reference)
                 .or_default()
                 .push(text_location.clone());
-            *reference_counts.entry(reference).or_default() += 1;
+            if found_references_for_term.insert(reference) {
+                *reference_counts.entry(reference).or_default() += 1;
+            }
         }
     }
 
