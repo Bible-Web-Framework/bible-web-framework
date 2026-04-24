@@ -9,6 +9,7 @@ use const_format::str_repeat;
 use itertools::Itertools;
 use notify_debouncer_full::DebounceEventResult;
 use notify_debouncer_full::notify::RecursiveMode;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sqlx::migrate::MigrateDatabase;
 use std::any::Any;
 use std::borrow::Cow;
@@ -143,11 +144,18 @@ async fn real_main() -> Result<(), ServerError> {
                 fs::create_dir_all(&bake_dir)?;
 
                 let start_time = Instant::now();
-                for (id, bible) in bible_data.bibles {
-                    tracing::info!("Baking bible {id}");
-                    let writer = BufWriter::new(File::create(bake_dir.join(format!("{id}.dat")))?);
-                    bake_bible(&bible, writer)?;
-                }
+                bible_data
+                    .bibles
+                    .into_par_iter()
+                    .map(|(id, bible)| {
+                        let start = Instant::now();
+                        let writer =
+                            BufWriter::new(File::create(bake_dir.join(format!("{id}.dat")))?);
+                        bake_bible(&bible, writer)?;
+                        tracing::info!("Baked {id} in {:?}", start.elapsed());
+                        Ok(())
+                    })
+                    .collect::<Result<(), ServerError>>()?;
                 tracing::info!("Baked bibles in {:?}", start_time.elapsed());
                 return Ok(());
             }

@@ -27,7 +27,7 @@ use rkyv::util::with_arena;
 use rkyv::validation::Validator;
 use rkyv::validation::archive::ArchiveValidator;
 use rkyv::validation::shared::SharedValidator;
-use rkyv::{Deserialize as RkyvDeserialize, Portable, rancor};
+use rkyv::{Deserialize as RkyvDeserialize, rancor};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::borrow::Cow;
@@ -132,7 +132,6 @@ pub fn bake_bible<W: Write + Seek>(bible: &ExpandedBibleData, mut output: W) -> 
         Ok(())
     })?;
 
-    static_assertions::assert_impl_all!(ArchivedIndexedWord: Portable);
     let index = bible.index.read();
     let mut symbols = vec![];
     let mut interner_trie = {
