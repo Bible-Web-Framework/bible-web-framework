@@ -14,7 +14,7 @@
         "text-dir": "node generateTextDir.ts"
     },
     "dependencies": {
-        "@nuxtjs/i18n": "10.2.4",
+        "@nuxtjs/i18n": "10.3.0",
         "array-equal": "^2.0.0",
         "nuxt": "^4.4.2",
         "ts-pattern": "^5.9.0",
