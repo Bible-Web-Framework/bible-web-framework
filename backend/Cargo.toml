@@ -36,7 +36,7 @@ parking_lot = "0.12.5"
 permutate = "0.3.2"
 phf = { version = "0.13.1", features = ["unicase", "macros"] }
 rangemap = { version = "1.7.1", features = ["serde1"] }
-rayon = "1.11.0"
+rayon = "1.12.0"
 rkyv = { version = "0.8.15", features = ["tinyvec-1"] }
 rustrict = "0.7.38"
 serde = { version = "1.0.228", features = ["derive"] }
