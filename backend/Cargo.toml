@@ -14,7 +14,7 @@ actix-web = "4.13.0"
 actix-web-validator = "7.0.0"
 bimap = "0.6.3"
 charabia = "0.9.9"
-const-hex = "1.18.1"
+const-hex = "1.19.0"
 const_format = "0.2.36"
 dashmap = { version = "6.1.0", features = ["rayon"] }
 dotenvy = "0.15.7"
